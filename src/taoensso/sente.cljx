@@ -176,12 +176,12 @@
 (comment (time (dotimes [_ 50000] (ch-pull-ajax-hk-chs! (atom [nil {}]) 10))))
 
 #+clj
-(defn channel-socket!
+(defn make-channel-socket!
   "Returns `{:keys [ch-recv send-fn ajax-post-fn ajax-get-or-ws-handshake-fn]}`.
 
   ch-recv - core.async channel ; For server-side chsk request router, will
                                ; receive `event-msg`s from clients.
-  send-fn - (fn [logged-in-user-id ev]) ; For server>clientS push
+  send-fn - (fn [user-id ev])   ; For server>clientS push
   ajax-post-fn                - (fn [ring-req]) ; For Ring POST, chsk URL
   ajax-get-or-ws-handshake-fn - (fn [ring-req]) ; For Ring GET, chsk URL (+CSRF)"
   [& [{:keys [recv-buf-or-n]
@@ -474,7 +474,7 @@
 
 #+cljs
 (defrecord ChAjaxSocket [url chs open? ajax-client-uuid
-                         csrf-token logged-in?]
+                         csrf-token has-uid?]
   IChSocket
   (chsk-type  [_] :ajax)
   (chsk-open? [chsk] @open?)
@@ -519,7 +519,7 @@
     ;; there's no point in creating an Ajax poller if we're not logged in since
     ;; there'd be no way for the server to identify us when sending non-request
     ;; messages.
-    (if-not logged-in?
+    (if-not has-uid?
       (reset-chsk-state! chsk true) ; Must still mark as open to enable sends
       ((fn async-poll-for-update! [& [new-conn?]]
          (let [ajax-req! ; Just for Pace wrapping below
@@ -559,7 +559,7 @@
          "//" host (or path pathname))))
 
 #+cljs
-(defn channel-socket!
+(defn make-channel-socket!
   "Returns `{:keys [chsk ch-recv send-fn]}` for a new ChWebSocket or ChAjaxSocket that
   provides an ISocket interface:
   * An efficient, convenient, high-performance client/server message API.
@@ -569,7 +569,7 @@
 
   Note that the *same* URL is used for: WebSockets, POSTs, GETs. Server-side
   routes should be configured accordingly."
-  [url {:keys [csrf-token logged-in?]}
+  [url {:keys [csrf-token has-uid?]}
    & [{:keys [type recv-buf-or-n ws-kalive-ms lp-timeout]
        :or   {type          :auto
               recv-buf-or-n (async/sliding-buffer 10)
