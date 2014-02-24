@@ -61,14 +61,12 @@
   #+cljs
   (:require [cljs.core.async :as async :refer (<! >! put! chan)]
             [cljs.reader     :as edn]
-            [jayq.core       :as jq]
             [taoensso.encore :as encore])
 
   #+cljs
   (:require-macros [cljs.core.async.macros :as asyncm :refer (go go-loop)]))
 
 ;;;; TODO
-;; * Drop jq dependency.
 ;; * Docs, examples, README, testing (esp. new Ajax stuff).
 ;; * No need/desire for a send buffer, right? Would seem to violate user
 ;;   expectations (either works now or doesn't, not maybe works later).
@@ -487,31 +485,29 @@
         (do (warnf "Chsk send against closed chsk.")
             (when ?cb-fn (?cb-fn :chsk/closed)))
         (do
-          (jq/ajax
-           {:type :post :url url :dataType :text :timeout ?timeout-ms
-            :cache false
-            ;; :contentType "application/edn; charset=utf-8" ; Unnecessary
-            :data
+          (encore/ajax-lite ; url
+           (str url "?_=" (encore/now-udt)) ; Force uncached resp
+           {:method :post :timeout ?timeout-ms
+            :params
             (let [dummy-cb? (not ?cb-fn)
                   msg       (if-not dummy-cb? ev {:chsk/clj       ev
                                                   :chsk/dummy-cb? true})
                   edn       (pr-str msg)]
-              {:edn edn :csrf-token csrf-token})
+              {:edn edn :csrf-token csrf-token})}
 
-            :success
-            (fn [resp-edn]
-              (let [resp-clj (edn/read-string resp-edn)]
-                (if ?cb-fn (?cb-fn resp-clj)
-                    (when (not= resp-clj :chsk/dummy-200)
-                      (warnf "Cb reply w/o local cb-fn: %s" resp-clj)))
-                (reset-chsk-state! chsk true)))
+           (fn ajax-cb [{:keys [content error]}]
+             (if error
+               (if (#{:timeout :xhr-pool-depleted} error)
+                 (when ?cb-fn (?cb-fn :chsk/timeout))
+                 (do (reset-chsk-state! chsk false)
+                     (when ?cb-fn (?cb-fn :chsk/error))))
 
-            :error
-            (fn [xhr text-status error]
-              (if (= text-status "timeout")
-                (when ?cb-fn (?cb-fn :chsk/timeout))
-                (do (reset-chsk-state! chsk false)
-                    (when ?cb-fn (?cb-fn :chsk/error)))))})
+               (let [resp-edn content
+                     resp-clj (edn/read-string resp-edn)]
+                 (if ?cb-fn (?cb-fn resp-clj)
+                   (when (not= resp-clj :chsk/dummy-200)
+                     (warnf "Cb reply w/o local cb-fn: %s" resp-clj)))
+                 (reset-chsk-state! chsk true)))))
 
           :apparent-success))))
 
@@ -525,24 +521,24 @@
       ((fn async-poll-for-update! [& [new-conn?]]
          (let [ajax-req! ; Just for Pace wrapping below
                (fn []
-                 (jq/ajax
-                  {:type :get :url url :dataType :text :timeout timeout
-                   :data {:ajax-client-uuid ajax-client-uuid}
-                   :cache false
-                   :success
-                   (fn [edn]
-                     (let [ev (edn/read-string edn)]
-                       ;; The Ajax long-poller is used only for events, never cbs:
-                       (assert-event ev)
-                       (put! (:recv chs) ev)
-                       (reset-chsk-state! chsk true)
-                       (async-poll-for-update!)))
-                   :error
-                   (fn [xhr text-status error]
-                     (if (= text-status "timeout")
-                       (async-poll-for-update!)
-                       (do (reset-chsk-state! chsk false)
-                           (async-poll-for-update! :new-conn))))}))]
+                 (encore/ajax-lite url
+                  {:method :get :timeout timeout
+                   :params {:_ (encore/now-udt) ; Force uncached resp
+                            :ajax-client-uuid ajax-client-uuid}}
+                  (fn ajax-cb [{:keys [content error]}]
+                    (if error
+                      (if (#{:timeout :xhr-pool-depleted} error)
+                        (async-poll-for-update!)
+                        (do (reset-chsk-state! chsk false)
+                            (async-poll-for-update! :new-conn)))
+
+                      (let [edn content
+                            ev  (edn/read-string edn)]
+                        ;; The Ajax long-poller is used only for events, never cbs:
+                        (assert-event ev)
+                        (put! (:recv chs) ev)
+                        (reset-chsk-state! chsk true)
+                        (async-poll-for-update!))))))]
 
            (if-let [pace (.-Pace js/window)]
              (.ignore pace ajax-req!) ; Pace.js shouldn't trigger for long-polling

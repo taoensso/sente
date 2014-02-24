@@ -16,8 +16,7 @@
    [org.clojure/tools.reader  "0.8.3"]
    [com.taoensso/encore       "0.9.0"]
    [com.taoensso/timbre       "3.1.0"]
-   [http-kit                  "2.1.17"]
-   [jayq                      "2.5.0"]]
+   [http-kit                  "2.1.17"]]
 
   :cljsbuild {:builds []}
   :test-paths ["test" "src"]
