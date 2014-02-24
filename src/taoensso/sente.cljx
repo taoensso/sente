@@ -342,7 +342,7 @@
 #+cljs
 (defn- wrap-clj->edn-msg-with-?cb "clj -> [edn ?cb-uuid]"
   [cbs-waiting clj ?timeout-ms ?cb-fn]
-  (let [?cb-uuid (when ?cb-fn (str (encore/uuid-str)))
+  (let [?cb-uuid (when ?cb-fn (encore/uuid-str))
         msg      (if-not ?cb-uuid clj {:chsk/clj clj :chsk/cb-uuid ?cb-uuid})
         ;; Note that if pr-str throws, it'll throw before swap!ing cbs-waiting:
         edn     (pr-str msg)]
@@ -614,3 +614,26 @@
          (->> (:state chs) (async/map< (fn [clj] [:chsk/state [(state* clj) type*]])))
          (->> (:recv  chs) (async/map< (fn [clj] [:chsk/recv  clj])))])
        :send-fn (partial chsk-send! chsk)})))
+
+;;;; Routers
+
+#+clj
+(defn start-chsk-router-loop! [event-msg-handler ch]
+  (go-loop []
+    (try
+      (let [event-msg (<! ch)]
+        (try
+          (timbre/tracef "Event-msg: %s" event-msg)
+          (event-msg-handler event-msg ch)
+          (catch Throwable t
+            (timbre/errorf t "Chsk-router-loop handling error: %s" event-msg))))
+      (catch Throwable t
+        (timbre/errorf t "Chsk-router-loop channel error!")))
+    (recur)))
+
+#+cljs
+(defn start-chsk-router-loop! [event-handler ch]
+  (go-loop []
+    (let [[id data :as event] (<! ch)]
+      (event-handler event ch) ; Allow errors to throw
+      (recur))))

@@ -1,39 +1,39 @@
 **[API docs][]** | **[CHANGELOG][]** | [other Clojure libs][] | [Twitter][] | [contact/contributing](#contact--contributing) | current ([semantic][]) version:
 
 ```clojure
-[com.taoensso/sente "8.0.0-SNAPSHOT"] ; Experimental
+[com.taoensso/sente "0.8.0-SNAPSHOT"] ; Experimental
 ```
 
 # Sente, channel sockets for Clojure
 
 > **Sen-te** (先手) is a Japanese [Go][] term used to describe a play with such an overwhelming follow-up that it forces an immediate response, thus leaving its player with the initiative.
 
-**Sente** is small client+server library for **robust, high-performance Clojure realtime web applications**.
+**Sente** is small client+server library that makes it easy to build **reliable, high-performance realtime web applications with Clojure**.
 
 Or: **The missing piece in Clojure's web application story**  
 Or: **We don't need no Socket.IO**  
 Or: **Clojure(Script) + core.async + WebSockets/Ajax = _The Shiz_**
 
 ## What's in the box™?
-  * **Fully bidirectional a/sync comms** over both **WebSockets** and **Ajax**.
+  * **Bidirectional a/sync comms** over both **WebSockets** and **Ajax** (auto-selecting).
   * **Robust**: auto keep-alives, buffering, mode fallback, reconnects. **It just works™**.
-  * Lean, flexible **[edn][]-based messaging protocol**. No json here.
-  * **Trivial client+server side APIs**: a constructor and a single send fn.
+  * [edn][] rocks. So **send edn, get edn**: no json here.
+  * **Tiny, simple API**: `make-channel-socket!` and you're good to go.
   * Automatic, sensible support for users connected with **multiple clients** and/or devices simultaneously.
+  * **Flexible model**: use it anywhere you'd use WebSockets or Ajax.
   * **Fully documented, with examples** (more forthcoming).
-  * **Less than 500 lines of code** for the entire client+server implementation.
-  * **Flexible model**: works great with all kinds of app architectures + easy to migrate to for existing codebases.
-  * **Supported servers**: currently **only [http-kit][]**. [PRs welcome](https://github.com/ptaoussanis/sente/issues/2) to add support for additional servers!
+  * Small: **less than 500 lines of code** for the entire client+server implementation.
+  * **Supported servers**: currently only [http-kit][], but easily extended. [PRs welcome](https://github.com/ptaoussanis/sente/issues/2) to add support for additional servers!
 
 
 ### Capabilities
 
-Underlying protocol | client>server | client>server + ack/reply | server>clientS push |
+Protocol            | client>server | client>server + ack/reply | server>clientS push |
 ------------------- | ------------- | ------------------------- | ------------------- |
 WebSockets          | ✓ (native)    | ✓ (emulated)              | ✓ (native)          |
 Ajax                | ✓ (emulated)  | ✓ (native)                | ✓ (emulated)        |
 
-So the underlying protocol becomes irrelevant. Library consumers face a unified API that exposes the best of both WebSockets (bidirectionality + performance) and Ajax (optional evented ack/reply model).
+So the underlying protocol's irrelevant. Sente gives you a unified API that exposes the best of both WebSockets (bidirectionality + performance) and Ajax (optional evented ack/reply model).
 
 
 ## Getting started
@@ -41,20 +41,20 @@ So the underlying protocol becomes irrelevant. Library consumers face a unified 
 Add the necessary dependency to your [Leiningen][] `project.clj`. This'll provide your project with both the client (ClojureScript) + server (Clojure) side library code:
 
 ```clojure
-[com.taoensso/sente "8.0.0-SNAPSHOT"]
+[com.taoensso/sente "0.8.0-SNAPSHOT"]
 ```
 
 ### On the server (Clojure) side
 
 First, make sure you're using [http-kit][] as your Clojure web server. If you're using the standard Ring server (Jetty), http-kit is [almost](http://http-kit.org/migration.html) a drop-in replacement. The examples here will also use [core.match](https://github.com/clojure/core.match).
 
-> **Why http-kit**? Besides being a great web server, it currently offers by far the best support for high connection concurrency which is something Sente needs to lean on for WebSocket and long-polling connections.
+> **Why http-kit**? Besides being a great web server, it currently offers by far the best high-concurrency support which is something Sente needs to lean on for WebSocket and long-polling connections.
 
 Somewhere in your web app's code you'll already have a routing mechanism in place for handling Ring requests by request URL. If you're using [Compojure](https://github.com/weavejester/compojure) for example, you'll have something that looks like this:
 
 ```clojure
 (defroutes my-app
-  (GET  "/"            req (my-landing-pg-handler req))
+  (GET  "/"            req (my-landing-pg-handler  req))
   (POST "/submit-form" req (my-form-submit-handler req)))
 ```
 
@@ -87,7 +87,7 @@ For Sente, we're going to add 2 new URLs and setup their handlers:
   )
 ```
 
-> The `ring-ajax-post` and `ring-ajax-get-or-ws-handshake` fns will automatically handle Ring GET and POST requests to our channel socket URL (`"/chsk"`). Together these take care of the messy details of establishing + maintaining WebSocket or long-polling requests. You can safely ignore them as an implementation detail.
+> The `ring-ajax-post` and `ring-ajax-get-or-ws-handshake` fns will automatically handle Ring GET and POST requests to our channel socket URL (`"/chsk"`). Together these take care of the messy details of establishing + maintaining WebSocket or long-polling requests.
 
 ### On the client (ClojureScript) side
 
@@ -108,11 +108,7 @@ You'll setup something similar on the client side:
 ;;; Add this: --->
 (let [{:keys [chsk ch-recv send-fn]}
       (chsks/make-channel-socket! "/chsk" ; Note the same URL as before
-       {:csrf-token "foo" ; Pull this from page, etc.
-        :has-uid? true    ; Is user logged in? (=> May hold a lp connection)
-       }
-       {:type :auto ; e/o #{:auto :ajax :ws}
-        })]
+       {} {:type :auto ; e/o #{:auto :ajax :ws}})]
   (def chsk       chsk)
   (def ch-chsk    ch-recv)
   (def chsk-send! send-fn))
@@ -120,7 +116,7 @@ You'll setup something similar on the client side:
 
 ### Now what?
 
-You're good to go! The client will automatically initiate a WebSocket or long-polling connection to your server.
+You're good to go! The client will automatically initiate a WebSocket or repeating long-polling connection to your server.
 
 #### Client-side API
 
@@ -157,23 +153,8 @@ Term          | Form                                                            
 ```clojure
 ;;;; Server-side (.clj), in `my-server-side-routing-ns` ------------------------
 
-(declare handle-event-msg!)
-
-(defn- start-chsk-router-loop! []
-  (go-loop []
-    (try
-      (let [event-msg (<! ch-chsk)]
-        (try
-          (timbre/tracef "Event-msg: %s" event-msg)
-          (handle-event-msg! event-msg)
-          (catch Throwable t
-            (timbre/errorf t "Chsk-router-loop handling error: %s" event-msg))))
-      (catch Throwable t
-        (timbre/errorf t "Chsk-router-loop channel error!")))
-    (recur)))
-
-(defn- handle-event-msg! "Event-msg router."
-  [{:as ev-msg :keys [ring-req event ?reply-fn]}]
+(defn- event-msg-handler
+  [{:as ev-msg :keys [ring-req event ?reply-fn]} _]
   (let [session (:session ring-req)
         uid     (:uid session)
         [id data :as ev] event]
@@ -182,7 +163,7 @@ Term          | Form                                                            
     (match [id data]
 
      [:foo/bar _] ; Events matching [:foo/bar <anything>] shape
-     (do ; Do some work...
+     (do (do-some-work!)
          (?reply-fn (str "Echo: " event))) ; Reply with a string
 
      [:my-app/request-fruit fruit-name]
@@ -194,31 +175,18 @@ Term          | Form                                                            
          (when-not (:dummy-reply-fn (meta ?reply-fn)) ; not `reply!`
            (?reply-fn (format "Unmatched event, echo: %s" ev)))))))
 
-(start-chsk-router-loop!)
+(sente/start-chsk-router-loop! event-msg-handler ch-chsk)
 ```
 
 ```clojure
 ;;;; Client-side (.cljs), in `my-client-side-ns` -------------------------------
 
-(declare bind-ch-ui! handle-event!)
-
-(defn- start-app-event-loop! []
-  (let [ch-chsk      ch-chsk ; Chsk events (incl. async events <server)
-        ch-ui        (chan)  ; Channel for UI events, etc.
-        ch-merged    (async/merge [ch-chsk ch-ui])]
-
-    (go-loop [] (let [[id data :as event] (<! ch-merged)]
-                  ;; Throw on errors
-                  (handle-event! event ch-internal)
-                  (recur)))))
-
-(defn- handle-event! "Event router."
-  [[id data :as ev] ch-in]
+(defn- event-handler [[id data :as ev] _]
   (logf "<! %s" id)
   (match [id data]
 
    ;; An event from `ch-ui` that our UI has generated:
-   [:on.keypress/div#msg-input _] (do-something! data)
+   [:on.keypress/div#msg-input _] (do-something!)
 
    ;; A channel socket event pushed from our server:
    [:chsk/recv [:my-app/alert-from-server payload]]
@@ -230,6 +198,11 @@ Term          | Form                                                            
    [:chsk/state new-state] (logf "Chsk state change: %s" new-state)
    [:chsk/recv  payload]   (logf "From server: %s"       payload)
    :else (logf "Unmatched <!: %s" id)))
+
+(let [ch-chsk   ch-chsk ; Chsk events (incl. async events from server)
+      ch-ui     (chan)  ; Channel for UI events, etc.
+      ch-merged (async/merge [ch-chsk ch-ui])]
+ (sente/start-chsk-router-loop! event-handler ch-merged))
 ```
 
 ### FAQ
@@ -246,7 +219,7 @@ Sente's channel sockets are a **full replacement for both traditional WebSockets
 
 #### Any disadvantages?
 
-The implementation is relatively immature. There's not currently any known security holes, but I wouldn't rule out big or small bugs in the short term.
+I've been using something similar to Sente in production for several months, but this particular public implementation is relatively immature. There aren't currently any known security holes, but I wouldn't rule out big or small bugs in the short term.
 
 #### What is the `user-id` used by the server-side `chsk-send!` fn?
 
@@ -264,6 +237,10 @@ This is something your login procedure must handle. **Sente assumes logged-in us
 Sorry, just haven't had the time (yet)! Am currently in the process of launching a couple products and only released Sente now to de-stress and take a couple days off work. It was a case of releasing what I could put together in a weekend, or not releasing anything. **PR's are very welcome for any improvements, incl. to documentation+examples**!
 
 If you have a question you might also want to take a look at the source code which is short + quite approachable. Otherwise feel free to open an issue and I'll try reply ASAP.
+
+#### Will Sente work with [React](http://facebook.github.io/react/)/[Reagent](https://github.com/holmsand/reagent)/[Om](https://github.com/swannodette/om)/etc.?
+
+Yup. Sente's just a client<->server message mechanism, it's completely unopinionated about the shape or architecture of your application.
 
 
 ## This project supports the CDS and ![ClojureWerkz](https://raw.github.com/clojurewerkz/clojurewerkz.org/master/assets/images/logos/clojurewerkz_long_h_50.png) goals
