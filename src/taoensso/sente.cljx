@@ -152,7 +152,7 @@
               n      0]
       (if (= n 3) ; Try three times, always
 
-        ;; Put set of unique-client hk-chs, or nil:
+        ;; >! set of unique-client hk-chs, or nil:
         (if (empty? pulled)
           (async/close! ch)
           (>! ch (set (vals pulled))))
@@ -265,9 +265,8 @@
                (swap! clients-ajax (fn [[_ m]]
                                      [nil (assoc-in m [uid client-uuid] hk-ch)]))
 
-               ;; Currently counting on `on-close` _always_ triggering for
-               ;; every connection. If that's not the case, will need some kind
-               ;; of manual gc.
+               ;; Currently relying on `on-close` to _always_ trigger for every
+               ;; connection. If that's not the case, will need some kind of gc.
                (http-kit/on-close hk-ch
                  (fn [status]
                    (swap! clients-ajax
@@ -281,7 +280,7 @@
 
              (do
                (timbre/tracef "New WebSocket channel: %s %s"
-                 (or uid "(no uid)") (str hk-ch))
+                 (or uid "(no uid)") (str hk-ch)) ; _Must_ call `str` on ch
                (when uid
                  (swap! clients-ws (fn [m] (assoc m uid (conj (m uid #{}) hk-ch))))
                  (receive-event-msg!* [:chsk/uidport-open :ws]))
@@ -322,8 +321,8 @@
 #+cljs
 (defn- assert-send-args [x ?timeout-ms ?cb]
   (assert-event x)
-  (assert (or (and (nil?     ?timeout-ms) (nil? ?cb))
-              (and (integer? ?timeout-ms) (>= ?timeout-ms 0)))
+  (assert (or (and (nil? ?timeout-ms) (nil? ?cb))
+              (and (encore/nneg-int? ?timeout-ms)))
           (encore/format
            "cb requires a timeout; timeout-ms should be a +ive integer: %s"
            ?timeout-ms))
@@ -342,7 +341,7 @@
 #+cljs
 (defn- wrap-clj->edn-msg-with-?cb "clj -> [edn ?cb-uuid]"
   [cbs-waiting clj ?timeout-ms ?cb-fn]
-  (let [?cb-uuid (when ?cb-fn (str (encore/uuid-str)))
+  (let [?cb-uuid (when ?cb-fn (encore/uuid-str))
         msg      (if-not ?cb-uuid clj {:chsk/clj clj :chsk/cb-uuid ?cb-uuid})
         ;; Note that if pr-str throws, it'll throw before swap!ing cbs-waiting:
         edn     (pr-str msg)]
@@ -614,3 +613,27 @@
          (->> (:state chs) (async/map< (fn [clj] [:chsk/state [(state* clj) type*]])))
          (->> (:recv  chs) (async/map< (fn [clj] [:chsk/recv  clj])))])
        :send-fn (partial chsk-send! chsk)})))
+
+;;;; Routers
+
+#+clj
+(defn start-chsk-router-loop! [event-msg-handler ch]
+  (go-loop []
+    (try
+      (let [event-msg (<! ch)]
+        (try
+          (timbre/tracef "Event-msg: %s" event-msg)
+          (event-msg-handler event-msg ch)
+          (catch Throwable t
+            (timbre/errorf t "Chsk-router-loop handling error: %s" event-msg))))
+      (catch Throwable t
+        (timbre/errorf t "Chsk-router-loop channel error!")))
+    (recur)))
+
+#+cljs
+(defn start-chsk-router-loop! [event-handler ch]
+  (go-loop []
+    (let [[id data :as event] (<! ch)]
+      ;; Provide ch to handler to allow event injection back into loop:
+      (event-handler event ch) ; Allow errors to throw
+      (recur))))
