@@ -1,7 +1,7 @@
 **[API docs][]** | **[CHANGELOG][]** | [other Clojure libs][] | [Twitter][] | [contact/contributing](#contact--contributing) | current ([semantic][]) version:
 
 ```clojure
-[com.taoensso/sente "8.0.0-SNAPSHOT"] ; Experimental
+[com.taoensso/sente "0.8.0-SNAPSHOT"] ; Experimental
 ```
 
 # Sente, channel sockets for Clojure
@@ -41,7 +41,7 @@ So the underlying protocol becomes irrelevant. Library consumers face a unified 
 Add the necessary dependency to your [Leiningen][] `project.clj`. This'll provide your project with both the client (ClojureScript) + server (Clojure) side library code:
 
 ```clojure
-[com.taoensso/sente "8.0.0-SNAPSHOT"]
+[com.taoensso/sente "0.8.0-SNAPSHOT"]
 ```
 
 ### On the server (Clojure) side
