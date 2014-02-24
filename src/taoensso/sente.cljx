@@ -51,7 +51,8 @@
   {:author "Peter Taoussanis"}
 
   #+clj
-  (:require [clojure.core.async :as async :refer (<! <!! >! >!! put! chan
+  (:require [clojure.string :as str]
+            [clojure.core.async :as async :refer (<! <!! >! >!! put! chan
                                                      go go-loop)]
             [clojure.tools.reader.edn :as edn]
             [org.httpkit.server       :as http-kit]
@@ -59,7 +60,8 @@
             [taoensso.timbre          :as timbre])
 
   #+cljs
-  (:require [cljs.core.async :as async :refer (<! >! put! chan)]
+  (:require [clojure.string :as str]
+            [cljs.core.async :as async :refer (<! >! put! chan)]
             [cljs.reader     :as edn]
             [taoensso.encore :as encore])
 
@@ -368,7 +370,7 @@
   (when (not= @open? now-open?)
     (reset! open? now-open?)
     (let [new-state (if now-open? :open :closed)]
-      ;; (debugf "Chsk state change: %s" new-state)
+      ;; (encore/debugf "Chsk state change: %s" new-state)
       (put! (:state chs) new-state)
       new-state)))
 
@@ -392,11 +394,11 @@
   (chsk-open? [_] @open?)
   (chsk-send! [chsk ev] (chsk-send! chsk ev nil nil))
   (chsk-send! [chsk ev ?timeout-ms ?cb]
-    ;; (debugf "Chsk send: (%s) %s" (if ?cb "cb" "no cb") ev)
+    ;; (encore/debugf "Chsk send: (%s) %s" (if ?cb "cb" "no cb") ev)
     (assert-send-args ev ?timeout-ms ?cb)
     (let [?cb-fn (wrap-cb-chan-as-fn ?cb ev)]
       (if-not @open? ; Definitely closed
-        (do (warnf "Chsk send against closed chsk.")
+        (do (encore/warnf "Chsk send against closed chsk.")
             (when ?cb-fn (?cb-fn :chsk/closed)))
         (let [[edn ?cb-uuid] (wrap-clj->edn-msg-with-?cb
                               cbs-waiting ev ?timeout-ms ?cb-fn)]
@@ -405,7 +407,7 @@
             (reset! kalive-due? false)
             :apparent-success
             (catch js/Error e
-              (errorf "Chsk send %s" e)
+              (encore/errorf "Chsk send %s" e)
               (when ?cb-uuid
                 (let [cb-fn* (or (pull-unused-cb-fn! cbs-waiting ?cb-uuid)
                                  ?cb-fn)]
@@ -418,11 +420,12 @@
       ((fn connect! [attempt]
          (if-let [socket (try (WebSocket. url)
                               (catch js/Error e
-                                (errorf "WebSocket js/Error: %s" e)
+                                (encore/errorf "WebSocket js/Error: %s" e)
                                 false))]
            (->>
             (doto socket
-              (aset "onerror" (fn [ws-ev] (errorf "WebSocket error: %s" ws-ev)))
+              (aset "onerror" (fn [ws-ev]
+                                (encore/errorf "WebSocket error: %s" ws-ev)))
               (aset "onmessage"
                 (fn [ws-ev]
                   (let [edn (.-data ws-ev)
@@ -435,7 +438,7 @@
                       (if ?cb-uuid
                         (if-let [cb-fn (pull-unused-cb-fn! cbs-waiting ?cb-uuid)]
                           (cb-fn clj)
-                          (warnf "Cb reply w/o local cb-fn: %s" clj))
+                          (encore/warnf "Cb reply w/o local cb-fn: %s" clj))
                         (let [_ (assert-event clj)
                               chsk-ev clj]
                           (put! (:recv chs) chsk-ev)))))))
@@ -458,7 +461,7 @@
                         attempt       (if state-change? 0 (inc attempt))]
                     (.clearInterval js/window @kalive-timer)
                     (when (> attempt 0)
-                      (warnf "WebSocket closed. Will retry after backoff (attempt %s)."
+                      (encore/warnf "WebSocket closed. Will retry after backoff (attempt %s)."
                             attempt))
                     (encore/set-exp-backoff-timeout! (partial connect! attempt)
                                                      attempt)))))
@@ -477,12 +480,12 @@
   (chsk-open? [chsk] @open?)
   (chsk-send! [chsk ev] (chsk-send! chsk ev nil nil))
   (chsk-send! [chsk ev ?timeout-ms ?cb]
-    ;; (debugf "Chsk send: (%s) %s" (if ?cb "cb" "no cb") ev)
+    ;; (encore/debugf "Chsk send: (%s) %s" (if ?cb "cb" "no cb") ev)
     (assert-send-args ev ?timeout-ms ?cb)
     (let [?cb-fn (wrap-cb-chan-as-fn ?cb ev)]
       (if-not (or @open? (= ev [:chsk/handshake :ajax]))
         ;; Definitely closed
-        (do (warnf "Chsk send against closed chsk.")
+        (do (encore/warnf "Chsk send against closed chsk.")
             (when ?cb-fn (?cb-fn :chsk/closed)))
         (do
           (encore/ajax-lite ; url
@@ -506,7 +509,7 @@
                      resp-clj (edn/read-string resp-edn)]
                  (if ?cb-fn (?cb-fn resp-clj)
                    (when (not= resp-clj :chsk/dummy-200)
-                     (warnf "Cb reply w/o local cb-fn: %s" resp-clj)))
+                     (encore/warnf "Cb reply w/o local cb-fn: %s" resp-clj)))
                  (reset-chsk-state! chsk true)))))
 
           :apparent-success))))
@@ -595,7 +598,7 @@
                     ajax-client-uuid (encore/uuid-str)]
                 (chsk-make!
                  (ChAjaxSocket. (chsk-url url) chs (atom false)
-                   ajax-client-uuid csrf-token logged-in?)
+                   ajax-client-uuid csrf-token has-uid?)
                  {:timeout lp-timeout}))))
 
         type* (chsk-type chsk) ; Actual reified type
