@@ -40,6 +40,8 @@ So the underlying protocol's irrelevant. Sente gives you a unified API that expo
 
 ## Getting started
 
+> Note that there's also a full [example project][] in this repo. Call `lein start-dev` in that dir to get a (headless) development repl that you can connect to with [Cider][] (emacs) or your IDE.
+
 Add the necessary dependency to your [Leiningen][] `project.clj`. This'll provide your project with both the client (ClojureScript) + server (Clojure) side library code:
 
 ```clojure
@@ -67,7 +69,7 @@ For Sente, we're going to add 2 new URLs and setup their handlers:
   (:require
     ;; <other stuff>
     [clojure.core.match :as match :refer (match)] ; Optional, useful
-    [clojure.core.async :as async :refer (<! <!! >! >!! put! chan go go-loop))]
+    [clojure.core.async :as async :refer (<! <!! >! >!! put! chan go go-loop)]
     [taoensso.sente :as sente] ; <--- Add this
    ))
 
@@ -104,12 +106,12 @@ You'll setup something similar on the client side:
    ;; <other stuff>
    [cljs.core.match] ; Optional, useful
    [cljs.core.async :as async :refer (<! >! put! chan)]
-   [taoensso.sente :as sente :refer (cb-success?)] ; <---- Add this
+   [taoensso.sente :as sente :refer (cb-success?)] ; <--- Add this
   ))
 
 ;;; Add this: --->
 (let [{:keys [chsk ch-recv send-fn]}
-      (chsks/make-channel-socket! "/chsk" ; Note the same URL as before
+      (sente/make-channel-socket! "/chsk" ; Note the same URL as before
        {} {:type :auto ; e/o #{:auto :ajax :ws}})]
   (def chsk       chsk)
   (def ch-chsk    ch-recv)
@@ -209,8 +211,8 @@ You can do this any way you find convenient, but [core.match][] is a nice fit an
                  :your-fruit fruit-name}) ; Reply with a map
 
      :else
-     (do (warnf "Unmatched event: %s" ev)
-         (when-not (:dummy-reply-fn (meta ?reply-fn)) ; not `reply!`
+     (do (timbre/warnf "Unmatched event: %s" ev)
+         (when-not (:dummy-reply-fn? (meta ?reply-fn)) ; not `reply!`
            (?reply-fn (format "Unmatched event, echo: %s" ev)))))))
 
 ;; Will start a core.async go loop to handle `event-msg`s as they come in:
@@ -309,6 +311,7 @@ Copyright &copy; 2012-2014 Peter Taoussanis. Distributed under the [Eclipse Publ
 [other Clojure libs]: <https://www.taoensso.com/clojure-libraries>
 [Twitter]: <https://twitter.com/ptaoussanis>
 [semantic]: <http://semver.org/>
+[example project]: <https://github.com/ptaoussanis/sente/tree/master/example-project>
 [Leiningen]: <http://leiningen.org/>
 [CDS]: <http://clojure-doc.org/>
 [ClojureWerkz]: <http://clojurewerkz.org/>

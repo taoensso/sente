@@ -14,27 +14,24 @@
    [org.clojure/clojurescript "0.0-2173"]
    [org.clojure/core.async    "0.1.278.0-76b25b-alpha"]
    [org.clojure/tools.reader  "0.8.3"]
-   [com.taoensso/encore       "0.9.0"]
+   [com.taoensso/encore       "0.9.2"]
    [com.taoensso/timbre       "3.1.0"]
    [http-kit                  "2.1.17"]]
 
   :cljsbuild {:builds []}
   :test-paths ["test" "src"]
   :profiles
-  {:build {:hooks ^:replace []} ; Workaround to avoid :dev hooks during deploy
+  {;; :default [:base :system :user :provided :dev]
    :1.6  {:dependencies [[org.clojure/clojure "1.6.0-beta1"]]}
    :test {:dependencies [[expectations            "1.4.56"]
                          [reiddraper/simple-check "0.5.6"]]
           :plugins [[lein-expectations "0.0.8"]
                     [lein-autoexpect   "1.2.2"]]}
+   :dev* [:dev {:jvm-opts ^:replace ["-server"]
+                :hooks [cljx.hooks leiningen.cljsbuild]}]
    :dev
    [:1.6 :test
-    {:jvm-opts ^:replace ["-server"]
-     :hooks [cljx.hooks leiningen.cljsbuild]
-     :dependencies
-     [[org.clojure/clojurescript "0.0-2173"]
-      [org.clojure/core.async    "0.1.278.0-76b25b-alpha"]
-      [org.clojure/tools.reader  "0.8.3"]]
+    {:dependencies []
      :plugins
      [[lein-cljsbuild                  "1.0.2"]
       [com.cemerick/clojurescript.test "0.2.2"]
@@ -61,11 +58,11 @@
 
   :codox {:sources ["target/classes"]} ; For use with cljx
   :aliases
-  {"test-all"   ["with-profile" "+test:+1.6,+test" "expectations"]
+  {"test-all"   ["with-profile" "default:+1.6" "expectations"]
    "test-auto"  ["with-profile" "+test" "autoexpect"]
-   "start-dev"  ["with-profile" "+dev" "repl" ":headless"]
-   "codox"      ["with-profile" "+test" "doc"]
-   "deploy-lib" ["with-profile" "+dev,+build" "do" "deploy" "clojars," "install"]}
+   "build-once" ["do" "cljx" "once," "cljsbuild" "once"]
+   "deploy-lib" ["do" "build-once," "deploy" "clojars," "install"]
+   "start-dev"  ["with-profile" "+dev*" "repl" ":headless"]}
 
   :repositories
   {"sonatype"

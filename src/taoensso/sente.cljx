@@ -135,6 +135,8 @@
       (put! ch-recv ev-msg*)
       (timbre/warnf "Bad ev-msg!: %s (%s)" ev-msg* ev-msg))))
 
+;; TODO This is broken (pushes not working to Ajax clients)
+;;(send-to-hk-chs! (<! (ch-pull-ajax-hk-chs! clients-ajax uid)))
 #+clj
 (defn- ch-pull-ajax-hk-chs!
   "Starts a go loop to pull relevant client hk-chs. Several attempts are made in
@@ -229,7 +231,9 @@
                clj       (if-not dummy-cb? msg (:chsk/clj msg))]
 
            (receive-event-msg! ch-recv
-             {:client-uuid nil ; Could generate a uuid but no need in this case
+             {;; Don't actually use the Ajax POST client-uuid, but we'll set
+              ;; one anyway for `event-msg?`:
+              :client-uuid (encore/uuid-str)
               :ring-req ring-req
               :event clj
               :?reply-fn
@@ -487,19 +491,19 @@
         (do (encore/warnf "Chsk send against closed chsk.")
             (when ?cb-fn (?cb-fn :chsk/closed)))
         (do
-          (encore/ajax-lite ; url
-           (str url "?_=" (encore/now-udt)) ; Force uncached resp
+          (encore/ajax-lite url
            {:method :post :timeout ?timeout-ms
             :params
             (let [dummy-cb? (not ?cb-fn)
                   msg       (if-not dummy-cb? ev {:chsk/clj       ev
                                                   :chsk/dummy-cb? true})
                   edn       (pr-str msg)]
-              {:edn edn :csrf-token csrf-token})}
+              {:_ (encore/now-udt) ; Force uncached resp
+               :edn edn :csrf-token csrf-token})}
 
            (fn ajax-cb [{:keys [content error]}]
              (if error
-               (if (#{:timeout :xhr-pool-depleted} error)
+               (if (= error :timeout)
                  (when ?cb-fn (?cb-fn :chsk/timeout))
                  (do (reset-chsk-state! chsk false)
                      (when ?cb-fn (?cb-fn :chsk/error))))
@@ -529,9 +533,10 @@
                             :ajax-client-uuid ajax-client-uuid}}
                   (fn ajax-cb [{:keys [content error]}]
                     (if error
-                      (if (#{:timeout :xhr-pool-depleted} error)
+                      (if (= error :timeout)
                         (async-poll-for-update!)
                         (do (reset-chsk-state! chsk false)
+                            ;; TODO Need a backoff mechanism!
                             (async-poll-for-update! :new-conn)))
 
                       (let [edn content
@@ -546,7 +551,7 @@
              (.ignore pace ajax-req!) ; Pace.js shouldn't trigger for long-polling
              (ajax-req!)))
 
-         ;; Try handshake to confirm working conn
+         ;; Try handshake to confirm working conn (will enable sends)
          (when new-conn? (chsk-send! chsk [:chsk/handshake :ajax])))
        :new-conn))
     chsk))
