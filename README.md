@@ -109,7 +109,7 @@ You'll setup something similar on the client side:
 
 ;;; Add this: --->
 (let [{:keys [chsk ch-recv send-fn]}
-      (chsks/make-channel-socket! "/chsk" ; Note the same URL as before
+      (sente/make-channel-socket! "/chsk" ; Note the same URL as before
        {} {:type :auto ; e/o #{:auto :ajax :ws}})]
   (def chsk       chsk)
   (def ch-chsk    ch-recv)
