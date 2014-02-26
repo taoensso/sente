@@ -69,7 +69,6 @@
   (:require-macros [cljs.core.async.macros :as asyncm :refer (go go-loop)]))
 
 ;;;; TODO
-;; * Docs, examples, README, testing (esp. new Ajax stuff).
 ;; * No need/desire for a send buffer, right? Would seem to violate user
 ;;   expectations (either works now or doesn't, not maybe works later).
 ;; * Consider later using clojure.browser.net (Ref. http://goo.gl/sdS5wX)
@@ -135,8 +134,6 @@
       (put! ch-recv ev-msg*)
       (timbre/warnf "Bad ev-msg!: %s (%s)" ev-msg* ev-msg))))
 
-;; TODO This is broken (pushes not working to Ajax clients)
-;;(send-to-hk-chs! (<! (ch-pull-ajax-hk-chs! clients-ajax uid)))
 #+clj
 (defn- ch-pull-ajax-hk-chs!
   "Starts a go loop to pull relevant client hk-chs. Several attempts are made in
@@ -167,7 +164,7 @@
                          ks-to-pull (filter #(not (contains? pulled %))
                                             (keys m-in))]
                      (if (empty? ks-to-pull) [nil m]
-                       [(select-keys m ks-to-pull)
+                       [(select-keys m-in ks-to-pull)
                         (assoc m uid (apply dissoc m-in ks-to-pull))])))))]
 
           ;; Allow some time for possible poller reconnects:
@@ -209,11 +206,8 @@
                        (doseq [hk-ch hk-chs] (http-kit/close hk-ch)))
 
                      (let [ev-edn (pr-str ev)]
-                       (->>
-                        (for [hk-ch hk-chs] ; Broadcast to all uid's clients/devices
-                          (http-kit/send! hk-ch ev-edn))
-                        ;; true iff apparent success for >=1 client:
-                        (some identity))))))]
+                       (doseq [hk-ch hk-chs] ; Broadcast to all uid's clients/devices
+                         (http-kit/send! hk-ch ev-edn))))))]
 
            (send-to-hk-chs! (@clients-ws uid)) ; WebSocket clients
            (go ; Need speed here for broadcasting purposes:
