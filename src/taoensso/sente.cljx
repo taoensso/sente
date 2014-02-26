@@ -414,58 +414,58 @@
   (chsk-make! [chsk {:keys [kalive-ms]}]
     (when-let [WebSocket (or (.-WebSocket    js/window)
                              (.-MozWebSocket js/window))]
-      ((fn connect! [attempt]
-         (if-let [socket (try (WebSocket. url)
-                              (catch js/Error e
-                                (encore/errorf "WebSocket js/Error: %s" e)
-                                false))]
-           (->>
-            (doto socket
-              (aset "onerror" (fn [ws-ev]
-                                (encore/errorf "WebSocket error: %s" ws-ev)))
-              (aset "onmessage"
-                (fn [ws-ev]
-                  (let [edn (.-data ws-ev)
-                        ;; Nb may or may NOT satisfy `event?` since we also
-                        ;; receive cb replies here!:
-                        [clj ?cb-uuid] (unwrap-edn-msg-with-?cb->clj edn)]
-                    ;; (assert-event clj) ;; NO!
-                    (if (= clj [:chsk/handshake :ws])
-                      (reset-chsk-state! chsk true)
-                      (if ?cb-uuid
-                        (if-let [cb-fn (pull-unused-cb-fn! cbs-waiting ?cb-uuid)]
-                          (cb-fn clj)
-                          (encore/warnf "Cb reply w/o local cb-fn: %s" clj))
-                        (let [_ (assert-event clj)
-                              chsk-ev clj]
-                          (put! (:recv chs) chsk-ev)))))))
-              (aset "onopen"
-                (fn [_ws-ev]
-                  (reset! kalive-timer
-                    (.setInterval js/window
-                      (fn []
-                        (when @kalive-due? ; Don't ping unnecessarily
-                          (chsk-send! chsk [:chsk/ping :ws]))
-                        (reset! kalive-due? true))
-                      kalive-ms))
-                  ;; (reset-chsk-state! chsk true) ; NO, handshake better!
-                  ))
-              (aset "onclose"
-                (fn [_ws-ev]
-                  (let [;; onclose will fire repeatedly when server is down
-                        state-change? (-> (reset-chsk-state! chsk false)
-                                          (boolean))
-                        attempt       (if state-change? 0 (inc attempt))]
-                    (.clearInterval js/window @kalive-timer)
-                    (when (> attempt 0)
-                      (encore/warnf "WebSocket closed. Will retry after backoff (attempt %s)."
-                            attempt))
-                    (encore/set-exp-backoff-timeout! (partial connect! attempt)
-                                                     attempt)))))
+      ((fn connect! [nattempt]
+         (let [retry!
+               (fn []
+                 (let [nattempt* (inc nattempt)]
+                   (.clearInterval js/window @kalive-timer)
+                   (encore/warnf "Chsk is closed: will try reconnect (%s)."
+                                 nattempt*)
+                   (encore/set-exp-backoff-timeout!
+                    (partial connect! nattempt*) nattempt*)))]
+
+           (if-let [socket (try (WebSocket. url)
+                                (catch js/Error e
+                                  (encore/errorf "WebSocket js/Error: %s" e)
+                                  false))]
+             (->>
+              (doto socket
+                (aset "onerror"
+                  (fn [ws-ev] (encore/errorf "WebSocket error: %s" ws-ev)))
+                (aset "onmessage"
+                  (fn [ws-ev]
+                    (let [edn (.-data ws-ev)
+                          ;; Nb may or may NOT satisfy `event?` since we also
+                          ;; receive cb replies here!:
+                          [clj ?cb-uuid] (unwrap-edn-msg-with-?cb->clj edn)]
+                      ;; (assert-event clj) ;; NO!
+                      (if (= clj [:chsk/handshake :ws])
+                        (reset-chsk-state! chsk true)
+                        (if ?cb-uuid
+                          (if-let [cb-fn (pull-unused-cb-fn! cbs-waiting ?cb-uuid)]
+                            (cb-fn clj)
+                            (encore/warnf "Cb reply w/o local cb-fn: %s" clj))
+                          (let [_ (assert-event clj)
+                                chsk-ev clj]
+                            (put! (:recv chs) chsk-ev)))))))
+                (aset "onopen"
+                  (fn [_ws-ev]
+                    (reset! kalive-timer
+                      (.setInterval js/window
+                        (fn []
+                          (when @kalive-due? ; Don't ping unnecessarily
+                            (chsk-send! chsk [:chsk/ping :ws]))
+                          (reset! kalive-due? true))
+                        kalive-ms))
+                    ;; (reset-chsk-state! chsk true) ; NO, handshake better!
+                    ))
+                (aset "onclose" ; Fires repeatedly when server is down
+                  (fn [_ws-ev] (retry!))))
+
             (reset! socket-atom))
 
-           (encore/set-exp-backoff-timeout! (partial connect! (inc attempt))
-                                            (inc attempt))))
+             ;; Couldn't even get a socket:
+             (retry!))))
        0)
       chsk)))
 
@@ -518,8 +518,19 @@
     ;; messages.
     (if-not has-uid?
       (reset-chsk-state! chsk true) ; Must still mark as open to enable sends
-      ((fn async-poll-for-update! [& [new-conn?]]
-         (let [ajax-req! ; Just for Pace wrapping below
+      ((fn async-poll-for-update! [nattempt]
+
+         (let [retry!
+               (fn []
+                 (let [nattempt* (inc nattempt)]
+                   (encore/warnf
+                    "Chsk is closed: will try reconnect (%s)."
+                    nattempt*)
+                   (encore/set-exp-backoff-timeout!
+                    (partial async-poll-for-update! nattempt*)
+                    nattempt*)))
+
+               ajax-req! ; Just for Pace wrapping below
                (fn []
                  (encore/ajax-lite url
                   {:method :get :timeout timeout
@@ -528,10 +539,9 @@
                   (fn ajax-cb [{:keys [content error]}]
                     (if error
                       (if (= error :timeout)
-                        (async-poll-for-update!)
+                        (async-poll-for-update! 0)
                         (do (reset-chsk-state! chsk false)
-                            ;; TODO Need a backoff mechanism!
-                            (async-poll-for-update! :new-conn)))
+                            (retry!)))
 
                       (let [edn content
                             ev  (edn/read-string edn)]
@@ -539,15 +549,17 @@
                         (assert-event ev)
                         (put! (:recv chs) ev)
                         (reset-chsk-state! chsk true)
-                        (async-poll-for-update!))))))]
+                        (async-poll-for-update! 0))))))]
 
            (if-let [pace (.-Pace js/window)]
              (.ignore pace ajax-req!) ; Pace.js shouldn't trigger for long-polling
              (ajax-req!)))
 
-         ;; Try handshake to confirm working conn (will enable sends)
-         (when new-conn? (chsk-send! chsk [:chsk/handshake :ajax])))
-       :new-conn))
+         (when-not @open?
+           ;; (encore/debugf "Attempting chsk Ajax handshake")
+           ;; Try handshake to confirm working conn (will enable sends):
+           (chsk-send! chsk [:chsk/handshake :ajax])))
+       0))
     chsk))
 
 #+cljs
