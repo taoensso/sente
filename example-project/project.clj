@@ -49,7 +49,7 @@
                     :pretty-print true}}]}
 
   ;; Call `lein start-dev` to get a (headless) development repl that you can
-  ;; connect to with [Cider][] (emacs) or your IDE:
+  ;; connect to with Cider+emacs or your IDE of choice:
   :aliases
   {"build-once" ["do" "cljx" "once," "cljsbuild" "once"]
    "start-dev" ["with-profile" "+dev" "repl" ":headless"]})

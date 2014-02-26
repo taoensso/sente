@@ -8,9 +8,9 @@
 
 ![Almost sente](https://github.com/ptaoussanis/sente/raw/master/almost-sente.jpg)
 
-> **Sen-te** (先手) is a Japanese [Go][] term used to describe a play with such an overwhelming follow-up that it forces an immediate response, thus leaving its player with the initiative.
+> **Sen-te** (先手) is a Japanese [Go][] term used to describe a play with such an overwhelming follow-up that it elicits an immediate response, thus leaving its player with the initiative.
 
-**Sente** is small client+server library that makes it easy to build **reliable, high-performance realtime web applications with Clojure**.
+**Sente** is a small client+server library that makes it easy to build **reliable, high-performance realtime web applications with Clojure**.
 
 Or: **The missing piece in Clojure's web application story**  
 Or: **We don't need no Socket.IO**  
@@ -169,9 +169,10 @@ Term          | Form                                                            
 (chsk-send!
   [:some/request-id {:name "Rich Hickey" :type "Awesome"}] ; event
   8000 ; timeout
-  (fn [reply]
-    (if (sente/cb-success? reply) ; Checks for :chsk/closed, :chsk/timeout, :chsk/error
-      (do-something! reply)
+  ;; Optional callback:
+  (fn [edn-reply]
+    (if (sente/cb-success? edn-reply) ; Checks for :chsk/closed, :chsk/timeout, :chsk/error
+      (do-something! edn-reply)
       (error-handler!))))
 ```
 
