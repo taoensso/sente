@@ -18,7 +18,6 @@
    [com.taoensso/timbre       "3.1.1"]
    [http-kit                  "2.1.17"]]
 
-  :cljsbuild {:builds []}
   :test-paths ["test" "src"]
   :profiles
   {;; :default [:base :system :user :provided :dev]
@@ -31,12 +30,13 @@
                 :hooks [cljx.hooks leiningen.cljsbuild]}]
    :dev
    [:1.6 :test
-    {:dependencies []
-     :plugins
-     [[lein-cljsbuild                  "1.0.2"]
-      [com.cemerick/clojurescript.test "0.2.2"]
+    {:plugins
+     [[lein-ancient                    "0.5.4"]
       [com.keminglabs/cljx             "0.3.2"] ; Must precede Austin!
-      [com.cemerick/austin             "0.1.4"]]
+      [com.cemerick/austin             "0.1.4"]
+      [lein-cljsbuild                  "1.0.2"]
+      [com.cemerick/clojurescript.test "0.2.2"]
+      [codox                           "0.6.7"]]
 
      :cljx
      {:builds
@@ -52,9 +52,6 @@
         :compiler     {:output-to "target/main.js"
                        :optimizations :advanced
                        :pretty-print false}}]}}]}
-
-  :plugins [[lein-ancient "0.5.4"]
-            [codox        "0.6.7"]]
 
   :codox {:sources ["target/classes"]} ; For use with cljx
   :aliases
