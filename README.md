@@ -1,7 +1,7 @@
 **[API docs][]** | **[CHANGELOG][]** | [other Clojure libs][] | [Twitter][] | [contact/contributing](#contact--contributing) | current ([semantic][]) version:
 
 ```clojure
-[com.taoensso/sente "0.8.0"] ; Experimental
+[com.taoensso/sente "0.8.0"] ; < v1.0.0 API is subject to change
 ```
 
 # Sente, channel sockets for Clojure
@@ -25,6 +25,7 @@ Or: **Clojure(Script) + core.async + WebSockets/Ajax = _The Shiz_**
   * **Tiny, simple API**: `make-channel-socket!` and you're good to go.
   * Automatic, sensible support for users connected with **multiple clients** and/or devices simultaneously.
   * **Flexible model**: use it anywhere you'd use WebSockets or Ajax.
+  * Normal **Ring security model**: auth as you like, HTTPS when available, CSRF support, etc.
   * **Fully documented, with examples** (more forthcoming).
   * Small: **less than 600 lines of code** for the entire client+server implementation.
   * **Supported servers**: currently only [http-kit][], but easily extended. [PRs welcome](https://github.com/ptaoussanis/sente/issues/2) to add support for additional servers!
@@ -113,7 +114,7 @@ You'll setup something similar on the client side:
 
 ;;; Add this: --->
 (let [{:keys [chsk ch-recv send-fn]}
-      (sente/make-channel-socket! "/chsk" ; Note the same URL as before
+      (sente/make-channel-socket! "/chsk" ; Note the same path as before
        {} {:type :auto ; e/o #{:auto :ajax :ws}})]
   (def chsk       chsk)
   (def ch-chsk    ch-recv)
@@ -268,9 +269,9 @@ I've been using something similar to Sente in production for a couple months, bu
 
 I'd like to try head for a `v1.0.0` w/in the next 2 months (~end of April).
 
-#### What is the `user-id` used by the server-side `chsk-send!` fn?
+#### Is there HTTPS support?
 
-This is something your login procedure must handle. **Sente assumes logged-in users carry a unique `:uid` key in their Ring session**. This could be a username, a unique integer, a uuid string, etc.
+Yup, it's automatic for both Ajax and WebSockets. If the page serving your JavaScript (ClojureScript) is running HTTPS, your Sente channel sockets will run over HTTPS and/or the WebSocket equivalent (WSS).
 
 #### CSRF security?
 
@@ -278,6 +279,20 @@ This is something your login procedure must handle. **Sente assumes logged-in us
 
   1. Server-side: you'll need to use middleware like `ring-anti-forgery` to generate and check CSRF codes. The `ring-ajax-post` handler should be covered (i.e. protected).
   2. Client-side: you'll need to pass the page's csrf code to the `make-channel-socket!` constructor.
+
+#### What about authentication/authorization?
+
+Auth isn't something Sente is opinionated about, so you can+should **use whatever standard Ring auth mechanism you normally would**.
+
+Sente **does require** that you **include a unique user id** (`:uid key`) in authenticated Ring sessions.
+
+> You'll then provide that id as an argument when calling the server-side's `chsk-send!` fn for server>clientS push.
+
+So basically: mod your normal auth/login procedure to ensure that a `:uid` key is present in each authenticated session. The id should be unique per user (i.e. consistent over all that user's browser tabs and devices, etc.). It could be a unique username string, unique integer, uuid string, unique url, etc.
+
+> The sessionized user id is necessary to support a consistent+secure user identity over multiple requests that may be received over multiple protocols.
+
+The un/authenticated Ring session will be provided to all your handlers as usual, so you're free to do the usual server-side security checks: is this user authenticated (logged in?), is this user authorized to view the requested resource (authorization), etc.
 
 #### Why isn't `x` documented?
 
