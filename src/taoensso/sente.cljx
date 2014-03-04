@@ -81,10 +81,18 @@
   #+clj  (instance? clojure.core.async.impl.channels.ManyToManyChannel x)
   #+cljs (instance? cljs.core.async.impl.channels.ManyToManyChannel    x))
 
-(defn event? "Valid [ev-id ?ev-data] form?" [x]
-  (and (vector? x) (#{1 2} (count x))
-       (let [[ev-id _] x]
-         (and (keyword? ev-id) (namespace ev-id)))))
+(defn- validate-event-form [x]
+  (cond
+   (not (vector? x))        :wrong-type
+   (not (#{1 2} (count x))) :wrong-length
+   :else
+   (let [[ev-id _] x]
+     (cond
+      (not (keyword? ev-id))  :wrong-id-type
+      (not (namespace ev-id)) :unnamespaced-id
+      :else nil))))
+
+(defn event? "Valid [ev-id ?ev-data] form?" [x] (nil? (validate-event-form x)))
 
 (defn cb-success? [cb-reply] ;; Cb reply need _not_ be `event` form!
   (not (#{:chsk/closed :chsk/timeout :chsk/error} cb-reply)))
@@ -313,8 +321,17 @@
 
 #+cljs
 (defn assert-event [x]
-  (assert (event? x)
-          (encore/format "Event should be of [ev-id ?ev-data] form: %s" x)))
+  (when-let [?err-msg (validate-event-form x)]
+    (let [err-fmt
+          (str
+           (case ?err-msg
+             :wrong-type   "Malformed event (wrong type)."
+             :wrong-length "Malformed event (wrong length)."
+             (:wrong-id-type :unnamespaced-id)
+             "Malformed event (`ev-id` should be a namespaced keyword)."
+             :else "Malformed event (unknown error).")
+           " Event should be of `[ev-id ?ev-data]` form: %s")]
+      (throw (js/Error. (encore/format err-fmt (str x)))))))
 
 #+cljs
 (defn- assert-send-args [x ?timeout-ms ?cb]
