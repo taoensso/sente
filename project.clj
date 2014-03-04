@@ -1,4 +1,4 @@
-(defproject com.taoensso/sente "0.8.0"
+(defproject com.taoensso/sente "0.8.1"
   :author "Peter Taoussanis <https://www.taoensso.com>"
   :description "Clojure channel sockets library"
   :url "https://github.com/ptaoussanis/sente"
