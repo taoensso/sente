@@ -63,7 +63,7 @@
   (:require [clojure.string :as str]
             [cljs.core.async :as async :refer (<! >! put! chan)]
             [cljs.reader     :as edn]
-            [taoensso.encore :as encore])
+            [taoensso.encore :as encore :refer (format)])
 
   #+cljs
   (:require-macros [cljs.core.async.macros :as asyncm :refer (go go-loop)]))
@@ -82,17 +82,27 @@
   #+cljs (instance? cljs.core.async.impl.channels.ManyToManyChannel    x))
 
 (defn- validate-event-form [x]
-  (cond
-   (not (vector? x))        :wrong-type
-   (not (#{1 2} (count x))) :wrong-length
-   :else
-   (let [[ev-id _] x]
-     (cond
-      (not (keyword? ev-id))  :wrong-id-type
-      (not (namespace ev-id)) :unnamespaced-id
-      :else nil))))
+  (cond  (not (vector? x))        :wrong-type
+         (not (#{1 2} (count x))) :wrong-length
+   :else (let [[ev-id _] x]
+           (cond (not (keyword? ev-id))  :wrong-id-type
+                 (not (namespace ev-id)) :unnamespaced-id
+                 :else nil))))
 
 (defn event? "Valid [ev-id ?ev-data] form?" [x] (nil? (validate-event-form x)))
+
+(defn assert-event [x]
+  (when-let [?err-msg (validate-event-form x)]
+    (let [err-fmt
+          (str
+           (case ?err-msg
+             :wrong-type   "Malformed event (wrong type)."
+             :wrong-length "Malformed event (wrong length)."
+             (:wrong-id-type :unnamespaced-id)
+             "Malformed event (`ev-id` should be a namespaced keyword)."
+             :else "Malformed event (unknown error).")
+           " Event should be of `[ev-id ?ev-data]` form: %s")]
+      (throw (ex-info (format err-fmt (str x)) {:malformed-event x})))))
 
 (defn cb-success? [cb-reply] ;; Cb reply need _not_ be `event` form!
   (not (#{:chsk/closed :chsk/timeout :chsk/error} cb-reply)))
@@ -202,7 +212,7 @@
      :send-fn ; Async server>clientS (by uid) push sender
      (fn [uid ev]
        (timbre/tracef "Chsk send: (->uid %s) %s" uid ev)
-       (assert (event? ev))
+       (assert-event ev)
        (when uid
          (let [send-to-hk-chs! ; Async because of http-kit
                (fn [hk-chs]
@@ -320,30 +330,14 @@
 ;;;; Client
 
 #+cljs
-(defn assert-event [x]
-  (when-let [?err-msg (validate-event-form x)]
-    (let [err-fmt
-          (str
-           (case ?err-msg
-             :wrong-type   "Malformed event (wrong type)."
-             :wrong-length "Malformed event (wrong length)."
-             (:wrong-id-type :unnamespaced-id)
-             "Malformed event (`ev-id` should be a namespaced keyword)."
-             :else "Malformed event (unknown error).")
-           " Event should be of `[ev-id ?ev-data]` form: %s")]
-      (throw (js/Error. (encore/format err-fmt (str x)))))))
-
-#+cljs
 (defn- assert-send-args [x ?timeout-ms ?cb]
   (assert-event x)
   (assert (or (and (nil? ?timeout-ms) (nil? ?cb))
               (and (encore/nneg-int? ?timeout-ms)))
-          (encore/format
-           "cb requires a timeout; timeout-ms should be a +ive integer: %s"
+          (format "cb requires a timeout; timeout-ms should be a +ive integer: %s"
            ?timeout-ms))
   (assert (or (nil? ?cb) (ifn? ?cb) (chan? ?cb))
-          (encore/format "cb should be nil, an ifn, or a channel: %s"
-                         (type ?cb))))
+          (format "cb should be nil, an ifn, or a channel: %s" (type ?cb))))
 
 #+cljs
 (defn- pull-unused-cb-fn! [cbs-waiting cb-uuid]
