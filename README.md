@@ -1,7 +1,7 @@
 **[API docs][]** | **[CHANGELOG][]** | [other Clojure libs][] | [Twitter][] | [contact/contributing](#contact--contributing) | current ([semantic][]) version:
 
 ```clojure
-[com.taoensso/sente "0.8.1"] ; < v1.0.0 API is subject to change
+[com.taoensso/sente "0.8.2"] ; < v1.0.0 API is subject to change
 ```
 
 # Sente, channel sockets for Clojure
@@ -48,7 +48,7 @@ So the underlying protocol's irrelevant. Sente gives you a unified API that expo
 Add the necessary dependency to your [Leiningen][] `project.clj`. This'll provide your project with both the client (ClojureScript) + server (Clojure) side library code:
 
 ```clojure
-[com.taoensso/sente "0.8.1"]
+[com.taoensso/sente "0.8.2"]
 ```
 
 ### On the server (Clojure) side
