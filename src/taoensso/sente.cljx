@@ -139,7 +139,7 @@
   [ch-recv {:as ev-msg :keys [client-uuid ring-req event ?reply-fn]}]
   (let [ev-msg*
         {:client-uuid client-uuid ; Browser-tab / device identifier
-         :ring-req    (select-keys ring-req [:t :locale :session #_:flash :params])
+         :ring-req    ring-req
          :event       (if (event? event) event [:chsk/bad-event event])
          :?reply-fn
          (if (ifn? ?reply-fn) ?reply-fn
