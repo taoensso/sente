@@ -498,6 +498,7 @@
         (do
           (encore/ajax-lite url
            {:method :post :timeout ?timeout-ms
+            :resp-type :text ; Prefer to do our own edn reading
             :params
             (let [dummy-cb? (not ?cb-fn)
                   msg       (if-not dummy-cb? ev {:chsk/clj       ev
@@ -513,7 +514,7 @@
                  (do (reset-chsk-state! chsk false)
                      (when ?cb-fn (?cb-fn :chsk/error))))
 
-               (let [resp-edn content
+               (let [resp-clj content
                      resp-clj (edn/read-string resp-edn)]
                  (if ?cb-fn (?cb-fn resp-clj)
                    (when (not= resp-clj :chsk/dummy-200)
@@ -545,6 +546,7 @@
                (fn []
                  (encore/ajax-lite url
                   {:method :get :timeout timeout
+                   :resp-type :text ; Prefer to do our own edn reading
                    :params {:_ (encore/now-udt) ; Force uncached resp
                             :ajax-client-uuid ajax-client-uuid}}
                   (fn ajax-cb [{:keys [content error]}]
