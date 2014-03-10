@@ -16,7 +16,7 @@ Or: **The missing piece in Clojure's web application story**
 Or: **We don't need no Socket.IO**  
 Or: **Clojure(Script) + core.async + WebSockets/Ajax = _The Shiz_**
 
-(I'd also recommend checking out **James Henderson's [Chord][]** library as an alternative!)
+(I'd also recommend checking out James Henderson's [Chord][] and Kevin Lynagh's [jetty7-websockets-async][] as possible alternatives!)
 
 ## What's in the box™?
   * **Bidirectional a/sync comms** over both **WebSockets** and **Ajax** (auto-selecting).
@@ -346,3 +346,4 @@ Copyright &copy; 2012-2014 Peter Taoussanis. Distributed under the [Eclipse Publ
 [Reagent]: <https://github.com/holmsand/reagent>
 [Om]: <https://github.com/swannodette/om>
 [Chord]: <https://github.com/james-henderson/chord>
+[jetty7-websockets-async]: <https://github.com/lynaghk/jetty7-websockets-async>
