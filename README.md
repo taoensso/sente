@@ -81,8 +81,9 @@ For Sente, we're going to add 2 new URLs and setup their handlers:
       (sente/make-channel-socket! {})]
   (def ring-ajax-post                ajax-post-fn)
   (def ring-ajax-get-or-ws-handshake ajax-get-or-ws-handshake-fn)
-  (def ch-chsk                       ch-recv)
-  (def chsk-send!                    send-fn))
+  (def ch-chsk                       ch-recv) ; ChannelSocket's receive channel
+  (def chsk-send!                    send-fn) ; ChannelSocket's send API fn
+  )
 
 (defroutes my-app
   ;; <other stuff>
@@ -117,8 +118,9 @@ You'll setup something similar on the client side:
       (sente/make-channel-socket! "/chsk" ; Note the same path as before
        {} {:type :auto ; e/o #{:auto :ajax :ws}})]
   (def chsk       chsk)
-  (def ch-chsk    ch-recv)
-  (def chsk-send! send-fn))
+  (def ch-chsk    ch-recv) ; ChannelSocket's receive channel
+  (def chsk-send! send-fn) ; ChannelSocket's send API fn
+  )
 ```
 
 ### Now what?
