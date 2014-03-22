@@ -92,10 +92,10 @@
 (defn event? "Valid [ev-id ?ev-data] form?" [x] (nil? (validate-event-form x)))
 
 (defn assert-event [x]
-  (when-let [?err-msg (validate-event-form x)]
+  (when-let [?err (validate-event-form x)]
     (let [err-fmt
           (str
-           (case ?err-msg
+           (case ?err
              :wrong-type   "Malformed event (wrong type)."
              :wrong-length "Malformed event (wrong length)."
              (:wrong-id-type :unnamespaced-id)
