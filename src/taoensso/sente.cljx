@@ -69,11 +69,12 @@
   (:require-macros [cljs.core.async.macros :as asyncm :refer (go go-loop)]))
 
 ;;;; TODO
-;; * No need/desire for a send buffer, right? Would seem to violate user
-;;   expectations (either works now or doesn't, not maybe works later).
-;; * Consider later using clojure.browser.net (Ref. http://goo.gl/sdS5wX)
-;;   and/or Google Closure for some or all basic WebSockets support,
-;;   reconnects, etc.
+;; * Optimization: consider implementing a send buffer that transparently
+;;   batches >client sends w/in a short window (~30ms) and transparently
+;;   DEbatches client-side on receipt. Window period could be tunable per send
+;;   call: send-fn [uid ev ?batch-window-ms]. Would be useful for very high
+;;   server>clientS push throughput, esp. with Ajax clients.
+;; * Optimization: consider double-clutch mechanism on Ajax pollers.
 
 ;;;; Shared (client+server)
 
