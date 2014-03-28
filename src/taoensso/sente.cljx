@@ -168,26 +168,25 @@
   (let [ch (chan)]
     (go-loop [pulled {} ; {<client-uuid> <hk-ch>}
               n      0]
-      (if (= n 3) ; Try three times, always
+      (if (= n 5) ; Try repeatedly, always
 
         ;; >! set of unique-client hk-chs, or nil:
         (if (empty? pulled)
           (async/close! ch)
           (>! ch (set (vals pulled))))
 
-        (let [?pulled-now ; nil or {<client-uuid> <hk-ch>}
-              (first
-               (swap! clients_
-                 (fn [[_ m]]
-                   (let [m-in       (get m uid)
-                         ks-to-pull (filter #(not (contains? pulled %))
-                                            (keys m-in))]
-                     (if (empty? ks-to-pull) [nil m]
-                       [(select-keys m-in ks-to-pull)
-                        (assoc m uid (apply dissoc m-in ks-to-pull))])))))]
+        (let [[?pulled-now _] ; nil or {<client-uuid> <hk-ch>}
+              (swap! clients_
+                (fn [[_ m]]
+                  (let [m-in       (get m uid)
+                        ks-to-pull (filter #(not (contains? pulled %))
+                                           (keys m-in))]
+                    (if (empty? ks-to-pull) [nil m]
+                      [(select-keys m-in ks-to-pull)
+                       (assoc m uid (apply dissoc m-in ks-to-pull))]))))]
 
           ;; Allow some time for possible poller reconnects:
-          (<! (async/timeout (+ 80 (rand-int 50)))) ; ~105ms
+          (<! (async/timeout (+ 50 (rand-int 50)))) ; ~85ms
           (recur (merge pulled ?pulled-now) (inc n)))))
     ch))
 
