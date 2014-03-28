@@ -68,14 +68,6 @@
   #+cljs
   (:require-macros [cljs.core.async.macros :as asyncm :refer (go go-loop)]))
 
-;;;; TODO
-;; * Optimization: consider implementing a send buffer that transparently
-;;   batches >client sends w/in a short window (~30ms) and transparently
-;;   DEbatches client-side on receipt. Window period could be tunable per send
-;;   call: send-fn [uid ev ?batch-window-ms]. Would be useful for very high
-;;   server>clientS push throughput, esp. with Ajax clients.
-;; * Optimization: consider double-clutch mechanism on Ajax pollers.
-
 ;;;; Shared (client+server)
 
 (defn- chan? [x]
@@ -155,15 +147,17 @@
 
 #+clj
 (defn- ch-pull-ajax-hk-chs!
-  "Starts a go loop to pull relevant client hk-chs. Several attempts are made in
-  order to provide some reliability against possibly-reconnecting Ajax pollers.
-  Pulls at most one hk-ch per client-uuid so works fine with multiple clients.
+  "A reliability measure for Ajax server>clientS push.
+  Starts a go loop to pull relevant Ajax client hk-chs. Several attempts are
+  made in order to provide some reliability against possibly-reconnecting Ajax
+  pollers. Pulls at most one hk-ch per client-uuid so works fine with multiple
+  clients.
 
   Returns a channel to which we'll send the hk-chs set, or close.
 
   More elaborate implementations (involving tombstones) could cut down on
-  unnecessary waiting - but this solution is small, simple, and plenty fast in
-  practice."
+  unnecessary waiting - but this solution is small, simple, and plenty good in
+  practice due to core.async's efficiency."
   [clients_ uid] ; `hk-chs` = http-kit channels
   (let [ch (chan)]
     (go-loop [pulled {} ; {<client-uuid> <hk-ch>}
@@ -193,47 +187,87 @@
 (comment (time (dotimes [_ 50000] (ch-pull-ajax-hk-chs! (atom [nil {}]) 10))))
 
 #+clj
-(defn make-channel-socket!
-  "Returns `{:keys [ch-recv send-fn ajax-post-fn ajax-get-or-ws-handshake-fn]}`.
+(defn- make-send-buffer-dispatch-loop!
+  "Creates a go loop to dispatch buffered server>clientS push events."
+  [timeout-ms send-buffers_ dispatch-f]
+  (when-let [tout-ms timeout-ms]
+    (go-loop []
+      (let [tout   (async/timeout tout-ms)
+            ;; Simultaneously pull buffers for every uid:
+            pulled (:old-val (encore/reset!* send-buffers_ {}))]
+        (doseq [[uid buffered-evs] pulled]
+          (let [buffered-evs-edn (pr-str buffered-evs)]
+            (dispatch-f uid buffered-evs-edn)))
+        (<! tout)
+        (recur)))))
 
-  ch-recv - core.async channel ; For server-side chsk request router, will
-                               ; receive `event-msg`s from clients.
-  send-fn - (fn [user-id ev])   ; For server>clientS push
-  ajax-post-fn                - (fn [ring-req]) ; For Ring POST, chsk URL
-  ajax-get-or-ws-handshake-fn - (fn [ring-req]) ; For Ring GET, chsk URL (+CSRF)"
-  [& [{:keys [recv-buf-or-n]
-       :or   {recv-buf-or-n (async/sliding-buffer 1000)}}]]
+#+clj
+(defn make-channel-socket!
+  "Returns `{:keys [ch-recv send-fn ajax-post-fn ajax-get-or-ws-handshake-fn]}`:
+    * ch-recv - core.async channel ; For server-side chsk request router, will
+                                   ; receive `event-msg`s from clients.
+    * send-fn - (fn [user-id ev])   ; For server>clientS push
+    * ajax-post-fn                - (fn [ring-req]) ; For Ring CSRF-POST, chsk URL
+    * ajax-get-or-ws-handshake-fn - (fn [ring-req]) ; For Ring GET,       chsk URL
+
+  Options:
+    * recv-buf-or-n    ; Used for ch-recv buffer
+    * send-buf-ms-ajax ; [1]
+    * send-buf-ms-ws   ; [1]
+
+  [1] Optimization to allow transparent batching of rapidly-triggered
+      server>clientS push events. This is esp. important for Ajax clients which
+      use a (slow) reconnecting poller. Actual event dispatch may occur <= given
+      ms after send call (larger values => larger batch windows)."
+  [& [{:keys [recv-buf-or-n send-buf-ms-ajax send-buf-ms-ws]
+       :or   {recv-buf-or-n (async/sliding-buffer 1000)
+              send-buf-ms-ajax 100
+              send-buf-ms-ws   30}}]]
+  {:pre [(encore/pos-int? send-buf-ms-ajax)
+         (encore/pos-int? send-buf-ms-ws)]}
+
   (let [ch-recv      (chan recv-buf-or-n)
-        clients-ajax (atom [nil {}]) ; [<#{pulled-hk-chs}> {<uid> {<client-uuid> <hk-ch>}}]
         clients-ws   (atom {})       ; {<uid> <#{hk-chs}>}
+        clients-ajax (atom [nil {}]) ; [<#{pulled-hk-chs}>
+                                     ;  {<uid> {<client-uuid> <hk-ch>}}]
+        send-buffers-ws_   (atom {}) ; {<uid> <[buffered-evs]>}
+        send-buffers-ajax_ (atom {}) ; ''
         ]
+
+    ;;; Buffered-send dispatch loops
+    ;; * We send to _all_ of a uid's connected clients.
+    ;; * Recall that http-kit's `send!` is async, and a noop on closed chs.
+
+    (make-send-buffer-dispatch-loop! send-buf-ms-ws send-buffers-ws_
+      (fn [uid buffered-evs-edn]
+        (doseq [hk-ch (@clients-ws uid)]
+          (http-kit/send! hk-ch buffered-evs-edn))))
+
+    (make-send-buffer-dispatch-loop! send-buf-ms-ajax send-buffers-ajax_
+      (fn [uid buffered-evs-edn]
+        (go ; Since we need speed here when broadcasting. Prefer broadcasting
+            ; rarely, and only to users we know/expect to actually be online.
+         (doseq [hk-ch (<! (ch-pull-ajax-hk-chs! clients-ajax uid))]
+           (http-kit/send! hk-ch buffered-evs-edn)))))
 
     {:ch-recv ch-recv
      :send-fn ; Async server>clientS (by uid) push sender
      (fn [uid ev]
        (timbre/tracef "Chsk send: (->uid %s) %s" uid ev)
        (assert-event ev)
-       (when uid
-         (let [send-to-hk-chs! ; Async because of http-kit
-               (fn [hk-chs]
-                 ;; Remember that http-kit's send to a closed ch is just a no-op
-                 (when hk-chs ; No cb, so no need for (cb-fn :chsk/closed)
-                   (assert (and (set? hk-chs) (not (empty? hk-chs))))
-                   (if (= ev [:chsk/close])
-                     (do (timbre/debugf "Chsk CLOSING: %s" uid)
-                       (doseq [hk-ch hk-chs] (http-kit/close hk-ch)))
+       (assert (not (nil? uid))
+         "server>clientS push requires a non-nil user-id as per client session :uid")
 
-                     (let [ev-edn (pr-str ev)]
-                       (doseq [hk-ch hk-chs] ; Broadcast to all uid's clients/devices
-                         (http-kit/send! hk-ch ev-edn))))))]
+       (if (= ev [:chsk/close])
+         (do ; Currently non-flushing, closes only WebSockets:
+           (timbre/debugf "Chsk CLOSING: %s" uid)
+           (doseq [hk-ch (@clients-ws uid)] (http-kit/close hk-ch)))
 
-           (send-to-hk-chs! (@clients-ws uid)) ; WebSocket clients
-           (go ; Need speed here for broadcasting purposes:
-            ;; Prefer broadcasting only to users we know/expect to be online:
-            (send-to-hk-chs! (<! (ch-pull-ajax-hk-chs! clients-ajax uid))))
+         (do ; Buffer event for sending:
+           (encore/swap-in! send-buffers-ws_   [uid] (fn [old-v] (conj (or old-v []) ev)))
+           (encore/swap-in! send-buffers-ajax_ [uid] (fn [old-v] (conj (or old-v []) ev)))))
 
-           nil ; Always return nil
-           )))
+       nil)
 
      :ajax-post-fn ; Does not participate in `clients-ajax` (has specific req->resp)
      (fn [ring-req]
@@ -393,6 +427,14 @@
             (put! cb-ch [(keyword (str (encore/fq-name ev-id) ".cb"))
                          reply]))))))
 
+#+cljs
+(defn- receive-buffered-evs!
+  [ch-recv clj] {:pre [(vector? clj)]}
+  (let [buffered-evs clj]
+    (doseq [ev buffered-evs]
+      (assert-event ev)
+      (put! ch-recv ev))))
+
 #+cljs ;; Handles reconnects, keep-alives, callbacks:
 (defrecord ChWebSocket [url chs open? socket-atom kalive-timer kalive-due?
                         cbs-waiting ; [dissoc'd-fn {<uuid> <fn> ...}]
@@ -456,9 +498,8 @@
                           (if-let [cb-fn (pull-unused-cb-fn! cbs-waiting ?cb-uuid)]
                             (cb-fn clj)
                             (encore/warnf "Cb reply w/o local cb-fn: %s" clj))
-                          (let [_ (assert-event clj)
-                                chsk-ev clj]
-                            (put! (:recv chs) chsk-ev)))))))
+                          (let [buffered-evs clj]
+                            (receive-buffered-evs! (:recv chs) buffered-evs)))))))
                 (aset "onopen"
                   (fn [_ws-ev]
                     (reset! kalive-timer
@@ -556,11 +597,10 @@
                         (do (reset-chsk-state! chsk false)
                             (retry!)))
 
-                      (let [edn content
-                            ev  (edn/read-string edn)]
-                        ;; The Ajax long-poller is used only for events, never cbs:
-                        (assert-event ev)
-                        (put! (:recv chs) ev)
+                      ;; The Ajax long-poller is used only for events, never cbs:
+                      (let [edn          content
+                            buffered-evs (edn/read-string edn)]
+                        (receive-buffered-evs! (:recv chs) buffered-evs)
                         (reset-chsk-state! chsk true)
                         (async-poll-for-update! 0))))))]
 
@@ -595,7 +635,7 @@
   [url {:keys [csrf-token has-uid?]}
    & [{:keys [type recv-buf-or-n ws-kalive-ms lp-timeout]
        :or   {type          :auto
-              recv-buf-or-n (async/sliding-buffer 10)
+              recv-buf-or-n (async/sliding-buffer 2048) ; Mostly for buffered-evs
               ws-kalive-ms  38000
               lp-timeout    38000}}]]
 
@@ -631,12 +671,12 @@
 
     (when chsk
       {:chsk chsk
+       :send-fn (partial chsk-send! chsk)
        :ch-recv
        (async/merge
         [(->> (:internal chs) (async/map< (fn [ev] {:pre [(event? ev)]} ev)))
          (->> (:state chs) (async/map< (fn [clj] [:chsk/state [(state* clj) type*]])))
-         (->> (:recv  chs) (async/map< (fn [clj] [:chsk/recv  clj])))])
-       :send-fn (partial chsk-send! chsk)})))
+         (->> (:recv  chs) (async/map< (fn [clj] [:chsk/recv  clj])))])})))
 
 ;;;; Routers
 
