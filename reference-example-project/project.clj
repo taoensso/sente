@@ -15,7 +15,7 @@
    [org.clojure/clojurescript "0.0-2173"]
    [org.clojure/core.async    "0.1.278.0-76b25b-alpha"]
    ;;
-   [com.taoensso/sente        "0.9.0-SNAPSHOT"] ; <--- Sente
+   [com.taoensso/sente        "0.9.0"] ; <--- Sente
    [com.taoensso/timbre       "3.1.6"]
    ;;
    [http-kit                  "2.1.18"] ; <--- http-kit (currently required)

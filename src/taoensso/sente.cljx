@@ -79,6 +79,9 @@
   #+cljs
   (:require-macros [cljs.core.async.macros :as asyncm :refer (go go-loop)]))
 
+;;;; TODO
+;; * Performance optimization: client>server event buffering.
+
 ;;;; Shared (client+server)
 
 (defn- chan? [x]
