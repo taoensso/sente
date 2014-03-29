@@ -146,45 +146,49 @@
       (timbre/warnf "Bad ev-msg!: %s (%s)" ev-msg* ev-msg))))
 
 #+clj
-(defn- ch-pull-ajax-hk-chs!
-  "A reliability measure for Ajax server>clientS push.
-  Starts a go loop to pull relevant Ajax client hk-chs. Several attempts are
-  made in order to provide some reliability against possibly-reconnecting Ajax
-  pollers. Pulls at most one hk-ch per client-uuid so works fine with multiple
-  clients.
+(defn- send-buffered-evs-ws!
+  "Actually pushes buffered events (edn) to all uid's WebSocket conns."
+  [conns_ uid buffered-evs-edn]
+  (doseq [hk-ch (@conns_ uid)]
+    (http-kit/send! hk-ch buffered-evs-edn)))
 
-  Returns a channel to which we'll send the hk-chs set, or close.
+#+clj
+(defn- send-buffered-evs-ajax!
+  "Actually pushes buffered events (edn) to all uid's Ajax conns.
+  Atomically pulls Ajax long-polling conns from connected conns atom. As a
+  reliability measure against possibly-REconnecting Ajax pollers (possibly from
+  multiple clients) - will attempt several pulls over time (at most one hk-ch
+  per client-uuid to prevent sending the same content to a client more than
+  once).
 
   More elaborate implementations (involving tombstones) could cut down on
   unnecessary waiting - but this solution is small, simple, and plenty good in
   practice due to core.async's efficiency."
-  [clients_ uid] ; `hk-chs` = http-kit channels
-  (let [ch (chan)]
-    (go-loop [pulled {} ; {<client-uuid> <hk-ch>}
-              n      0]
-      (if (= n 5) ; Try repeatedly, always
-
-        ;; >! set of unique-client hk-chs, or nil:
-        (if (empty? pulled)
-          (async/close! ch)
-          (>! ch (set (vals pulled))))
-
-        (let [[?pulled-now _] ; nil or {<client-uuid> <hk-ch>}
-              (swap! clients_
-                (fn [[_ m]]
-                  (let [m-in       (get m uid)
-                        ks-to-pull (filter #(not (contains? pulled %))
-                                           (keys m-in))]
-                    (if (empty? ks-to-pull) [nil m]
-                      [(select-keys m-in ks-to-pull)
-                       (assoc m uid (apply dissoc m-in ks-to-pull))]))))]
-
+  [conns_ uid buffered-evs-edn & [{:keys [nattempts ms-base ms-rand]
+                                   ;; 5 attempts at ~85ms ea = 425ms
+                                   :or   {nattempts 5
+                                          ms-base   50
+                                          ms-rand   50}}]]
+  (go-loop [n 0 client-uuids-satisfied #{}]
+    (let [[?pulled] ; nil or {<client-uuid> <hk-ch>}
+          (swap! conns_ ; [<?pulled> {<uid> {<client-uuid> <hk-ch>}}]
+            (fn [[_ m]]
+              (let [m-in       (get m uid)
+                    ks-to-pull (remove client-uuids-satisfied (keys m-in))]
+                (if (empty? ks-to-pull) [nil m]
+                  [(select-keys m-in ks-to-pull)
+                   (assoc m uid (apply dissoc m-in ks-to-pull))]))))]
+      (assert (or (nil? ?pulled) (map? ?pulled)))
+      (let [?newly-satisfied
+            (when ?pulled
+              (reduce (fn [s [client-uuid hk-ch]]
+                        (if-not (http-kit/send! hk-ch buffered-evs-edn)
+                          s ; hk-ch may have closed already!
+                          (conj s client-uuid))) #{} ?pulled))]
+        (when (< n nattempts) ; Try repeatedly, always
           ;; Allow some time for possible poller reconnects:
-          (<! (async/timeout (+ 50 (rand-int 50)))) ; ~85ms
-          (recur (merge pulled ?pulled-now) (inc n)))))
-    ch))
-
-(comment (time (dotimes [_ 50000] (ch-pull-ajax-hk-chs! (atom [nil {}]) 10))))
+          (<! (async/timeout (+ ms-base (rand-int ms-rand))))
+          (recur (inc n) (into client-uuids-satisfied ?newly-satisfied)))))))
 
 #+clj
 (defn make-channel-socket!
@@ -211,10 +215,10 @@
   {:pre [(encore/pos-int? send-buf-ms-ajax)
          (encore/pos-int? send-buf-ms-ws)]}
 
-  (let [ch-recv      (chan recv-buf-or-n)
-        clients-ws   (atom {})       ; {<uid> <#{hk-chs}>}
-        clients-ajax (atom [nil {}]) ; [<#{pulled-hk-chs}>
-                                        ;  {<uid> {<client-uuid> <hk-ch>}}]
+  (let [ch-recv     (chan recv-buf-or-n)
+        conns-ws_   (atom {})        ; {<uid> <#{hk-chs}>}
+        conns-ajax_ (atom [nil {}])  ; [<#{pulled-hk-chs}>
+                                     ;  {<uid> {<client-uuid> <hk-ch>}}]
         ;; Separate buffers for easy atomic pulls w/ support for diff timeouts:
         send-buffers-ws_   (atom {}) ; {<uid> [<buffered-evs> <#{ev-uuids}>]}
         send-buffers-ajax_ (atom {}) ; ''
@@ -251,10 +255,10 @@
                      (let [buffered-evs-edn (pr-str buffered-evs)]
                        (flush-f uid buffered-evs-edn))))))]
 
-         (if (= ev [:chsk/close])
+         (if (= ev [:chsk/close]) ; Experimental (undocumented)
            (do ; Currently non-flushing, closes only WebSockets:
              (timbre/debugf "Chsk CLOSING: %s" uid)
-             (doseq [hk-ch (@clients-ws uid)] (http-kit/close hk-ch)))
+             (doseq [hk-ch (@conns-ws_ uid)] (http-kit/close hk-ch)))
 
            (do
              ;;; Buffer event:
@@ -263,24 +267,15 @@
 
              ;;; Flush event buffers after relevant timeouts:
              ;; * May actually flush earlier due to another timeout.
-             ;; * We send _all_ of a uid's connected clients.
+             ;; * We send to _all_ of a uid's connections.
              ;; * Broadcasting is possible but I'd suggest doing it rarely, and
              ;;   only to users we know/expect are actually online.
-
-             (go
-              (when-not flush-send-buffer? (<! (async/timeout send-buf-ms-ws)))
-              (flush-buffer! send-buffers-ws_
-                (fn [uid buffered-evs-edn]
-                  (doseq [hk-ch (@clients-ws uid)]
-                    (http-kit/send! hk-ch buffered-evs-edn)))))
-             (go
-              (when-not flush-send-buffer? (<! (async/timeout send-buf-ms-ajax)))
-              (flush-buffer! send-buffers-ajax_
-                (fn [uid buffered-evs-edn]
-                  ;; Note slow <! okay even when broadcasting since we're in a
-                  ;; go block:
-                  (doseq [hk-ch (<! (ch-pull-ajax-hk-chs! clients-ajax uid))]
-                    (http-kit/send! hk-ch buffered-evs-edn))))))))
+             (go (when-not flush-send-buffer? (<! (async/timeout send-buf-ms-ws)))
+                 (flush-buffer! send-buffers-ws_
+                   (partial send-buffered-evs-ws! conns-ws_)))
+             (go (when-not flush-send-buffer? (<! (async/timeout send-buf-ms-ajax)))
+                 (flush-buffer! send-buffers-ajax_
+                   (partial send-buffered-evs-ajax! conns-ajax_))))))
 
        nil)
 
@@ -327,14 +322,14 @@
 
            (if-not (:websocket? ring-req)
              (when uid ; Server shouldn't attempt a non-uid long-pollling GET anyway
-               (swap! clients-ajax (fn [[_ m]]
-                                     [nil (assoc-in m [uid client-uuid] hk-ch)]))
+               (swap! conns-ajax_
+                 (fn [[_ m]] [nil (assoc-in m [uid client-uuid] hk-ch)]))
 
                ;; Currently relying on `on-close` to _always_ trigger for every
                ;; connection. If that's not the case, will need some kind of gc.
                (http-kit/on-close hk-ch
                  (fn [status]
-                   (swap! clients-ajax
+                   (swap! conns-ajax_
                      (fn [[_ m]]
                        (let [new (dissoc (get m uid) client-uuid)]
                          [nil (if (empty? new)
@@ -347,7 +342,7 @@
                (timbre/tracef "New WebSocket channel: %s %s"
                  (or uid "(no uid)") (str hk-ch)) ; _Must_ call `str` on ch
                (when uid
-                 (swap! clients-ws (fn [m] (assoc m uid (conj (m uid #{}) hk-ch))))
+                 (swap! conns-ws_ (fn [m] (assoc m uid (conj (m uid #{}) hk-ch))))
                  (receive-event-msg!* [:chsk/uidport-open :ws]))
 
                (http-kit/on-receive hk-ch
@@ -367,7 +362,7 @@
                (http-kit/on-close hk-ch
                  (fn [status]
                    (when uid
-                     (swap! clients-ws
+                     (swap! conns-ws_
                        (fn [m]
                          (let [new (disj (m uid #{}) hk-ch)]
                            (if (empty? new) (dissoc m uid)
