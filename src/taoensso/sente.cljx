@@ -187,21 +187,6 @@
 (comment (time (dotimes [_ 50000] (ch-pull-ajax-hk-chs! (atom [nil {}]) 10))))
 
 #+clj
-(defn- make-send-buffer-dispatch-loop!
-  "Creates a go loop to dispatch buffered server>clientS push events."
-  [timeout-ms send-buffers_ dispatch-f]
-  (when-let [tout-ms timeout-ms]
-    (go-loop []
-      (let [tout   (async/timeout tout-ms)
-            ;; Simultaneously pull buffers for every uid:
-            pulled (:old-val (encore/reset!* send-buffers_ {}))]
-        (doseq [[uid buffered-evs] pulled]
-          (let [buffered-evs-edn (pr-str buffered-evs)]
-            (dispatch-f uid buffered-evs-edn)))
-        (<! tout)
-        (recur)))))
-
-#+clj
 (defn make-channel-socket!
   "Returns `{:keys [ch-recv send-fn ajax-post-fn ajax-get-or-ws-handshake-fn]}`:
     * ch-recv - core.async channel ; For server-side chsk request router, will
@@ -229,43 +214,73 @@
   (let [ch-recv      (chan recv-buf-or-n)
         clients-ws   (atom {})       ; {<uid> <#{hk-chs}>}
         clients-ajax (atom [nil {}]) ; [<#{pulled-hk-chs}>
-                                     ;  {<uid> {<client-uuid> <hk-ch>}}]
-        send-buffers-ws_   (atom {}) ; {<uid> <[buffered-evs]>}
+                                        ;  {<uid> {<client-uuid> <hk-ch>}}]
+        ;; Separate buffers for easy atomic pulls w/ support for diff timeouts:
+        send-buffers-ws_   (atom {}) ; {<uid> [<buffered-evs> <#{ev-uuids}>]}
         send-buffers-ajax_ (atom {}) ; ''
         ]
-
-    ;;; Buffered-send dispatch loops
-    ;; * We send to _all_ of a uid's connected clients.
-    ;; * Recall that http-kit's `send!` is async, and a noop on closed chs.
-
-    (make-send-buffer-dispatch-loop! send-buf-ms-ws send-buffers-ws_
-      (fn [uid buffered-evs-edn]
-        (doseq [hk-ch (@clients-ws uid)]
-          (http-kit/send! hk-ch buffered-evs-edn))))
-
-    (make-send-buffer-dispatch-loop! send-buf-ms-ajax send-buffers-ajax_
-      (fn [uid buffered-evs-edn]
-        (go ; Since we need speed here when broadcasting. Prefer broadcasting
-            ; rarely, and only to users we know/expect to actually be online.
-         (doseq [hk-ch (<! (ch-pull-ajax-hk-chs! clients-ajax uid))]
-           (http-kit/send! hk-ch buffered-evs-edn)))))
-
     {:ch-recv ch-recv
      :send-fn ; Async server>clientS (by uid) push sender
-     (fn [uid ev]
+     (fn [uid ev & [{:as _opts :keys [flush-send-buffer?]}]]
        (timbre/tracef "Chsk send: (->uid %s) %s" uid ev)
        (assert-event ev)
        (assert (not (nil? uid))
-         "server>clientS push requires a non-nil user-id as per client session :uid")
+         "server>clientS push requires a non-nil user-id (client session :uid)")
 
-       (if (= ev [:chsk/close])
-         (do ; Currently non-flushing, closes only WebSockets:
-           (timbre/debugf "Chsk CLOSING: %s" uid)
-           (doseq [hk-ch (@clients-ws uid)] (http-kit/close hk-ch)))
+       (let [ev-uuid    (encore/uuid-str)
+             buffer-ev! (fn [send-buffers_]
+                            (encore/swap-in! send-buffers_ [uid]
+                              (fn [old-v]
+                                (if-not old-v [[ev] #{ev-uuid}]
+                                  (let [[buffered-evs ev-uuids] old-v]
+                                    [(conj buffered-evs ev)
+                                     (conj ev-uuids     ev-uuid)])))))
+             flush-buffer!
+             (fn [send-buffers_ flush-f]
+               (when-let [pulled (-> (encore/swap!* send-buffers_ #(dissoc % uid))
+                                     (get-in [:old-val uid]))]
+                 (let [[buffered-evs ev-uuids] pulled]
+                   (assert (vector? buffered-evs))
+                   (assert (set?    ev-uuids))
+                   ;; Don't actually flush unless the event buffered with _this_
+                   ;; send call is still buffered (awaiting flush). This means
+                   ;; that we'll have many (go block) buffer flush calls that'll
+                   ;; noop. They're cheap, and this approach is preferable to
+                   ;; alternatives like flush workers.
+                   (when (contains? ev-uuids ev-uuid)
+                     (let [buffered-evs-edn (pr-str buffered-evs)]
+                       (flush-f uid buffered-evs-edn))))))]
 
-         (do ; Buffer event for sending:
-           (encore/swap-in! send-buffers-ws_   [uid] (fn [old-v] (conj (or old-v []) ev)))
-           (encore/swap-in! send-buffers-ajax_ [uid] (fn [old-v] (conj (or old-v []) ev)))))
+         (if (= ev [:chsk/close])
+           (do ; Currently non-flushing, closes only WebSockets:
+             (timbre/debugf "Chsk CLOSING: %s" uid)
+             (doseq [hk-ch (@clients-ws uid)] (http-kit/close hk-ch)))
+
+           (do
+             ;;; Buffer event:
+             (buffer-ev! send-buffers-ws_)
+             (buffer-ev! send-buffers-ajax_)
+
+             ;;; Flush event buffers after relevant timeouts:
+             ;; * May actually flush earlier due to another timeout.
+             ;; * We send _all_ of a uid's connected clients.
+             ;; * Broadcasting is possible but I'd suggest doing it rarely, and
+             ;;   only to users we know/expect are actually online.
+
+             (go
+              (when-not flush-send-buffer? (<! (async/timeout send-buf-ms-ws)))
+              (flush-buffer! send-buffers-ws_
+                (fn [uid buffered-evs-edn]
+                  (doseq [hk-ch (@clients-ws uid)]
+                    (http-kit/send! hk-ch buffered-evs-edn)))))
+             (go
+              (when-not flush-send-buffer? (<! (async/timeout send-buf-ms-ajax)))
+              (flush-buffer! send-buffers-ajax_
+                (fn [uid buffered-evs-edn]
+                  ;; Note slow <! okay even when broadcasting since we're in a
+                  ;; go block:
+                  (doseq [hk-ch (<! (ch-pull-ajax-hk-chs! clients-ajax uid))]
+                    (http-kit/send! hk-ch buffered-evs-edn))))))))
 
        nil)
 
