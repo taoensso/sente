@@ -1,15 +1,28 @@
 (ns taoensso.sente
   "Channel sockets. Otherwise known as The Shiz.
 
-      Protocol  | client>server | client>server + ack/reply | server>clientS[1] push
+      Protocol  | client>server | client>server + ack/reply | server>user[1] push
     * WebSockets:       ✓              [2]                          ✓  ; [3]
     * Ajax:            [4]              ✓                          [5] ; [3]
 
-    [1] All of a user's (uid's) connected clients (browser tabs, devices, etc.).
+    [1] ALL of a user's connected clients (browser tabs, devices, etc.).
+        Note that user > session > client > connection for consistency over time
+        + multiple devices.
     [2] Emulate with cb-uuid wrapping.
     [3] By uid only (=> logged-in users only).
     [4] Emulate with dummy-cb wrapping.
     [5] Emulate with long-polling against uid (=> logged-in users only).
+
+  Abbreviations:
+    * chsk  - channel socket.
+    * hk-ch - Http-kit Channel.
+    * uid   - User id. An application-specified identifier unique to each user
+              and sessionized under `:uid` key to enable server>user push.
+              May have semantic meaning (e.g. username, email address), or not
+              (e.g. random uuid) - app's discresion.
+    * cb    - callback.
+    * tout  - timeout.
+    * ws    - WebSocket/s.
 
   Special messages (implementation detail):
     * cb replies: :chsk/closed, :chsk/timeout, :chsk/error.
@@ -17,7 +30,7 @@
         [:chsk/handshake <#{:ws :ajax}>],
         [:chsk/ping      <#{:ws :ajax}>], ; Though no :ajax ping
         [:chsk/state [<#{:open :first-open :closed}> <#{:ws :ajax}]],
-        [:chsk/recv  <`server>client`-event>]. ; Async event
+        [:chsk/recv  <[buffered-evs]>]. ; server>user push
 
     * server-side events:
        [:chsk/bad-edn <edn>],
@@ -28,26 +41,24 @@
     * event wrappers: {:chsk/clj <clj> :chsk/dummy-cb? true} (for [2]),
                       {:chsk/clj <clj> :chsk/cb-uuid <uuid>} (for [4]).
 
-  Implementation notes:
-    * A server>client w/cb mechanism would be possible BUT:
-      * No fundamental use cases. We can always simulate as server>client w/o cb,
-        client>server w or w/o cb.
-      * Would yield a significantly more complex code base.
-      * Cb semantic is fundamentally incongruous with server>client since
-        multiple clients may be connected simultaneously for a single uid.
+  Notable implementation details:
+    * Edn is used as a flexible+convenient transfer format, but can be seen as
+      an implementation detail. Users may apply additional string encoding (e.g.
+      JSON) at will. (This would incur a cost, but it'd be negligable compared
+      to even the fastest network transfer times).
+    * No server>client (with/without cb) mechanism is provided since:
+      - server>user is what people actually want 90% of the time, and is a
+        preferable design pattern in general IMO.
+      - server>client could be (somewhat inefficiently) simulated with server>user.
+    * core.async is used liberally where brute-force core.async allows for
+      significant implementation simplifications. We lean on core.async's strong
+      efficiency here.
 
   General-use notes:
     * Single HTTP req+session persists over entire chsk session but cannot
       modify sessions! Use standard a/sync HTTP Ring req/resp for logins, etc.
     * Easy to wrap standard HTTP Ring resps for transport over chsks. Prefer
-      this approach to modifying handlers (better portability).
-
-  Multiple clients (browser tabs, devices, etc.):
-    * client>server + ack/reply: sends always to _single_ client. Note that an
-      optional _multi_ client reply API wouldn't make sense (we're using a cb).
-    * server>clientS push: sends always to _all_ clients.
-    * Applications will need to be careful about which method is preferable, and
-      when."
+      this approach to modifying handlers (better portability)."
   {:author "Peter Taoussanis"}
 
   #+clj
@@ -195,7 +206,7 @@
   "Returns `{:keys [ch-recv send-fn ajax-post-fn ajax-get-or-ws-handshake-fn]}`:
     * ch-recv - core.async channel ; For server-side chsk request router, will
                                    ; receive `event-msg`s from clients.
-    * send-fn - (fn [user-id ev])   ; For server>clientS push
+    * send-fn - (fn [user-id ev])  ; For server>user push
     * ajax-post-fn                - (fn [ring-req]) ; For Ring CSRF-POST, chsk URL
     * ajax-get-or-ws-handshake-fn - (fn [ring-req]) ; For Ring GET,       chsk URL
 
@@ -205,9 +216,9 @@
     * send-buf-ms-ws   ; [1]
 
   [1] Optimization to allow transparent batching of rapidly-triggered
-      server>clientS push events. This is esp. important for Ajax clients which
-      use a (slow) reconnecting poller. Actual event dispatch may occur <= given
-      ms after send call (larger values => larger batch windows)."
+      server>user pushes. This is esp. important for Ajax clients which use a
+      (slow) reconnecting poller. Actual event dispatch may occur <= given ms
+      after send call (larger values => larger batch windows)."
   [& [{:keys [recv-buf-or-n send-buf-ms-ajax send-buf-ms-ws]
        :or   {recv-buf-or-n (async/sliding-buffer 1000)
               send-buf-ms-ajax 100
@@ -217,19 +228,18 @@
 
   (let [ch-recv     (chan recv-buf-or-n)
         conns-ws_   (atom {})        ; {<uid> <#{hk-chs}>}
-        conns-ajax_ (atom [nil {}])  ; [<#{pulled-hk-chs}>
-                                     ;  {<uid> {<client-uuid> <hk-ch>}}]
+        conns-ajax_ (atom [nil {}])  ; [<?pulled> {<uid> {<client-uuid> <hk-ch>}}]
         ;; Separate buffers for easy atomic pulls w/ support for diff timeouts:
         send-buffers-ws_   (atom {}) ; {<uid> [<buffered-evs> <#{ev-uuids}>]}
         send-buffers-ajax_ (atom {}) ; ''
         ]
     {:ch-recv ch-recv
-     :send-fn ; Async server>clientS (by uid) push sender
+     :send-fn ; server>user (by uid) push
      (fn [uid ev & [{:as _opts :keys [flush-send-buffer?]}]]
        (timbre/tracef "Chsk send: (->uid %s) %s" uid ev)
        (assert-event ev)
        (assert (not (nil? uid))
-         "server>clientS push requires a non-nil user-id (client session :uid)")
+         "server>user push requires a non-nil user-id (client session :uid)")
 
        (let [ev-uuid    (encore/uuid-str)
              buffer-ev! (fn [send-buffers_]
@@ -279,7 +289,7 @@
 
        nil)
 
-     :ajax-post-fn ; Does not participate in `clients-ajax` (has specific req->resp)
+     :ajax-post-fn ; Does not participate in `conns-ajax` (has specific req->resp)
      (fn [ring-req]
        (http-kit/with-channel ring-req hk-ch
          (let [msg       (-> ring-req :params :edn try-read-edn)
@@ -287,8 +297,7 @@
                clj       (if-not dummy-cb? msg (:chsk/clj msg))]
 
            (receive-event-msg! ch-recv
-             {;; Don't actually use the Ajax POST client-uuid, but we'll set
-              ;; one anyway for `event-msg?`:
+             {;; Currently unused for non-lp POSTs, but necessary for `event-msg?`:
               :client-uuid (encore/uuid-str)
               :ring-req ring-req
               :event clj
@@ -495,7 +504,7 @@
               (doto socket
                 (aset "onerror"
                   (fn [ws-ev] (encore/errorf "WebSocket error: %s" ws-ev)))
-                (aset "onmessage"
+                (aset "onmessage" ; Nb receives both push & cb evs!
                   (fn [ws-ev]
                     (let [edn (.-data ws-ev)
                           ;; Nb may or may NOT satisfy `event?` since we also
@@ -565,7 +574,7 @@
                  (do (reset-chsk-state! chsk false)
                      (when ?cb-fn (?cb-fn :chsk/error))))
 
-               (let [resp-clj content
+               (let [resp-edn content
                      resp-clj (edn/read-string resp-edn)]
                  (if ?cb-fn (?cb-fn resp-clj)
                    (when (not= resp-clj :chsk/dummy-200)
@@ -686,7 +695,7 @@
        (async/merge
         [(->> (:internal chs) (async/map< (fn [ev] {:pre [(event? ev)]} ev)))
          (->> (:state chs) (async/map< (fn [clj] [:chsk/state [(state* clj) type*]])))
-         (->> (:recv  chs) (async/map< (fn [clj] [:chsk/recv  clj])))])})))
+         (->> (:recv  chs) (async/map< (fn [ev]  [:chsk/recv  ev])))])})))
 
 ;;;; Routers
 
