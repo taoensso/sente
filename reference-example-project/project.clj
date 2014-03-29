@@ -1,5 +1,5 @@
-(defproject com.taoensso.examples/sente "0.0.1-SNAPSHOT"
-  :description "Sente example project"
+(defproject com.taoensso.examples/sente "1.0.0"
+  :description "Sente, reference web-app example project"
   :url "https://github.com/ptaoussanis/sente"
   :license {:name "Eclipse Public License"
             :url  "http://www.eclipse.org/legal/epl-v10.html"
@@ -10,15 +10,15 @@
                 *assert* true}
 
   :dependencies
-  [[org.clojure/clojure       "1.5.1"]
+  [[org.clojure/clojure       "1.6.0"]
    ;;
    [org.clojure/clojurescript "0.0-2173"]
    [org.clojure/core.async    "0.1.278.0-76b25b-alpha"]
    ;;
-   [com.taoensso/sente        "0.8.0-SNAPSHOT"] ; <--- Sente
-   [com.taoensso/timbre       "3.1.0"]
+   [com.taoensso/sente        "0.9.0-SNAPSHOT"] ; <--- Sente
+   [com.taoensso/timbre       "3.1.6"]
    ;;
-   [http-kit                  "2.1.17"] ; <--- http-kit (currently required)
+   [http-kit                  "2.1.18"] ; <--- http-kit (currently required)
    ;;
    [compojure                 "1.1.6"]  ; Or routing lib of your choice
    [ring                      "1.2.1"]

@@ -1,7 +1,13 @@
 (ns example.my-app
-  "Simple Sente client+server web app example.
+  "Sente client+server reference web-app example.
   Uses Kevin Lynagh's awesome Cljx Leiningen plugin,
   Ref. https://github.com/lynaghk/cljx
+
+  ------------------------------------------------------------------------------
+  This example dives into Sente's full functionality quite quickly and is thus
+  probably more useful as a reference than a tutorial.
+  See the GitHub README for a somewhat gentler intro.
+  ------------------------------------------------------------------------------
 
   INSTRUCTIONS:
     1. Call `lein start-dev` at your terminal.
@@ -59,7 +65,9 @@
      :body
      (hiccup/html
       [:h1 "This is my landing page, yo!"]
-      [:p [:small (format "Session: %s" (:session req))]]
+      (if (empty? (:session req))
+        [:p [:strong "Step 0: "] "Please refresh your browser to get a session!"]
+        [:p [:small (format "Session: %s" (:session req))]])
       [:p [:small (format "Random user id (`:uid` key in Ring session): %s" uid)]]
       [:hr]
       [:p [:strong "Step 1: "] "Ensure your browser's JavaScript console is open."]
@@ -161,7 +169,7 @@
 (defonce chsk-router
   (sente/start-chsk-router-loop! event-handler ch-chsk))
 
-;;;; Example: broadcast server>clientS
+;;;; Example: broadcast server>user
 
 ;; As an example of push notifications, we'll setup a server loop to broadcast
 ;; an event to _all_ possible user-ids every 10 seconds:
@@ -177,6 +185,13 @@
           :to-whom uid
           :i i}]))
     (recur (inc i))))
+
+#+clj ; Note that this'll be fast+reliable even over Ajax!:
+(defn test-fast-server>user-pushes [uid-recipient]
+  (doseq [i (range 100)]
+    (chsk-send! uid-recipient [:fast-push/is-fast (str "hello " i "!!")])))
+
+(comment (test-fast-server>user-pushes 20))
 
 ;;;; Setup client buttons
 
