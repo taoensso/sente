@@ -52,7 +52,7 @@ Add the necessary dependency to your [Leiningen][] `project.clj`. This'll provid
 
 ### On the server (Clojure) side
 
-First, make sure you're using [http-kit][] as your Clojure web server. If you're using the standard Ring server (Jetty), http-kit is [almost](http://http-kit.org/migration.html) a drop-in replacement. The examples here will also use [core.match][].
+First, make sure you're using [http-kit][] as your Clojure web server. If you're using the standard Ring server (Jetty), http-kit is [almost](http://http-kit.org/migration.html) a drop-in replacement.
 
 > **Why http-kit**? Besides being a great web server, it currently offers by far the best high-concurrency support which is something Sente needs to lean on for WebSocket and long-polling connections.
 
@@ -218,7 +218,7 @@ Send a map, get a map. Send a vector, get a vector. Send a string, get a string.
 
 And since JSON, XML, etc. are all string-encoded formats, using them with Sente is trivial: just **send the encoded data as a string**, and remember to decode it on the other end however you like.
 
-Relative to network transfer times, the cost of (for example) `json->edn->json->data` vs `json->data` is negligable. It's also worth noting that the additional encoding isn't actually going to waste, it's buying you features implemented transparently by Sente like protocol negotiation and event batching. These can often outweigh any additional encoding cost anyway.
+Relative to network transfer times, the cost of (for example) `json->edn->json->data` vs `json->data` is negligable. It's also worth noting that the additional encoding isn't actually going to waste, it's buying you features implemented transparently by Sente like protocol negotiation and event batching. These can often outweigh any additional encoding cost.
 
 #### How do I route client/server events?
 
@@ -261,7 +261,8 @@ Copyright &copy; 2012-2014 Peter Taoussanis. Distributed under the [Eclipse Publ
 
 
 [API docs]: <http://ptaoussanis.github.io/sente/>
-[CHANGELOG]: <https://github.com/ptaoussanis/sente/blob/master/CHANGELOG.md>
+[CHANGELOG_]: <https://github.com/ptaoussanis/sente/blob/master/CHANGELOG.md>
+[CHANGELOG]: <https://github.com/ptaoussanis/sente/releases>
 [other Clojure libs]: <https://www.taoensso.com/clojure-libraries>
 [Twitter]: <https://twitter.com/ptaoussanis>
 [semantic]: <http://semver.org/>
