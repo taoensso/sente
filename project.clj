@@ -15,13 +15,13 @@
    [org.clojure/core.async    "0.1.278.0-76b25b-alpha"]
    [org.clojure/tools.reader  "0.8.3"]
    [com.taoensso/encore       "1.1.0"]
-   [com.taoensso/timbre       "3.1.1"]
-   [http-kit                  "2.1.17"]]
+   [com.taoensso/timbre       "3.1.6"]
+   [http-kit                  "2.1.18"]]
 
   :test-paths ["test" "src"]
   :profiles
   {;; :default [:base :system :user :provided :dev]
-   :1.6  {:dependencies [[org.clojure/clojure "1.6.0-beta1"]]}
+   :1.6  {:dependencies [[org.clojure/clojure     "1.6.0"]]}
    :test {:dependencies [[expectations            "1.4.56"]
                          [reiddraper/simple-check "0.5.6"]]
           :plugins [[lein-expectations "0.0.8"]
