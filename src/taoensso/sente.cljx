@@ -192,7 +192,7 @@
       (assert (or (nil? ?pulled) (map? ?pulled)))
       (let [?newly-satisfied
             (when ?pulled
-              (reduce (fn [s [client-uuid hk-ch]]
+              (reduce-kv (fn [s client-uuid hk-ch]
                         (if-not (http-kit/send! hk-ch buffered-evs-edn)
                           s ; hk-ch may have closed already!
                           (conj s client-uuid))) #{} ?pulled))]
@@ -298,7 +298,7 @@
 
            (receive-event-msg! ch-recv
              {;; Currently unused for non-lp POSTs, but necessary for `event-msg?`:
-              :client-uuid (encore/uuid-str)
+              :client-uuid "degenerate-ajax-post-fn-uuid" ; (encore/uuid-str)
               :ring-req ring-req
               :event clj
               :?reply-fn
@@ -318,7 +318,7 @@
        (http-kit/with-channel ring-req hk-ch
          (let [client-uuid ; Browser-tab / device identifier
                (str uid "-" ; Security measure (can't be controlled by client)
-                 (or (:ajax-client-uuid ring-req)
+                 (or (get-in ring-req [:params :ajax-client-uuid])
                      (encore/uuid-str)))
 
                receive-event-msg!* ; Partial
