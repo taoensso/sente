@@ -80,7 +80,8 @@
       ;;; Communicate releavnt state to client (you could do this any way that's
       ;;; convenient, just keep in mind that client state is easily forged):
       [:script (format "var csrf_token='%s';" ring-anti-forgery/*anti-forgery-token*)]
-      [:script (format "var has_uid=%s;" (if uid "true" "false"))]
+      [:script (format "var has_uid=%s;"
+                 (if (get-in req [:session :uid]) "true" "false"))]
       ;;
       [:script {:src "main.js"}] ; Include our cljs target
       )}))
@@ -177,6 +178,7 @@
 (defonce broadcaster
   (go-loop [i 0]
     (<! (async/timeout 10000))
+    (println "Broadcasting: server>client (all uids)")
     (doseq [uid (range 100)]
       (chsk-send! uid
         [:some/broadcast
