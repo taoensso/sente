@@ -654,12 +654,18 @@
 
   Note that the *same* URL is used for: WebSockets, POSTs, GETs. Server-side
   routes should be configured accordingly."
-  [url {:keys [csrf-token has-uid?]}
-   & [{:keys [type recv-buf-or-n ws-kalive-ms lp-timeout]
+  [url &
+   & [{:keys [csrf-token has-uid?
+              type recv-buf-or-n ws-kalive-ms lp-timeout]
        :or   {type          :auto
               recv-buf-or-n (async/sliding-buffer 2048) ; Mostly for buffered-evs
               ws-kalive-ms  38000
-              lp-timeout    38000}}]]
+              lp-timeout    38000}}
+      _deprecated-more-opts]]
+
+  (when (not (nil? _deprecated-more-opts))
+    (encore/log
+     "WARNING: `make-channel-socket!` fn signature CHANGED with Sente v0.10.0."))
 
   (when (str/blank? csrf-token)
     (encore/log "WARNING: No csrf-token provided"))

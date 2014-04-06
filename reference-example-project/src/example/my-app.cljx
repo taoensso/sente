@@ -119,13 +119,13 @@
 
 #+cljs (def csrf-token        (aget js/window "csrf_token"))
 #+cljs (def has-uid?   (true? (aget js/window "has_uid")))
+#+cljs (def chsk-config {:type :auto #_:ajax ; e/o #{:auto :ajax; :ws}
+                         :csrf-token csrf-token
+                         :has-uid?   has-uid?})
 #+cljs
 (let [{:keys [chsk ch-recv send-fn]}
       (sente/make-channel-socket! "/chsk" ; Note the same URL as before
-       {:csrf-token csrf-token
-        :has-uid?   has-uid?}
-       {:type :auto #_:ajax ; e/o #{:auto :ajax; :ws}
-        })]
+        chsk-config)]
   (def chsk       chsk)
   (def ch-chsk    ch-recv) ; ChannelSocket's receive channel
   (def chsk-send! send-fn) ; ChannelSocket's send API fn
@@ -134,7 +134,7 @@
 ;;;; Setup routers -------------------------------------------------------------
 
 #+cljs (logf "ClojureScript appears to have loaded correctly.")
-#+cljs (logf "CSRF token from server: %s" csrf-token)
+#+cljs (logf "`make-channel-socket!` config: %s" chsk-config)
 
 #+clj
 (defn- event-msg-handler

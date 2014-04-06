@@ -1,3 +1,15 @@
+## v0.10.0 / 2014 Apr 6
+
+ * **BREAKING CHANGE**: ClojureScript (client-side) `make-channel-socket!` fn signature has **changed**:
+```clojure
+(make-channel-socket! {:csrf-token "foo" :has-uid? true}
+                      {:type :auto}) ; BEFORE (note TWO opts maps)
+
+(make-channel-socket! {:csrf-token "foo" :has-uid? true
+                       :type :auto}) ; NOW (note SINGLE opts map)
+```
+
+
 ## v0.9.0 / 2014 Mar 29
 
  > This is a **non-breaking** release focused on efficiency+reliability improvements for very high stress environments.

@@ -115,7 +115,7 @@ You'll setup something similar on the client side:
 ;;; Add this: --->
 (let [{:keys [chsk ch-recv send-fn]}
       (sente/make-channel-socket! "/chsk" ; Note the same path as before
-       {} {:type :auto ; e/o #{:auto :ajax :ws}
+       {:type :auto ; e/o #{:auto :ajax :ws}
        })]
   (def chsk       chsk)
   (def ch-chsk    ch-recv) ; ChannelSocket's receive channel
