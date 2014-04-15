@@ -70,8 +70,6 @@ For Sente, we're going to add 2 new URLs and setup their handlers:
 (ns my-server-side-routing-ns ; .clj
   (:require
     ;; <other stuff>
-    [clojure.core.match :as match :refer (match)] ; Optional, useful
-    [clojure.core.async :as async :refer (<! <!! >! >!! put! chan go go-loop)]
     [taoensso.sente :as sente] ; <--- Add this
    ))
 
@@ -88,9 +86,8 @@ For Sente, we're going to add 2 new URLs and setup their handlers:
   ;; <other stuff>
 
   ;;; Add these 2 entries: --->
-  (GET  "/chsk" req (#'ring-ajax-get-or-ws-handshake req)) ; Note the #'
-  (POST "/chsk" req (#'ring-ajax-post                req)) ; ''
-
+  (GET  "/chsk" req (ring-ajax-get-or-ws-handshake req))
+  (POST "/chsk" req (ring-ajax-post                req))
   )
 ```
 
