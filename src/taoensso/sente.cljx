@@ -215,6 +215,8 @@
 
   Options:
     * recv-buf-or-n    ; Used for ch-recv buffer
+    * user-id-fn       ; Fn used to extract a unique ID from the current ring request.
+                       ; By default, extracts :uid from the current session.
     * send-buf-ms-ajax ; [1]
     * send-buf-ms-ws   ; [1]
 
@@ -222,10 +224,11 @@
       server>user pushes. This is esp. important for Ajax clients which use a
       (slow) reconnecting poller. Actual event dispatch may occur <= given ms
       after send call (larger values => larger batch windows)."
-  [& [{:keys [recv-buf-or-n send-buf-ms-ajax send-buf-ms-ws]
+  [& [{:keys [recv-buf-or-n send-buf-ms-ajax send-buf-ms-ws user-id-fn]
        :or   {recv-buf-or-n (async/sliding-buffer 1000)
               send-buf-ms-ajax 100
-              send-buf-ms-ws   30}}]]
+              send-buf-ms-ws   30
+              user-id-fn #(get-in % [:session :uid])}}]]
   {:pre [(encore/pos-int? send-buf-ms-ajax)
          (encore/pos-int? send-buf-ms-ws)]}
 
@@ -317,9 +320,10 @@
              (http-kit/send! hk-ch (pr-str :chsk/dummy-200))))))
 
      :ajax-get-or-ws-handshake-fn ; ajax-poll or ws-handshake
-     (fn [{:as ring-req {:keys [uid] :as session} :session}]
+     (fn [ring-req]
        (http-kit/with-channel ring-req hk-ch
-         (let [client-uuid ; Browser-tab / device identifier
+         (let [uid (user-id-fn ring-req)
+               client-uuid ; Browser-tab / device identifier
                (str uid "-" ; Security measure (can't be controlled by client)
                  (or (get-in ring-req [:params :ajax-client-uuid])
                      (encore/uuid-str)))
