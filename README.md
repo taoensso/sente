@@ -12,8 +12,8 @@
 
 **Sente** is a small client+server library that makes it easy to build **reliable, high-performance realtime web applications with Clojure**.
 
-Or: **We don't need no [Socket.IO][]**  
-Or: **The missing piece in Clojure's web application story**  
+Or: **We don't need no [Socket.IO][]**
+Or: **The missing piece in Clojure's web application story**
 Or: **Clojure(Script) + core.async + WebSockets/Ajax = _The Shiz_**
 
 (I'd also recommend checking out James Henderson's [Chord][] and Kevin Lynagh's [jetty7-websockets-async][] as possible alternatives!)
@@ -197,7 +197,7 @@ Sente offers an out-the-box solution by pulling the concept of identity one leve
   * Each user-id may have zero _or more_ connected clients at any given time.
   * Each user-id _may_ survive across clients (browser tabs, devices), and sessions.
 
-**Set the user's `:uid` Ring session key to give him/her an identity**.
+**To give a user an identity, either set the user's `:uid` Ring session key OR supply a `:user-id-fn` (takes request, returns an identity string) to the `make-channel-socket!` constructor.**
 
 If you want a simple _per-session_ identity, generate a _random uuid_. If you want an identity that persists across sessions, try use something with _semantic meaning_ that you may already have like a database-generated user-id, a login email address, a secure URL fragment, etc.
 
