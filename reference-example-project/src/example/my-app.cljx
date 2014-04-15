@@ -92,8 +92,8 @@
    (routes
     (GET  "/"     req (landing-pg-handler req))
     ;;
-    (GET  "/chsk" req (#'ring-ajax-get-or-ws-handshake req)) ; Note the #'
-    (POST "/chsk" req (#'ring-ajax-post                req)) ; ''
+    (GET  "/chsk" req (ring-ajax-get-or-ws-handshake req))
+    (POST "/chsk" req (ring-ajax-post                req))
     ;;
     (route/resources "/") ; Static files, notably public/main.js (our cljs target)
     (route/not-found "<h1>Page not found</h1>"))
@@ -110,7 +110,7 @@
 
 #+clj
 (defonce http-server ; Runs once, on first eval
-  (let [s (http-kit-server/run-server #'my-ring-handler {:port 0})] ; Note the #'
+  (let [s (http-kit-server/run-server (var my-ring-handler) {:port 0})]
     (logf
      (str "Http-kit server is running on `http://localhost:%s/` "
           "(it should be browser-accessible now).")
