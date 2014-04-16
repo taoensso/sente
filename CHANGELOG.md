@@ -10,6 +10,7 @@
 ```
 
  * [#22] **NEW**: Server-side `make-channel-socket!` constructor now supports an optional `:user-id-fn` `(fn [ring-req]) -> user-id` setting (@sritchie).
+ * [#23] **NEW**: Server-side `make-channel-socket!` now returns a `:connected-uids` atom.
 
 
 ## v0.9.0 / 2014 Mar 29

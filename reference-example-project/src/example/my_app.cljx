@@ -46,12 +46,14 @@
 ;;;; Setup server-side chsk handlers -------------------------------------------
 
 #+clj
-(let [{:keys [ch-recv send-fn ajax-post-fn ajax-get-or-ws-handshake-fn]}
+(let [{:keys [ch-recv send-fn ajax-post-fn ajax-get-or-ws-handshake-fn
+              connected-uids]}
       (sente/make-channel-socket! {})]
   (def ring-ajax-post                ajax-post-fn)
   (def ring-ajax-get-or-ws-handshake ajax-get-or-ws-handshake-fn)
   (def ch-chsk                       ch-recv) ; ChannelSocket's receive channel
   (def chsk-send!                    send-fn) ; ChannelSocket's send API fn
+  (def connected-uids                connected-uids) ; Watchable, read-only atom
   )
 
 #+clj
@@ -180,8 +182,8 @@
 (defonce broadcaster
   (go-loop [i 0]
     (<! (async/timeout 10000))
-    (println "Broadcasting: server>client (all uids)")
-    (doseq [uid (range 100)]
+    (println (format "Broadcasting server>client: %s" @connected-uids))
+    (doseq [uid (:any @connected-uids)]
       (chsk-send! uid
         [:some/broadcast
          {:what-is-this "A broadcast pushed from server"
@@ -191,11 +193,12 @@
     (recur (inc i))))
 
 #+clj ; Note that this'll be fast+reliable even over Ajax!:
-(defn test-fast-server>user-pushes [uid-recipient]
-  (doseq [i (range 100)]
-    (chsk-send! uid-recipient [:fast-push/is-fast (str "hello " i "!!")])))
+(defn test-fast-server>user-pushes []
+  (doseq [uid (:any @connected-uids)]
+    (doseq [i (range 100)]
+      (chsk-send! uid [:fast-push/is-fast (str "hello " i "!!")]))))
 
-(comment (test-fast-server>user-pushes 20))
+(comment (test-fast-server>user-pushes))
 
 ;;;; Setup client buttons
 
