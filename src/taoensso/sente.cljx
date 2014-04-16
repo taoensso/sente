@@ -668,11 +668,11 @@
       _deprecated-more-opts]]
 
   (when (not (nil? _deprecated-more-opts))
-    (encore/log
-     "WARNING: `make-channel-socket!` fn signature CHANGED with Sente v0.10.0."))
+    (encore/warnf
+     "`make-channel-socket!` fn signature CHANGED with Sente v0.10.0."))
 
   (when (str/blank? csrf-token)
-    (encore/log "WARNING: No csrf-token provided"))
+    (encore/warnf "No csrf-token provided"))
 
   (let [;; Want _separate_ buffers for state+recv even if we're later merging
         chs {:state    (chan (async/sliding-buffer 1))
