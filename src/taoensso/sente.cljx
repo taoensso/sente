@@ -209,14 +209,14 @@
   "Returns `{:keys [ch-recv send-fn ajax-post-fn ajax-get-or-ws-handshake-fn]}`:
     * ch-recv - core.async channel ; For server-side chsk request router, will
                                    ; receive `event-msg`s from clients.
-    * send-fn - (fn [user-id ev])  ; For server>user push
+    * send-fn - (fn [user-id ev])   ; For server>user push
     * ajax-post-fn                - (fn [ring-req]) ; For Ring CSRF-POST, chsk URL
     * ajax-get-or-ws-handshake-fn - (fn [ring-req]) ; For Ring GET,       chsk URL
 
   Options:
     * recv-buf-or-n    ; Used for ch-recv buffer
-    * user-id-fn       ; Fn used to extract a unique ID from the current ring request.
-                       ; By default, extracts :uid from the current session.
+    * user-id-fn       ; (fn [ring-req]) -> unique user-id, as used by
+                       ; server>user push.
     * send-buf-ms-ajax ; [1]
     * send-buf-ms-ws   ; [1]
 
@@ -228,7 +228,7 @@
        :or   {recv-buf-or-n (async/sliding-buffer 1000)
               send-buf-ms-ajax 100
               send-buf-ms-ws   30
-              user-id-fn #(get-in % [:session :uid])}}]]
+              user-id-fn (fn [ring-req] (get-in ring-req [:session :uid]))}}]]
   {:pre [(encore/pos-int? send-buf-ms-ajax)
          (encore/pos-int? send-buf-ms-ws)]}
 
@@ -245,7 +245,7 @@
        (timbre/tracef "Chsk send: (->uid %s) %s" uid ev)
        (assert-event ev)
        (assert (not (nil? uid))
-         "server>user push requires a non-nil user-id (client session :uid)")
+         "server>user push requires a non-nil user-id (client session :uid by default)")
 
        (let [ev-uuid    (encore/uuid-str)
              buffer-ev! (fn [send-buffers_]

@@ -1,4 +1,4 @@
-## v0.10.0 / 2014 Apr 6
+## Pending / Unreleased
 
  * **BREAKING CHANGE**: ClojureScript (client-side) `make-channel-socket!` fn signature has **changed**:
 ```clojure
@@ -8,6 +8,8 @@
 (make-channel-socket! {:csrf-token "foo" :has-uid? true
                        :type :auto}) ; NOW (note SINGLE opts map)
 ```
+
+ * [#22] **NEW**: Server-side `make-channel-socket!` constructor now supports an optional `:user-id-fn` `(fn [ring-req]) -> user-id` setting (@sritchie).
 
 
 ## v0.9.0 / 2014 Mar 29
