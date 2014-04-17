@@ -71,7 +71,7 @@
             [taoensso.timbre          :as timbre])
 
   #+cljs
-  (:require [clojure.string :as str]
+  (:require [clojure.string  :as str]
             [cljs.core.async :as async :refer (<! >! put! chan)]
             [cljs.reader     :as edn]
             [taoensso.encore :as encore :refer (format)])
@@ -81,6 +81,10 @@
 
 ;;;; TODO
 ;; * Performance optimization: client>server event buffering.
+;; * Migrate <?pulled> stuff to `encore/swap-in!`.
+;; * Use new `connected-uids_` data for `send-buffered-evs-ajax!`.
+;; * Use new `connected-uids_` data for better `[:chsk/uidport-close :ajax]`
+;;   event generation.
 
 ;;;; Shared (client+server)
 
@@ -206,15 +210,19 @@
 
 #+clj
 (defn make-channel-socket!
-  "Returns `{:keys [ch-recv send-fn ajax-post-fn ajax-get-or-ws-handshake-fn]}`:
+  "Returns `{:keys [ch-recv send-fn ajax-post-fn ajax-get-or-ws-handshake-fn
+                    connected-uids]}`:
     * ch-recv - core.async channel ; For server-side chsk request router, will
                                    ; receive `event-msg`s from clients.
-    * send-fn - (fn [user-id ev])  ; For server>user push
+    * send-fn - (fn [user-id ev])   ; For server>user push
     * ajax-post-fn                - (fn [ring-req]) ; For Ring CSRF-POST, chsk URL
     * ajax-get-or-ws-handshake-fn - (fn [ring-req]) ; For Ring GET,       chsk URL
+    * connected-uids ; Watchable, read-only (atom {:ws #{_} :ajax #{_} :any #{_}})
 
   Options:
     * recv-buf-or-n    ; Used for ch-recv buffer
+    * user-id-fn       ; (fn [ring-req]) -> unique user-id, as used by
+                       ; server>user push.
     * send-buf-ms-ajax ; [1]
     * send-buf-ms-ws   ; [1]
 
@@ -222,27 +230,36 @@
       server>user pushes. This is esp. important for Ajax clients which use a
       (slow) reconnecting poller. Actual event dispatch may occur <= given ms
       after send call (larger values => larger batch windows)."
-  [& [{:keys [recv-buf-or-n send-buf-ms-ajax send-buf-ms-ws]
+  [& [{:keys [recv-buf-or-n send-buf-ms-ajax send-buf-ms-ws user-id-fn]
        :or   {recv-buf-or-n (async/sliding-buffer 1000)
               send-buf-ms-ajax 100
-              send-buf-ms-ws   30}}]]
+              send-buf-ms-ws   30
+              user-id-fn (fn [ring-req] (get-in ring-req [:session :uid]))}}]]
   {:pre [(encore/pos-int? send-buf-ms-ajax)
          (encore/pos-int? send-buf-ms-ws)]}
 
   (let [ch-recv     (chan recv-buf-or-n)
+
+        ;;; Internal hk-ch storage:
         conns-ws_   (atom {})        ; {<uid> <#{hk-chs}>}
         conns-ajax_ (atom [nil {}])  ; [<?pulled> {<uid> {<client-uuid> <hk-ch>}}]
-        ;; Separate buffers for easy atomic pulls w/ support for diff timeouts:
+
+        ;;; Separate buffers for easy atomic pulls w/ support for diff timeouts:
         send-buffers-ws_   (atom {}) ; {<uid> [<buffered-evs> <#{ev-uuids}>]}
         send-buffers-ajax_ (atom {}) ; ''
-        ]
+
+        ;;; Connected uids:
+        ajax-udts-last-connected_ (atom {}) ; [<stopped?> {<uid> <udt-last-connected>}]
+        connected-uids_           (atom {:ws #{} :ajax #{} :any #{}})]
+
     {:ch-recv ch-recv
+     :connected-uids connected-uids_
      :send-fn ; server>user (by uid) push
      (fn [uid ev & [{:as _opts :keys [flush-send-buffer?]}]]
        (timbre/tracef "Chsk send: (->uid %s) %s" uid ev)
        (assert-event ev)
        (assert (not (nil? uid))
-         "server>user push requires a non-nil user-id (client session :uid)")
+         "server>user push requires a non-nil user-id (client session :uid by default)")
 
        (let [ev-uuid    (encore/uuid-str)
              buffer-ev! (fn [send-buffers_]
@@ -254,8 +271,9 @@
                                      (conj ev-uuids     ev-uuid)])))))
              flush-buffer!
              (fn [send-buffers_ flush-f]
-               (when-let [pulled (-> (encore/swap!* send-buffers_ #(dissoc % uid))
-                                     (get-in [:old-val uid]))]
+               (when-let [pulled (encore/swap-in! send-buffers_ nil
+                                   (fn [m] (encore/swapped (dissoc m uid)
+                                                          (get m uid))))]
                  (let [[buffered-evs ev-uuids] pulled]
                    (assert (vector? buffered-evs))
                    (assert (set?    ev-uuids))
@@ -317,9 +335,10 @@
              (http-kit/send! hk-ch (pr-str :chsk/dummy-200))))))
 
      :ajax-get-or-ws-handshake-fn ; ajax-poll or ws-handshake
-     (fn [{:as ring-req {:keys [uid] :as session} :session}]
+     (fn [ring-req]
        (http-kit/with-channel ring-req hk-ch
-         (let [client-uuid ; Browser-tab / device identifier
+         (let [uid (user-id-fn ring-req)
+               client-uuid ; Browser-tab / device identifier
                (str uid "-" ; Security measure (can't be controlled by client)
                  (or (get-in ring-req [:params :ajax-client-uuid])
                      (encore/uuid-str)))
@@ -337,6 +356,11 @@
                (swap! conns-ajax_
                  (fn [[_ m]] [nil (assoc-in m [uid client-uuid] hk-ch)]))
 
+               (swap! ajax-udts-last-connected_ assoc uid (encore/now-udt))
+               (swap! connected-uids_
+                 (fn [{:keys [ws ajax any]}]
+                   {:ws ws :ajax (conj ajax uid) :any (conj any uid)}))
+
                ;; Currently relying on `on-close` to _always_ trigger for every
                ;; connection. If that's not the case, will need some kind of gc.
                (http-kit/on-close hk-ch
@@ -347,6 +371,34 @@
                          [nil (if (empty? new)
                                 (dissoc m uid)
                                 (assoc  m uid new))])))
+
+                   ;; Maintain `connected-uids_`. We can't take Ajax disconnect
+                   ;; as a reliable indication that user has actually left
+                   ;; (user's poller may be reconnecting). Instead, we'll wait
+                   ;; a little while and mark the user as gone iff no further
+                   ;; connections occurred while waiting.
+                   ;;
+                   (let [udt-disconnected (encore/now-udt)]
+                     ;; Allow some time for possible poller reconnects:
+                     (go (<! (async/timeout 5000))
+                         (let [poller-has-stopped?
+                               (encore/swap-in! ajax-udts-last-connected_ nil
+                                 (fn [m]
+                                   (let [?udt-last-connected (get m uid)
+                                         poller-has-stopped?
+                                         (and ?udt-last-connected ; Not yet gc'd
+                                              (>= udt-disconnected
+                                                  ?udt-last-connected))]
+                                     (if poller-has-stopped?
+                                       (encore/swapped (dissoc m uid) true) ; gc
+                                       (encore/swapped m false)))))]
+                           (when poller-has-stopped?
+                             (swap! connected-uids_
+                               (fn [{:keys [ws ajax any]}]
+                                 {:ws ws :ajax (disj ajax uid)
+                                  :any (if (contains? ws uid) any
+                                         (disj any uid))}))))))
+
                    (receive-event-msg!* [:chsk/uidport-close :ajax])))
                (receive-event-msg!* [:chsk/uidport-open :ajax]))
 
@@ -355,6 +407,9 @@
                  (or uid "(no uid)") (str hk-ch)) ; _Must_ call `str` on ch
                (when uid
                  (swap! conns-ws_ (fn [m] (assoc m uid (conj (m uid #{}) hk-ch))))
+                 (swap! connected-uids_
+                 (fn [{:keys [ws ajax any]}]
+                   {:ws (conj ws uid) :ajax ajax :any (conj any uid)}))
                  (receive-event-msg!* [:chsk/uidport-open :ws]))
 
                (http-kit/on-receive hk-ch
@@ -379,8 +434,14 @@
                          (let [new (disj (m uid #{}) hk-ch)]
                            (if (empty? new) (dissoc m uid)
                                             (assoc  m uid new)))))
-                     (receive-event-msg!* [:chsk/uidport-close :ws]))))
 
+                     (swap! connected-uids_
+                       (fn [{:keys [ws ajax any]}]
+                         {:ws (disj ws uid) :ajax ajax
+                          :any (if (contains? ajax uid) any
+                                 (disj any uid))}))
+
+                     (receive-event-msg!* [:chsk/uidport-close :ws]))))
                (http-kit/send! hk-ch (pr-str [:chsk/handshake :ws])))))))}))
 
 ;;;; Client
@@ -654,15 +715,21 @@
 
   Note that the *same* URL is used for: WebSockets, POSTs, GETs. Server-side
   routes should be configured accordingly."
-  [url {:keys [csrf-token has-uid?]}
-   & [{:keys [type recv-buf-or-n ws-kalive-ms lp-timeout]
+  [url &
+   & [{:keys [csrf-token has-uid?
+              type recv-buf-or-n ws-kalive-ms lp-timeout]
        :or   {type          :auto
               recv-buf-or-n (async/sliding-buffer 2048) ; Mostly for buffered-evs
               ws-kalive-ms  38000
-              lp-timeout    38000}}]]
+              lp-timeout    38000}}
+      _deprecated-more-opts]]
+
+  (when (not (nil? _deprecated-more-opts))
+    (encore/warnf
+     "`make-channel-socket!` fn signature CHANGED with Sente v0.10.0."))
 
   (when (str/blank? csrf-token)
-    (encore/log "WARNING: No csrf-token provided"))
+    (encore/warnf "No csrf-token provided"))
 
   (let [;; Want _separate_ buffers for state+recv even if we're later merging
         chs {:state    (chan (async/sliding-buffer 1))

@@ -46,12 +46,14 @@
 ;;;; Setup server-side chsk handlers -------------------------------------------
 
 #+clj
-(let [{:keys [ch-recv send-fn ajax-post-fn ajax-get-or-ws-handshake-fn]}
+(let [{:keys [ch-recv send-fn ajax-post-fn ajax-get-or-ws-handshake-fn
+              connected-uids]}
       (sente/make-channel-socket! {})]
   (def ring-ajax-post                ajax-post-fn)
   (def ring-ajax-get-or-ws-handshake ajax-get-or-ws-handshake-fn)
   (def ch-chsk                       ch-recv) ; ChannelSocket's receive channel
   (def chsk-send!                    send-fn) ; ChannelSocket's send API fn
+  (def connected-uids                connected-uids) ; Watchable, read-only atom
   )
 
 #+clj
@@ -80,7 +82,8 @@
       ;;; Communicate releavnt state to client (you could do this any way that's
       ;;; convenient, just keep in mind that client state is easily forged):
       [:script (format "var csrf_token='%s';" ring-anti-forgery/*anti-forgery-token*)]
-      [:script (format "var has_uid=%s;" (if uid "true" "false"))]
+      [:script (format "var has_uid=%s;"
+                 (if (get-in req [:session :uid]) "true" "false"))]
       ;;
       [:script {:src "main.js"}] ; Include our cljs target
       )}))
@@ -91,8 +94,8 @@
    (routes
     (GET  "/"     req (landing-pg-handler req))
     ;;
-    (GET  "/chsk" req (#'ring-ajax-get-or-ws-handshake req)) ; Note the #'
-    (POST "/chsk" req (#'ring-ajax-post                req)) ; ''
+    (GET  "/chsk" req (ring-ajax-get-or-ws-handshake req))
+    (POST "/chsk" req (ring-ajax-post                req))
     ;;
     (route/resources "/") ; Static files, notably public/main.js (our cljs target)
     (route/not-found "<h1>Page not found</h1>"))
@@ -106,26 +109,28 @@
    compojure.handler/site))
 
 #+clj (defn- logf [fmt & xs] (println (apply format fmt xs)))
-
 #+clj
-(defonce http-server ; Runs once, on first eval
-  (let [s (http-kit-server/run-server #'my-ring-handler {:port 0})] ; Note the #'
+(defn run-http-server []
+  (let [s (http-kit-server/run-server (var my-ring-handler) {:port 0})]
     (logf
      (str "Http-kit server is running on `http://localhost:%s/` "
           "(it should be browser-accessible now).")
-     (:local-port (meta s)))))
+     (:local-port (meta s)))
+    s))
+
+(defonce http-server (run-http-server)) ; Runs once, on first eval
 
 ;;;; Setup client-side chsk handlers -------------------------------------------
 
 #+cljs (def csrf-token        (aget js/window "csrf_token"))
 #+cljs (def has-uid?   (true? (aget js/window "has_uid")))
+#+cljs (def chsk-config {:type :auto #_:ajax ; e/o #{:auto :ajax; :ws}
+                         :csrf-token csrf-token
+                         :has-uid?   has-uid?})
 #+cljs
 (let [{:keys [chsk ch-recv send-fn]}
       (sente/make-channel-socket! "/chsk" ; Note the same URL as before
-       {:csrf-token csrf-token
-        :has-uid?   has-uid?}
-       {:type :auto #_:ajax ; e/o #{:auto :ajax; :ws}
-        })]
+        chsk-config)]
   (def chsk       chsk)
   (def ch-chsk    ch-recv) ; ChannelSocket's receive channel
   (def chsk-send! send-fn) ; ChannelSocket's send API fn
@@ -134,7 +139,7 @@
 ;;;; Setup routers -------------------------------------------------------------
 
 #+cljs (logf "ClojureScript appears to have loaded correctly.")
-#+cljs (logf "CSRF token from server: %s" csrf-token)
+#+cljs (logf "`make-channel-socket!` config: %s" chsk-config)
 
 #+clj
 (defn- event-msg-handler
@@ -177,7 +182,8 @@
 (defonce broadcaster
   (go-loop [i 0]
     (<! (async/timeout 10000))
-    (doseq [uid (range 100)]
+    (println (format "Broadcasting server>client: %s" @connected-uids))
+    (doseq [uid (:any @connected-uids)]
       (chsk-send! uid
         [:some/broadcast
          {:what-is-this "A broadcast pushed from server"
@@ -187,11 +193,12 @@
     (recur (inc i))))
 
 #+clj ; Note that this'll be fast+reliable even over Ajax!:
-(defn test-fast-server>user-pushes [uid-recipient]
-  (doseq [i (range 100)]
-    (chsk-send! uid-recipient [:fast-push/is-fast (str "hello " i "!!")])))
+(defn test-fast-server>user-pushes []
+  (doseq [uid (:any @connected-uids)]
+    (doseq [i (range 100)]
+      (chsk-send! uid [:fast-push/is-fast (str "hello " i "!!")]))))
 
-(comment (test-fast-server>user-pushes 20))
+(comment (test-fast-server>user-pushes))
 
 ;;;; Setup client buttons
 
