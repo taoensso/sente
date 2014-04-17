@@ -548,8 +548,8 @@
               false))))))
 
   (chsk-make! [chsk {:keys [kalive-ms]}]
-    (when-let [WebSocket (or (.-WebSocket    js/window)
-                             (.-MozWebSocket js/window))]
+    (when-let [WebSocket (or (aget js/window "WebSocket")
+                             (aget js/window "MozWebSocket"))]
       ((fn connect! [nattempt]
          (let [retry!
                (fn []
@@ -570,7 +570,7 @@
                   (fn [ws-ev] (encore/errorf "WebSocket error: %s" ws-ev)))
                 (aset "onmessage" ; Nb receives both push & cb evs!
                   (fn [ws-ev]
-                    (let [edn (.-data ws-ev)
+                    (let [edn (aget ws-ev "data")
                           ;; Nb may or may NOT satisfy `event?` since we also
                           ;; receive cb replies here!:
                           [clj ?cb-uuid] (unwrap-edn-msg-with-?cb->clj edn)]
@@ -687,7 +687,8 @@
                         (reset-chsk-state! chsk true)
                         (async-poll-for-update! 0))))))]
 
-           (if-let [pace (.-Pace js/window)]
+           (if-let [pace (aget js/window "Pace")]
+             ;; Assumes relevant extern is defined for :advanced mode compilation:
              (.ignore pace ajax-req!) ; Pace.js shouldn't trigger for long-polling
              (ajax-req!)))
 

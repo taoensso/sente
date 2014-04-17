@@ -43,9 +43,7 @@
    [{:id :main
      :source-paths ["src" "target/classes"]
      :compiler     {:output-to "resources/public/main.js"
-                    ;; :optimizations :advanced
-                    ;; :pretty-print false
-                    :optimizations :whitespace
+                    :optimizations :whitespace #_:advanced
                     :pretty-print true}}]}
 
   ;; Call `lein start-dev` to get a (headless) development repl that you can

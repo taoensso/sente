@@ -1,3 +1,8 @@
+## v0.10.1 / 2014 Apr 17
+
+ * [#27] **FIX** broken :advanced mode compilation (@ostronom).
+
+
 ## v0.10.0 / 2014 Apr 17
 
  * **BREAKING CHANGE**: ClojureScript (client-side) `make-channel-socket!` fn signature has **changed**:
