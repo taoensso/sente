@@ -107,14 +107,16 @@
    compojure.handler/site))
 
 #+clj (defn- logf [fmt & xs] (println (apply format fmt xs)))
-
 #+clj
-(defonce http-server ; Runs once, on first eval
+(defn run-http-server []
   (let [s (http-kit-server/run-server (var my-ring-handler) {:port 0})]
     (logf
      (str "Http-kit server is running on `http://localhost:%s/` "
           "(it should be browser-accessible now).")
-     (:local-port (meta s)))))
+     (:local-port (meta s)))
+    s))
+
+(defonce http-server (run-http-server)) ; Runs once, on first eval
 
 ;;;; Setup client-side chsk handlers -------------------------------------------
 
