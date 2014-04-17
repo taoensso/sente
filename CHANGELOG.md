@@ -7,11 +7,10 @@
 
  * **BREAKING CHANGE**: ClojureScript (client-side) `make-channel-socket!` fn signature has **changed**:
 ```clojure
-(make-channel-socket! {:csrf-token "foo" :has-uid? true}
-                      {:type :auto}) ; BEFORE (note TWO opts maps)
-
-(make-channel-socket! {:csrf-token "foo" :has-uid? true
-                       :type :auto}) ; NOW (note SINGLE opts map)
+;; OLD (note two opts maps):
+(make-channel-socket! {:csrf-token "foo" :has-uid? true} {:type :auto}) ; Old
+;; NEW (note single opts map):
+(make-channel-socket! {:csrf-token "foo" :has-uid? true :type :auto}) ; New
 ```
 
  * [#22] **NEW**: Server-side `make-channel-socket!` constructor now supports an optional `:user-id-fn` `(fn [ring-req]) -> user-id` setting (@sritchie).

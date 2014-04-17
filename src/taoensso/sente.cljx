@@ -80,6 +80,8 @@
   (:require-macros [cljs.core.async.macros :as asyncm :refer (go go-loop)]))
 
 ;;;; TODO
+;; * Allow client-side `:has-uid?` opt to be toggled after chsk creation.
+;; * Protocol-ize http server stuff.
 ;; * Performance optimization: client>server event buffering.
 ;; * Migrate <?pulled> stuff to `encore/swap-in!`.
 ;; * Use new `connected-uids_` data for `send-buffered-evs-ajax!`.

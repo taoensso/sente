@@ -118,8 +118,7 @@
      (:local-port (meta s)))
     s))
 
-#+clj
-(defonce http-server (run-http-server)) ; Runs once, on first eval
+#+clj (defonce http-server (run-http-server)) ; Runs once, on first eval
 
 ;;;; Setup client-side chsk handlers -------------------------------------------
 
