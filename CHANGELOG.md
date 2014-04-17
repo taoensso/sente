@@ -1,3 +1,8 @@
+## Pending / unreleased
+
+ * **CHANGE**: `[:chsk/uidport-close :ajax]` event is now fired more intelligently (allows sime time for possible poller reconnection).
+
+
 ## v0.10.1 / 2014 Apr 17
 
  * [#27] **FIX** broken :advanced mode compilation (@ostronom).

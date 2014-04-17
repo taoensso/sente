@@ -83,9 +83,6 @@
 ;; * Allow client-side `:has-uid?` opt to be toggled after chsk creation.
 ;; * Protocol-ize http server stuff.
 ;; * Performance optimization: client>server event buffering.
-;; * Use new `connected-uids_` data for `send-buffered-evs-ajax!`.
-;; * Use new `connected-uids_` data for better `[:chsk/uidport-close :ajax]`
-;;   event generation.
 
 ;;;; Shared (client+server)
 
@@ -400,9 +397,8 @@
                                (fn [{:keys [ws ajax any]}]
                                  {:ws ws :ajax (disj ajax uid)
                                   :any (if (contains? ws uid) any
-                                         (disj any uid))}))))))
-
-                   (receive-event-msg!* [:chsk/uidport-close :ajax])))
+                                         (disj any uid))}))
+                             (receive-event-msg!* [:chsk/uidport-close :ajax])))))))
                (receive-event-msg!* [:chsk/uidport-open :ajax]))
 
              (do
