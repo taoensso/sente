@@ -83,7 +83,6 @@
 ;; * Allow client-side `:has-uid?` opt to be toggled after chsk creation.
 ;; * Protocol-ize http server stuff.
 ;; * Performance optimization: client>server event buffering.
-;; * Migrate <?pulled> stuff to `encore/swap-in!`.
 ;; * Use new `connected-uids_` data for `send-buffered-evs-ajax!`.
 ;; * Use new `connected-uids_` data for better `[:chsk/uidport-close :ajax]`
 ;;   event generation.
@@ -190,21 +189,24 @@
                                           ms-base   50
                                           ms-rand   50}}]]
   (go-loop [n 0 client-uuids-satisfied #{}]
-    (let [[?pulled] ; nil or {<client-uuid> <hk-ch>}
-          (swap! conns_ ; [<?pulled> {<uid> {<client-uuid> <hk-ch>}}]
-            (fn [[_ m]]
+    (let [?pulled ; nil or {<client-uuid> <hk-ch>}
+          (encore/swap-in! conns_ ; {<uid> {<client-uuid> <hk-ch>}}
+            nil
+            (fn [m]
               (let [m-in       (get m uid)
                     ks-to-pull (remove client-uuids-satisfied (keys m-in))]
-                (if (empty? ks-to-pull) [nil m]
-                  [(select-keys m-in ks-to-pull)
-                   (assoc m uid (apply dissoc m-in ks-to-pull))]))))]
+                (if (empty? ks-to-pull)
+                  (encore/swapped m nil)
+                  (encore/swapped
+                   (assoc m uid (apply dissoc m-in ks-to-pull))
+                   (select-keys m-in ks-to-pull))))))]
       (assert (or (nil? ?pulled) (map? ?pulled)))
       (let [?newly-satisfied
             (when ?pulled
               (reduce-kv (fn [s client-uuid hk-ch]
-                        (if-not (http-kit/send! hk-ch buffered-evs-edn)
-                          s ; hk-ch may have closed already!
-                          (conj s client-uuid))) #{} ?pulled))]
+                           (if-not (http-kit/send! hk-ch buffered-evs-edn)
+                             s ; hk-ch may have closed already!
+                             (conj s client-uuid))) #{} ?pulled))]
         (when (< n nattempts) ; Try repeatedly, always
           ;; Allow some time for possible poller reconnects:
           (<! (async/timeout (+ ms-base (rand-int ms-rand))))
@@ -243,15 +245,15 @@
   (let [ch-recv     (chan recv-buf-or-n)
 
         ;;; Internal hk-ch storage:
-        conns-ws_   (atom {})        ; {<uid> <#{hk-chs}>}
-        conns-ajax_ (atom [nil {}])  ; [<?pulled> {<uid> {<client-uuid> <hk-ch>}}]
+        conns-ws_   (atom {}) ; {<uid> <#{hk-chs}>}
+        conns-ajax_ (atom {}) ; {<uid> {<client-uuid> <hk-ch>}}
 
         ;;; Separate buffers for easy atomic pulls w/ support for diff timeouts:
         send-buffers-ws_   (atom {}) ; {<uid> [<buffered-evs> <#{ev-uuids}>]}
         send-buffers-ajax_ (atom {}) ; ''
 
         ;;; Connected uids:
-        ajax-udts-last-connected_ (atom {}) ; [<stopped?> {<uid> <udt-last-connected>}]
+        ajax-udts-last-connected_ (atom {}) ; {<uid> <udt-last-connected>}
         connected-uids_           (atom {:ws #{} :ajax #{} :any #{}})]
 
     {:ch-recv ch-recv
@@ -355,8 +357,7 @@
 
            (if-not (:websocket? ring-req)
              (when uid ; Server shouldn't attempt a non-uid long-pollling GET anyway
-               (swap! conns-ajax_
-                 (fn [[_ m]] [nil (assoc-in m [uid client-uuid] hk-ch)]))
+               (swap! conns-ajax_ (fn [m] (assoc-in m [uid client-uuid] hk-ch)))
 
                (swap! ajax-udts-last-connected_ assoc uid (encore/now-udt))
                (swap! connected-uids_
@@ -368,11 +369,11 @@
                (http-kit/on-close hk-ch
                  (fn [status]
                    (swap! conns-ajax_
-                     (fn [[_ m]]
+                     (fn [m]
                        (let [new (dissoc (get m uid) client-uuid)]
-                         [nil (if (empty? new)
-                                (dissoc m uid)
-                                (assoc  m uid new))])))
+                         (if (empty? new)
+                           (dissoc m uid)
+                           (assoc  m uid new)))))
 
                    ;; Maintain `connected-uids_`. We can't take Ajax disconnect
                    ;; as a reliable indication that user has actually left
