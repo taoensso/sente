@@ -1,4 +1,4 @@
-## Pending / Unreleased
+## v0.10.0 / 2014 Apr 17
 
  * **BREAKING CHANGE**: ClojureScript (client-side) `make-channel-socket!` fn signature has **changed**:
 ```clojure
