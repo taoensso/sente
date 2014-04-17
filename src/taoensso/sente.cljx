@@ -81,6 +81,10 @@
 
 ;;;; TODO
 ;; * Performance optimization: client>server event buffering.
+;; * Migrate <?pulled> stuff to `encore/swap-in!`.
+;; * Use new `connected-uids_` data for `send-buffered-evs-ajax!`.
+;; * Use new `connected-uids_` data for better `[:chsk/uidport-close :ajax]`
+;;   event generation.
 
 ;;;; Shared (client+server)
 
