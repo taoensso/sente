@@ -45,6 +45,8 @@ So you can ignore the underlying protocol and deal directly with Sente's unified
 
 ## Getting started
 
+> Note that there's also a full **[reference example project][]** in this repo.
+
 Add the necessary dependency to your [Leiningen][] `project.clj`. This'll provide your project with both the client (ClojureScript) + server (Clojure) side library code:
 
 ```clojure
@@ -266,7 +268,7 @@ Copyright &copy; 2012-2014 Peter Taoussanis. Distributed under the [Eclipse Publ
 [other Clojure libs]: <https://www.taoensso.com/clojure-libraries>
 [Twitter]: <https://twitter.com/ptaoussanis>
 [semantic]: <http://semver.org/>
-[reference example project]: <https://github.com/ptaoussanis/sente/tree/master/reference-example-project>
+[reference example project]: <https://github.com/ptaoussanis/sente/tree/master/example-project>
 [Leiningen]: <http://leiningen.org/>
 [CDS]: <http://clojure-doc.org/>
 [ClojureWerkz]: <http://clojurewerkz.org/>
