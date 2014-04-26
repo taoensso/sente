@@ -61,7 +61,6 @@
 
   #+clj
   (:require [clojure.string :as str]
-            [clojure.set    :as set]
             [clojure.core.async :as async :refer (<! <!! >! >!! put! chan
                                                      go go-loop)]
             [clojure.tools.reader.edn :as edn]
@@ -71,7 +70,6 @@
 
   #+cljs
   (:require [clojure.string  :as str]
-            [clojure.set     :as set]
             [cljs.core.async :as async :refer (<! >! put! chan)]
             [cljs.reader     :as edn]
             [taoensso.encore :as encore :refer (format)])
@@ -245,13 +243,17 @@
         send-buffers_   (atom {:ws  {} :ajax  {}}) ; {<uid> [<buffered-evs> <#{ev-uuids}>]}
 
         upd-connected-uids!
-        (fn []
+        (fn [uid]
           (swap! connected-uids_
-            (fn [m]
-              (let [{:keys [ws ajax]} @conns_
-                    ws     (set (keys ws))
-                    ajax   (set (keys ajax))]
-                {:ws ws :ajax ajax :any (set/union ws ajax)}))))]
+            (fn [{:keys [ws ajax any]}]
+              (let [conns' @conns_
+                    any-ws-clients?   (contains? (:ws   conns') uid)
+                    any-ajax-clients? (contains? (:ajax conns') uid)
+                    any-clients?      (or any-ws-clients?
+                                          any-ajax-clients?)]
+                {:ws   (if any-ws-clients?   (conj ws   uid) (disj ws   uid))
+                 :ajax (if any-ajax-clients? (conj ajax uid) (disj ajax uid))
+                 :any  (if any-clients?      (conj any  uid) (disj any  uid))}))))]
 
     {:ch-recv ch-recv
      :connected-uids connected-uids_
@@ -392,7 +394,7 @@
                            (if (empty? new)
                              (dissoc m uid) ; gc
                              (assoc  m uid new)))))
-                     (upd-connected-uids!))))
+                     (upd-connected-uids! uid))))
                (http-kit/send! hk-ch (pr-str [:chsk/handshake :ws])))
 
              (when uid ; Server shouldn't attempt a non-uid long-pollling GET anyway
@@ -430,7 +432,7 @@
                                          (assoc  m uid new))
                                        true))))))]
                         (when disconnected?
-                          (upd-connected-uids!))))))))))))}))
+                          (upd-connected-uids! uid))))))))))))}))
 
 ;;;; Client
 
