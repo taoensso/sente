@@ -360,40 +360,37 @@
                ;; connection. If that's not the case, will need some kind of gc.
                (http-kit/on-close hk-ch
                  (fn [status]
-                   (swap! conns-ajax_
-                     (fn [m]
-                       (let [new (dissoc (get m uid) client-uuid)]
-                         (if (empty? new)
-                           (dissoc m uid)
-                           (assoc  m uid new)))))
+                   (let [only-ajax-client-just-disconnected?
+                         (swap! conns-ajax_
+                           (fn [m]
+                             (let [new (dissoc (get m uid) client-uuid)]
+                               (if (empty? new)
+                                 (encore/swapped (dissoc m uid)     true)
+                                 (encore/swapped (assoc  m uid new) false)))))]
 
-                   ;; Maintain `connected-uids_`. We can't take Ajax disconnect
-                   ;; as a reliable indication that user has actually left
-                   ;; (user's poller may be reconnecting). Instead, we'll wait
-                   ;; a little while and mark the user as gone iff no further
-                   ;; connections occurred while waiting.
-                   ;;
-                   (let [udt-disconnected (encore/now-udt)]
-                     ;; Allow some time for possible poller reconnects:
-                     (go (<! (async/timeout 5000))
-                         (let [poller-has-stopped?
-                               (encore/swap-in! ajax-udts-last-connected_ nil
-                                 (fn [m]
-                                   (let [?udt-last-connected (get m uid)
-                                         poller-has-stopped?
-                                         (and ?udt-last-connected ; Not yet gc'd
-                                              (>= udt-disconnected
-                                                  ?udt-last-connected))]
-                                     (if poller-has-stopped?
-                                       (encore/swapped (dissoc m uid) true) ; gc
-                                       (encore/swapped m false)))))]
-                           (when poller-has-stopped?
-                             (swap! connected-uids_
-                               (fn [{:keys [ws ajax any]}]
-                                 {:ws ws :ajax (disj ajax uid)
-                                  :any (if (contains? ws uid) any
-                                         (disj any uid))}))
-                             (receive-event-msg!* [:chsk/uidport-close :ajax])))))))
+                     (when only-ajax-client-just-disconnected?
+                       (let [udt-disconnected (encore/now-udt)]
+                         ;; Allow some time for possible poller reconnects:
+                         (go
+                          (<! (async/timeout 5000))
+                          (let [poller-has-stopped?
+                                (encore/swap-in! ajax-udts-last-connected_ nil
+                                  (fn [m]
+                                    (let [?udt-last-connected (get m uid)
+                                          poller-has-stopped?
+                                          (and ?udt-last-connected ; Not yet gc'd
+                                               (>= udt-disconnected
+                                                   ?udt-last-connected))]
+                                      (if poller-has-stopped?
+                                        (encore/swapped (dissoc m uid) true) ; gc
+                                        (encore/swapped m false)))))]
+                            (when poller-has-stopped?
+                              (swap! connected-uids_
+                                (fn [{:keys [ws ajax any]}]
+                                  {:ws ws :ajax (disj ajax uid)
+                                   :any (if (contains? ws uid) any
+                                            (disj any uid))}))
+                              (receive-event-msg!* [:chsk/uidport-close :ajax])))))))))
                (receive-event-msg!* [:chsk/uidport-open :ajax]))
 
              (do
@@ -423,17 +420,20 @@
                (http-kit/on-close hk-ch
                  (fn [status]
                    (when uid
-                     (swap! conns-ws_
-                       (fn [m]
-                         (let [new (disj (m uid #{}) hk-ch)]
-                           (if (empty? new) (dissoc m uid)
-                                            (assoc  m uid new)))))
+                     (let [only-ws-client-just-disconnected?
+                           (swap! conns-ws_
+                             (fn [m]
+                               (let [new (disj (m uid #{}) hk-ch)]
+                                 (if (empty? new)
+                                   (encore/swapped (dissoc m uid)     true)
+                                   (encore/swapped (assoc  m uid new) false)))))]
 
-                     (swap! connected-uids_
-                       (fn [{:keys [ws ajax any]}]
-                         {:ws (disj ws uid) :ajax ajax
-                          :any (if (contains? ajax uid) any
-                                 (disj any uid))}))
+                       (when only-ws-client-just-disconnected?
+                         (swap! connected-uids_
+                           (fn [{:keys [ws ajax any]}]
+                             {:ws (disj ws uid) :ajax ajax
+                              :any (if (contains? ajax uid) any
+                                       (disj any uid))}))))
 
                      (receive-event-msg!* [:chsk/uidport-close :ws]))))
                (http-kit/send! hk-ch (pr-str [:chsk/handshake :ws])))))))}))
