@@ -79,11 +79,6 @@
   #+cljs
   (:require-macros [cljs.core.async.macros :as asyncm :refer (go go-loop)]))
 
-;;;; TODO
-;; * Allow client-side `:has-uid?` opt to be toggled after chsk creation.
-;; * Protocol-ize http server stuff.
-;; * Performance optimization: client>server event buffering.
-
 ;;;; Shared (client+server)
 
 (defn- chan? [x]
