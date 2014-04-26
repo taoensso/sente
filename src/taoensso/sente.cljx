@@ -34,9 +34,7 @@
 
     * server-side events:
        [:chsk/bad-edn <edn>],
-       [:chsk/bad-event <chsk-event>],
-       [:chsk/uidport-open  <#{:ws :ajax}>],
-       [:chsk/uidport-close <#{:ws :ajax}>].
+       [:chsk/bad-event <chsk-event>].
 
     * event wrappers: {:chsk/clj <clj> :chsk/dummy-cb? true} (for [2]),
                       {:chsk/clj <clj> :chsk/cb-uuid <uuid>} (for [4]).
@@ -63,6 +61,7 @@
 
   #+clj
   (:require [clojure.string :as str]
+            [clojure.set    :as set]
             [clojure.core.async :as async :refer (<! <!! >! >!! put! chan
                                                      go go-loop)]
             [clojure.tools.reader.edn :as edn]
@@ -72,19 +71,13 @@
 
   #+cljs
   (:require [clojure.string  :as str]
+            [clojure.set     :as set]
             [cljs.core.async :as async :refer (<! >! put! chan)]
             [cljs.reader     :as edn]
             [taoensso.encore :as encore :refer (format)])
 
   #+cljs
   (:require-macros [cljs.core.async.macros :as asyncm :refer (go go-loop)]))
-
-;;;; TODO
-;; * Performance optimization: client>server event buffering.
-;; * Migrate <?pulled> stuff to `encore/swap-in!`.
-;; * Use new `connected-uids_` data for `send-buffered-evs-ajax!`.
-;; * Use new `connected-uids_` data for better `[:chsk/uidport-close :ajax]`
-;;   event generation.
 
 ;;;; Shared (client+server)
 
@@ -164,49 +157,55 @@
       (timbre/warnf "Bad ev-msg!: %s (%s)" ev-msg* ev-msg))))
 
 #+clj
-(defn- send-buffered-evs-ws!
+(defn- send-buffered-evs>ws-clients!
   "Actually pushes buffered events (edn) to all uid's WebSocket conns."
   [conns_ uid buffered-evs-edn]
-  (doseq [hk-ch (@conns_ uid)]
+  (doseq [hk-ch (get-in @conns_ [:ws uid])]
     (http-kit/send! hk-ch buffered-evs-edn)))
 
 #+clj
-(defn- send-buffered-evs-ajax!
-  "Actually pushes buffered events (edn) to all uid's Ajax conns.
-  Atomically pulls Ajax long-polling conns from connected conns atom. As a
-  reliability measure against possibly-REconnecting Ajax pollers (possibly from
-  multiple clients) - will attempt several pulls over time (at most one hk-ch
-  per client-uuid to prevent sending the same content to a client more than
-  once).
-
-  More elaborate implementations (involving tombstones) could cut down on
-  unnecessary waiting - but this solution is small, simple, and plenty good in
-  practice due to core.async's efficiency."
-  [conns_ uid buffered-evs-edn & [{:keys [nattempts ms-base ms-rand]
-                                   ;; 5 attempts at ~85ms ea = 425ms
-                                   :or   {nattempts 5
-                                          ms-base   50
-                                          ms-rand   50}}]]
-  (go-loop [n 0 client-uuids-satisfied #{}]
-    (let [[?pulled] ; nil or {<client-uuid> <hk-ch>}
-          (swap! conns_ ; [<?pulled> {<uid> {<client-uuid> <hk-ch>}}]
-            (fn [[_ m]]
-              (let [m-in       (get m uid)
-                    ks-to-pull (remove client-uuids-satisfied (keys m-in))]
-                (if (empty? ks-to-pull) [nil m]
-                  [(select-keys m-in ks-to-pull)
-                   (assoc m uid (apply dissoc m-in ks-to-pull))]))))]
-      (assert (or (nil? ?pulled) (map? ?pulled)))
-      (let [?newly-satisfied
-            (when ?pulled
-              (reduce-kv (fn [s client-uuid hk-ch]
-                        (if-not (http-kit/send! hk-ch buffered-evs-edn)
-                          s ; hk-ch may have closed already!
-                          (conj s client-uuid))) #{} ?pulled))]
-        (when (< n nattempts) ; Try repeatedly, always
-          ;; Allow some time for possible poller reconnects:
-          (<! (async/timeout (+ ms-base (rand-int ms-rand))))
-          (recur (inc n) (into client-uuids-satisfied ?newly-satisfied)))))))
+(defn- send-buffered-evs>ajax-clients!
+  "Actually pushes buffered events (edn) to all uid's Ajax conns. Allows some
+  time for possible Ajax poller reconnects."
+  [conns_ uid buffered-evs-edn & [{:keys [nmax-attempts ms-base ms-rand]
+                                   ;; <= 7 attempts at ~135ms ea = 945ms
+                                   :or   {nmax-attempts 5
+                                          ms-base       90
+                                          ms-rand       90}}]]
+  (comment (* 7 (+ 90 (/ 90 2.0))))
+  (let [;; All connected/possibly-reconnecting client uuids:
+        client-uuids-unsatisfied (keys (get-in @conns_ [:ajax uid]))]
+    (when-not (empty? client-uuids-unsatisfied)
+      ;; (println "client-uuids-unsatisfied: " client-uuids-unsatisfied)
+      (go-loop [n 0 client-uuids-satisfied #{}]
+        (let [?pulled ; nil or {<client-uuid> [<?hk-ch> <udt-last-connected>]}
+              (encore/swap-in! conns_ [:ajax uid]
+                (fn [m] ; {<client-uuid> [<?hk-ch> <udt-last-connected>]}
+                  (let [ks-to-pull (remove client-uuids-satisfied (keys m))]
+                    (if (empty? ks-to-pull)
+                      (encore/swapped m nil)
+                      (encore/swapped
+                       (reduce-kv (fn [m k [?hk-ch udt-last-connected]]
+                                    (assoc m k [nil udt-last-connected]))
+                                  m ks-to-pull)
+                       (select-keys m ks-to-pull))))))]
+          (assert (or (nil? ?pulled) (map? ?pulled)))
+          (let [?newly-satisfied
+                (when ?pulled
+                  (reduce-kv
+                   (fn [s client-uuid [?hk-ch _]]
+                     (if (or (nil? ?hk-ch)
+                             ;; hk-ch may have closed already:
+                             (not (http-kit/send! ?hk-ch buffered-evs-edn)))
+                       s
+                       (conj s client-uuid))) #{} ?pulled))
+                now-satisfied (into client-uuids-satisfied ?newly-satisfied)]
+            ;; (println "now-satisfied:" now-satisfied)
+            (when (and (< n nmax-attempts)
+                       (some (complement now-satisfied) client-uuids-unsatisfied))
+              ;; Allow some time for possible poller reconnects:
+              (<! (async/timeout (+ ms-base (rand-int ms-rand))))
+              (recur (inc n) now-satisfied))))))))
 
 #+clj
 (defn make-channel-socket!
@@ -238,19 +237,21 @@
   {:pre [(encore/pos-int? send-buf-ms-ajax)
          (encore/pos-int? send-buf-ms-ws)]}
 
-  (let [ch-recv     (chan recv-buf-or-n)
+  (let [ch-recv (chan recv-buf-or-n)
+        conns_  (atom {:ws   {} ; {<uid> <#{hk-chs}>}
+                       :ajax {} ; {<uid> {<client-uuid> [<?hk-ch> <udt-last-connected>]}}
+                       })
+        connected-uids_ (atom {:ws #{} :ajax #{} :any #{}})
+        send-buffers_   (atom {:ws  {} :ajax  {}}) ; {<uid> [<buffered-evs> <#{ev-uuids}>]}
 
-        ;;; Internal hk-ch storage:
-        conns-ws_   (atom {})        ; {<uid> <#{hk-chs}>}
-        conns-ajax_ (atom [nil {}])  ; [<?pulled> {<uid> {<client-uuid> <hk-ch>}}]
-
-        ;;; Separate buffers for easy atomic pulls w/ support for diff timeouts:
-        send-buffers-ws_   (atom {}) ; {<uid> [<buffered-evs> <#{ev-uuids}>]}
-        send-buffers-ajax_ (atom {}) ; ''
-
-        ;;; Connected uids:
-        ajax-udts-last-connected_ (atom {}) ; [<stopped?> {<uid> <udt-last-connected>}]
-        connected-uids_           (atom {:ws #{} :ajax #{} :any #{}})]
+        upd-connected-uids!
+        (fn []
+          (swap! connected-uids_
+            (fn [m]
+              (let [{:keys [ws ajax]} @conns_
+                    ws     (set (keys ws))
+                    ajax   (set (keys ajax))]
+                {:ws ws :ajax ajax :any (set/union ws ajax)}))))]
 
     {:ch-recv ch-recv
      :connected-uids connected-uids_
@@ -260,20 +261,12 @@
        (assert-event ev)
        (assert (not (nil? uid))
          "server>user push requires a non-nil user-id (client session :uid by default)")
-
-       (let [ev-uuid    (encore/uuid-str)
-             buffer-ev! (fn [send-buffers_]
-                            (encore/swap-in! send-buffers_ [uid]
-                              (fn [old-v]
-                                (if-not old-v [[ev] #{ev-uuid}]
-                                  (let [[buffered-evs ev-uuids] old-v]
-                                    [(conj buffered-evs ev)
-                                     (conj ev-uuids     ev-uuid)])))))
+       (let [ev-uuid (encore/uuid-str)
              flush-buffer!
-             (fn [send-buffers_ flush-f]
-               (when-let [pulled (encore/swap-in! send-buffers_ nil
+             (fn [type]
+               (when-let [pulled (encore/swap-in! send-buffers_ [type]
                                    (fn [m] (encore/swapped (dissoc m uid)
-                                                          (get m uid))))]
+                                                          (get    m uid))))]
                  (let [[buffered-evs ev-uuids] pulled]
                    (assert (vector? buffered-evs))
                    (assert (set?    ev-uuids))
@@ -284,17 +277,35 @@
                    ;; alternatives like flush workers.
                    (when (contains? ev-uuids ev-uuid)
                      (let [buffered-evs-edn (pr-str buffered-evs)]
-                       (flush-f uid buffered-evs-edn))))))]
+                       (case type
+                         :ws   (send-buffered-evs>ws-clients!   conns_
+                                 uid buffered-evs-edn)
+                         :ajax (send-buffered-evs>ajax-clients! conns_
+                                 uid buffered-evs-edn)))))))]
 
-         (if (= ev [:chsk/close]) ; Experimental (undocumented)
-           (do ; Currently non-flushing, closes only WebSockets:
+         (if (= ev [:chsk/close])
+           (do
              (timbre/debugf "Chsk CLOSING: %s" uid)
-             (doseq [hk-ch (@conns-ws_ uid)] (http-kit/close hk-ch)))
+
+             (when flush-send-buffer?
+               (doseq [type [:ws :ajax]]
+                 (flush-buffer! type)))
+
+             (doseq [hk-ch     (get-in @conns_ [:ws   uid])] (http-kit/close hk-ch))
+             (doseq [hk-ch (-> (get-in @conns_ [:ajax uid])
+                               (vals)
+                               (map first)
+                               (remove nil?))] (http-kit/close hk-ch)))
 
            (do
-             ;;; Buffer event:
-             (buffer-ev! send-buffers-ws_)
-             (buffer-ev! send-buffers-ajax_)
+             ;; Buffer event
+             (doseq [type [:ws :ajax]]
+               (encore/swap-in! send-buffers_ [type uid]
+                 (fn [old-v]
+                   (if-not old-v [[ev] #{ev-uuid}]
+                     (let [[buffered-evs ev-uuids] old-v]
+                       [(conj buffered-evs ev)
+                        (conj ev-uuids     ev-uuid)])))))
 
              ;;; Flush event buffers after relevant timeouts:
              ;; * May actually flush earlier due to another timeout.
@@ -302,15 +313,13 @@
              ;; * Broadcasting is possible but I'd suggest doing it rarely, and
              ;;   only to users we know/expect are actually online.
              (go (when-not flush-send-buffer? (<! (async/timeout send-buf-ms-ws)))
-                 (flush-buffer! send-buffers-ws_
-                   (partial send-buffered-evs-ws! conns-ws_)))
+                 (flush-buffer! :ws))
              (go (when-not flush-send-buffer? (<! (async/timeout send-buf-ms-ajax)))
-                 (flush-buffer! send-buffers-ajax_
-                   (partial send-buffered-evs-ajax! conns-ajax_))))))
+                 (flush-buffer! :ajax)))))
 
        nil)
 
-     :ajax-post-fn ; Does not participate in `conns-ajax` (has specific req->resp)
+     :ajax-post-fn ; Does not participate in `conns_` (has specific req->resp)
      (fn [ring-req]
        (http-kit/with-channel ring-req hk-ch
          (let [msg       (-> ring-req :params :edn try-read-edn)
@@ -351,66 +360,15 @@
                     :event        event
                     :?reply-fn    ?reply-fn}))]
 
-           (if-not (:websocket? ring-req)
-             (when uid ; Server shouldn't attempt a non-uid long-pollling GET anyway
-               (swap! conns-ajax_
-                 (fn [[_ m]] [nil (assoc-in m [uid client-uuid] hk-ch)]))
-
-               (swap! ajax-udts-last-connected_ assoc uid (encore/now-udt))
-               (swap! connected-uids_
-                 (fn [{:keys [ws ajax any]}]
-                   {:ws ws :ajax (conj ajax uid) :any (conj any uid)}))
-
-               ;; Currently relying on `on-close` to _always_ trigger for every
-               ;; connection. If that's not the case, will need some kind of gc.
-               (http-kit/on-close hk-ch
-                 (fn [status]
-                   (swap! conns-ajax_
-                     (fn [[_ m]]
-                       (let [new (dissoc (get m uid) client-uuid)]
-                         [nil (if (empty? new)
-                                (dissoc m uid)
-                                (assoc  m uid new))])))
-
-                   ;; Maintain `connected-uids_`. We can't take Ajax disconnect
-                   ;; as a reliable indication that user has actually left
-                   ;; (user's poller may be reconnecting). Instead, we'll wait
-                   ;; a little while and mark the user as gone iff no further
-                   ;; connections occurred while waiting.
-                   ;;
-                   (let [udt-disconnected (encore/now-udt)]
-                     ;; Allow some time for possible poller reconnects:
-                     (go (<! (async/timeout 5000))
-                         (let [poller-has-stopped?
-                               (encore/swap-in! ajax-udts-last-connected_ nil
-                                 (fn [m]
-                                   (let [?udt-last-connected (get m uid)
-                                         poller-has-stopped?
-                                         (and ?udt-last-connected ; Not yet gc'd
-                                              (>= udt-disconnected
-                                                  ?udt-last-connected))]
-                                     (if poller-has-stopped?
-                                       (encore/swapped (dissoc m uid) true) ; gc
-                                       (encore/swapped m false)))))]
-                           (when poller-has-stopped?
-                             (swap! connected-uids_
-                               (fn [{:keys [ws ajax any]}]
-                                 {:ws ws :ajax (disj ajax uid)
-                                  :any (if (contains? ws uid) any
-                                         (disj any uid))}))))))
-
-                   (receive-event-msg!* [:chsk/uidport-close :ajax])))
-               (receive-event-msg!* [:chsk/uidport-open :ajax]))
-
+           (if (:websocket? ring-req)
              (do
                (timbre/tracef "New WebSocket channel: %s %s"
                  (or uid "(no uid)") (str hk-ch)) ; _Must_ call `str` on ch
                (when uid
-                 (swap! conns-ws_ (fn [m] (assoc m uid (conj (m uid #{}) hk-ch))))
+                 (encore/swap-in! conns_ [:ws uid] (fn [s] (conj (or s #{}) hk-ch)))
                  (swap! connected-uids_
-                 (fn [{:keys [ws ajax any]}]
-                   {:ws (conj ws uid) :ajax ajax :any (conj any uid)}))
-                 (receive-event-msg!* [:chsk/uidport-open :ws]))
+                   (fn [{:keys [ws ajax any]}]
+                     {:ws (conj ws uid) :ajax ajax :any (conj any uid)})))
 
                (http-kit/on-receive hk-ch
                  (fn [req-edn]
@@ -424,25 +382,55 @@
                              ;; true iff apparent success:
                              (http-kit/send! hk-ch resp-edn))))))))
 
-               ;; Currently relying on `on-close` to _always_ trigger for every
-               ;; connection. If that's not the case, will need some kind of gc.
+               ;; We rely on `on-close` to trigger for _every_ conn:
                (http-kit/on-close hk-ch
                  (fn [status]
                    (when uid
-                     (swap! conns-ws_
-                       (fn [m]
-                         (let [new (disj (m uid #{}) hk-ch)]
-                           (if (empty? new) (dissoc m uid)
-                                            (assoc  m uid new)))))
+                     (encore/swap-in! conns_ [:ws]
+                       (fn [m] ; {<uid> <#{hk-chs}>
+                         (let [new (disj (get m uid #{}) hk-ch)]
+                           (if (empty? new)
+                             (dissoc m uid) ; gc
+                             (assoc  m uid new)))))
+                     (upd-connected-uids!))))
+               (http-kit/send! hk-ch (pr-str [:chsk/handshake :ws])))
 
-                     (swap! connected-uids_
-                       (fn [{:keys [ws ajax any]}]
-                         {:ws (disj ws uid) :ajax ajax
-                          :any (if (contains? ajax uid) any
-                                 (disj any uid))}))
+             (when uid ; Server shouldn't attempt a non-uid long-pollling GET anyway
+               (encore/swap-in! conns_ [:ajax uid client-uuid]
+                 (fn [m] [hk-ch (encore/now-udt)]))
+               (swap! connected-uids_
+                 (fn [{:keys [ws ajax any]}]
+                   {:ws ws :ajax (conj ajax uid) :any (conj any uid)}))
 
-                     (receive-event-msg!* [:chsk/uidport-close :ws]))))
-               (http-kit/send! hk-ch (pr-str [:chsk/handshake :ws])))))))}))
+               ;; We rely on `on-close` to trigger for _every_ conn:
+               (http-kit/on-close hk-ch
+                 (fn [status]
+                   (encore/swap-in! conns_ [uid :ajax client-uuid]
+                     (fn [[hk-ch udt-last-connected]] [nil udt-last-connected]))
+
+                   (let [udt-disconnected (encore/now-udt)]
+                     (go
+                      ;; Allow some time for possible poller reconnects:
+                      (<! (async/timeout 5000))
+                      (let [disconnected?
+                            (encore/swap-in! conns_ [:ajax]
+                              (fn [m] ; {<uid> {<client-uuid> [<?hk-ch> _]}
+                                (let [[_ ?udt-last-connected]
+                                      (get-in m [uid client-uuid])
+                                      disconnected?
+                                      (and ?udt-last-connected ; Not yet gc'd
+                                           (>= udt-disconnected
+                                               ?udt-last-connected))]
+                                  (if-not disconnected?
+                                    (encore/swapped m false)
+                                    (let [new (dissoc (get m uid) client-uuid)]
+                                      (encore/swapped
+                                       (if (empty? new)
+                                         (dissoc m uid) ; Gc
+                                         (assoc  m uid new))
+                                       true))))))]
+                        (when disconnected?
+                          (upd-connected-uids!))))))))))))}))
 
 ;;;; Client
 

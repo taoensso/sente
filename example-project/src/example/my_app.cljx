@@ -61,23 +61,21 @@
   (let [;; A unique user id should be sessionized under :uid key during login -
         ;; this could be a username, uuid, etc.
         uid (or (-> req :session :uid) (rand-int 99))]
-
     {:status 200
      :session (assoc (:session req) :uid uid)
      :body
      (hiccup/html
       [:h1 "This is my landing page, yo!"]
       (if (empty? (:session req))
-        [:p [:strong "Step 0: "] "Please refresh your browser to get a session!"]
+        [:p [:strong "Step 1: "] "Please refresh your browser to get a session!"]
         [:p [:small (format "Session: %s" (:session req))]])
-      [:p [:small (format "Random user id (`:uid` key in Ring session): %s" uid)]]
       [:hr]
-      [:p [:strong "Step 1: "] "Ensure your browser's JavaScript console is open."]
-      [:p [:strong "Step 2: "] "Try the buttons: "
+      [:p [:strong "Step 2: "] "Ensure your browser's JavaScript console is open."]
+      [:p [:strong "Step 3: "] "Try the buttons: "
        [:button#btn1 {:type "button"} "chsk-send! (w/o reply)"]
        [:button#btn2 {:type "button"} "chsk-send! (with reply)"]]
 
-      [:p [:strong "Step 3: "] "Observe browser's console + nREPL's std-out." ]
+      [:p [:strong "Step 4: "] "Observe browser's console + nREPL's std-out." ]
 
       ;;; Communicate releavnt state to client (you could do this any way that's
       ;;; convenient, just keep in mind that client state is easily forged):
@@ -111,15 +109,13 @@
 #+clj (defn- logf [fmt & xs] (println (apply format fmt xs)))
 #+clj
 (defn run-http-server []
-  (let [s (http-kit-server/run-server (var my-ring-handler) {:port 0})]
-    (logf
-     (str "Http-kit server is running on `http://localhost:%s/` "
-          "(it should be browser-accessible now).")
-     (:local-port (meta s)))
-    s))
+  (let [s   (http-kit-server/run-server (var my-ring-handler) {:port 0})
+        uri (format "http://localhost:%s/" (:local-port (meta s)))]
+    (logf "Http-kit server is running at `%s`" uri)
+    (.browse (java.awt.Desktop/getDesktop)
+             (java.net.URI. uri))))
 
-#+clj
-(defonce http-server (run-http-server)) ; Runs once, on first eval
+#+clj (defonce http-server (run-http-server)) ; Runs once, on first eval
 
 ;;;; Setup client-side chsk handlers -------------------------------------------
 
