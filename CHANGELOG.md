@@ -1,9 +1,9 @@
-## Pending / unreleased
+## v0.11.0 / 2014 Apr 26
 
  * **CHANGE**: Removed vestigial server-side events: `[:chsk/uidport-open _]`, `[:chsk/uidport-close _]`.
- * **FIX**: `connected-uids` was incorrectly marking multi-client users as disconnected when any _one_ of their clients disconnected.
  * **CHANGE**: Significantly improved Ajax broadcast performance by interally making use of `connected-uids` data.
  * **NEW**: `[:chsk/close]` event can now be sent to clients to disconnect them (this feature was previously experimental + undocumented).
+ * **FIX**: `connected-uids` was incorrectly marking multi-client users as disconnected when any _one_ of their clients disconnected.
 
 
 ## v0.10.1 / 2014 Apr 17
