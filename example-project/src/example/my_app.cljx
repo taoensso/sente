@@ -111,12 +111,11 @@
 #+clj (defn- logf [fmt & xs] (println (apply format fmt xs)))
 #+clj
 (defn run-http-server []
-  (let [s (http-kit-server/run-server (var my-ring-handler) {:port 0})]
-    (logf
-     (str "Http-kit server is running on `http://localhost:%s/` "
-          "(it should be browser-accessible now).")
-     (:local-port (meta s)))
-    s))
+  (let [s   (http-kit-server/run-server (var my-ring-handler) {:port 0})
+        uri (format "http://localhost:%s/" (:local-port (meta s)))]
+    (logf "Http-kit server is running at `%s`" uri)
+    (.browse (java.awt.Desktop/getDesktop)
+             (java.net.URI. uri))))
 
 #+clj (defonce http-server (run-http-server)) ; Runs once, on first eval
 
