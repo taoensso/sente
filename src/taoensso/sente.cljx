@@ -767,22 +767,31 @@
 
 #+clj
 (defn start-chsk-router-loop! [event-msg-handler ch]
-  (go-loop []
-    (try
-      (let [event-msg (<! ch)]
+  (let [ctrl-ch (chan)]
+    (go-loop []
+      (when-not ; nil or ::stop
         (try
-          (timbre/tracef "Event-msg: %s" event-msg)
-          (event-msg-handler event-msg ch)
+          (let [[v p] (async/alts! [ch ctrl-ch])]
+            (if (identical? p ctrl-ch) ::stop
+              (let [event-msg v]
+                (try
+                  (timbre/tracef "Event-msg: %s" event-msg)
+                  (do (event-msg-handler event-msg ch) nil)
+                  (catch Throwable t
+                    (timbre/errorf t "Chsk-router-loop handling error: %s" event-msg))))))
           (catch Throwable t
-            (timbre/errorf t "Chsk-router-loop handling error: %s" event-msg))))
-      (catch Throwable t
-        (timbre/errorf t "Chsk-router-loop channel error!")))
-    (recur)))
+            (timbre/errorf t "Chsk-router-loop channel error!")))
+        (recur)))
+    (fn stop! [] (async/close! ctrl-ch))))
 
 #+cljs
 (defn start-chsk-router-loop! [event-handler ch]
-  (go-loop []
-    (let [[id data :as event] (<! ch)]
-      ;; Provide ch to handler to allow event injection back into loop:
-      (event-handler event ch) ; Allow errors to throw
-      (recur))))
+  (let [ctrl-ch (chan)]
+    (go-loop []
+      (let [[v p] (async/alts! [ch ctrl-ch])]
+        (if (identical? p ctrl-ch) ::stop
+          (let [[id data :as event] v]
+            ;; Provide ch to handler to allow event injection back into loop:
+            (event-handler event ch)  ; Allow errors to throw
+            (recur)))))
+    (fn stop! [] (async/close! ctrl-ch))))
