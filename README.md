@@ -249,37 +249,6 @@ There's a full [reference example project][] in the repo. Call `lein start-dev` 
 
 Further instructions are provided in the relevant namespace.
 
-#### Integration: components
-
-If you structure your applications on top of Stuart Sierra's [component](https://github.com/stuartsierra/component), here is how Sente can be "componentized":
-
-```clojure
-(ns front-end.framework.components.channel-sockets
-  (:require [com.stuartsierra.component :as component]
-            [taoensso.sente :as sente]
-            [your.application.handler :refer [event-msg-handler]]))
-
-
-(defrecord ChannelSockets [ring-ajax-post ring-ajax-get-or-ws-handshake ch-chsk chsk-send! chsk-router]
-  component/Lifecycle
-  (start [component]
-    (let [{:keys [ch-recv send-fn ajax-post-fn ajax-get-or-ws-handshake-fn]}
-      (sente/make-channel-socket! {})]
-      (assoc component 
-        :ring-ajax-post ajax-post-fn 
-        :ring-ajax-get-or-ws-handshake ajax-get-or-ws-handshake-fn
-        :ch-chsk ch-recv
-        :chsk-send! send-fn
-        :chsk-router (sente/start-chsk-router-loop! event-msg-handler ch-recv))))
-  (stop [component]
-    ((:chsk-router component))
-    component))
-
-(defn new-channel-sockets
-  []
-  (map->ChannelSockets {}))
-```
-
 #### Any other questions?
 
 If I've missed something here, feel free to open a GitHub issue or pop me an email!
