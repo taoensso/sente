@@ -239,6 +239,10 @@ Yup, it's automatic for both Ajax and WebSockets. If the page serving your JavaS
 
 The [reference example project][] has a fully-baked example.
 
+#### Pageload: How do I know when my channels are ready client-side?
+
+You'll want to listen on the receive channel for a `[:chsk/state [:first-open :ws]]` or `[:chsk/state [:first-open :ajax]]` event. That's the signal that the socket's been established.
+
 #### Examples: wherefore art thou?
 
 There's a full [reference example project][] in the repo. Call `lein start-dev` in that dir to get a (headless) development repl that you can connect to with [Cider][] (emacs) or your IDE.
