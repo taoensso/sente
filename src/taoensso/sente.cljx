@@ -292,10 +292,10 @@
                  (flush-buffer! type)))
 
              (doseq [hk-ch     (get-in @conns_ [:ws   uid])] (http-kit/close hk-ch))
-             (doseq [hk-ch (-> (get-in @conns_ [:ajax uid])
-                               (vals)
-                               (map first)
-                               (remove nil?))] (http-kit/close hk-ch)))
+             (doseq [hk-ch (->> (get-in @conns_ [:ajax uid])
+                                (vals)
+                                (map first)
+                                (remove nil?))] (http-kit/close hk-ch)))
 
            (do
              ;; Buffer event
