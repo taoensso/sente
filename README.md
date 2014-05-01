@@ -1,7 +1,7 @@
 **[API docs][]** | **[CHANGELOG][]** | [other Clojure libs][] | [Twitter][] | [contact/contributing](#contact--contributing) | current ([semantic][]) version:
 
 ```clojure
-[com.taoensso/sente "0.11.0"] ; < v1.0.0 API is subject to change
+[com.taoensso/sente "0.12.0"] ; < v1.0.0 API is subject to change
 ```
 
 # Sente, channel sockets for Clojure

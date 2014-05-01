@@ -61,7 +61,6 @@
 
   #+clj
   (:require [clojure.string :as str]
-            [clojure.set    :as set]
             [clojure.core.async :as async :refer (<! <!! >! >!! put! chan
                                                      go go-loop)]
             [clojure.tools.reader.edn :as edn]
@@ -71,7 +70,6 @@
 
   #+cljs
   (:require [clojure.string  :as str]
-            [clojure.set     :as set]
             [cljs.core.async :as async :refer (<! >! put! chan)]
             [cljs.reader     :as edn]
             [taoensso.encore :as encore :refer (format)])
@@ -86,12 +84,13 @@
   #+cljs (instance? cljs.core.async.impl.channels.ManyToManyChannel    x))
 
 (defn- validate-event-form [x]
-  (cond  (not (vector? x))        :wrong-type
-         (not (#{1 2} (count x))) :wrong-length
-   :else (let [[ev-id _] x]
-           (cond (not (keyword? ev-id))  :wrong-id-type
-                 (not (namespace ev-id)) :unnamespaced-id
-                 :else nil))))
+  (cond
+    (not (vector? x))        :wrong-type
+    (not (#{1 2} (count x))) :wrong-length
+    :else (let [[ev-id _] x]
+            (cond (not (keyword? ev-id))  :wrong-id-type
+                  (not (namespace ev-id)) :unnamespaced-id
+                  :else nil))))
 
 (defn event? "Valid [ev-id ?ev-data] form?" [x] (nil? (validate-event-form x)))
 
@@ -169,7 +168,7 @@
   time for possible Ajax poller reconnects."
   [conns_ uid buffered-evs-edn & [{:keys [nmax-attempts ms-base ms-rand]
                                    ;; <= 7 attempts at ~135ms ea = 945ms
-                                   :or   {nmax-attempts 5
+                                   :or   {nmax-attempts 7
                                           ms-base       90
                                           ms-rand       90}}]]
   (comment (* 7 (+ 90 (/ 90 2.0))))
@@ -195,7 +194,7 @@
                   (reduce-kv
                    (fn [s client-uuid [?hk-ch _]]
                      (if (or (nil? ?hk-ch)
-                             ;; hk-ch may have closed already:
+                             ;; hk-ch may have closed already (`send!` will noop):
                              (not (http-kit/send! ?hk-ch buffered-evs-edn)))
                        s
                        (conj s client-uuid))) #{} ?pulled))
@@ -244,14 +243,26 @@
         connected-uids_ (atom {:ws #{} :ajax #{} :any #{}})
         send-buffers_   (atom {:ws  {} :ajax  {}}) ; {<uid> [<buffered-evs> <#{ev-uuids}>]}
 
-        upd-connected-uids!
-        (fn []
+        connect-uid!
+        (fn [type uid]
           (swap! connected-uids_
-            (fn [m]
-              (let [{:keys [ws ajax]} @conns_
-                    ws     (set (keys ws))
-                    ajax   (set (keys ajax))]
-                {:ws ws :ajax ajax :any (set/union ws ajax)}))))]
+            (fn [{:keys [ws ajax any]}]
+              (case type
+                :ws   {:ws (conj ws uid) :ajax ajax            :any (conj any uid)}
+                :ajax {:ws ws            :ajax (conj ajax uid) :any (conj any uid)}))))
+
+        upd-connected-uid! ; Useful for disconnects
+        (fn [uid]
+          (swap! connected-uids_
+            (fn [{:keys [ws ajax any]}]
+              (let [conns' @conns_
+                    any-ws-clients?   (contains? (:ws   conns') uid)
+                    any-ajax-clients? (contains? (:ajax conns') uid)
+                    any-clients?      (or any-ws-clients?
+                                          any-ajax-clients?)]
+                {:ws   (if any-ws-clients?   (conj ws   uid) (disj ws   uid))
+                 :ajax (if any-ajax-clients? (conj ajax uid) (disj ajax uid))
+                 :any  (if any-clients?      (conj any  uid) (disj any  uid))}))))]
 
     {:ch-recv ch-recv
      :connected-uids connected-uids_
@@ -366,9 +377,7 @@
                  (or uid "(no uid)") (str hk-ch)) ; _Must_ call `str` on ch
                (when uid
                  (encore/swap-in! conns_ [:ws uid] (fn [s] (conj (or s #{}) hk-ch)))
-                 (swap! connected-uids_
-                   (fn [{:keys [ws ajax any]}]
-                     {:ws (conj ws uid) :ajax ajax :any (conj any uid)})))
+                 (connect-uid! :ws uid))
 
                (http-kit/on-receive hk-ch
                  (fn [req-edn]
@@ -392,15 +401,13 @@
                            (if (empty? new)
                              (dissoc m uid) ; gc
                              (assoc  m uid new)))))
-                     (upd-connected-uids!))))
+                     (upd-connected-uid! uid))))
                (http-kit/send! hk-ch (pr-str [:chsk/handshake :ws])))
 
              (when uid ; Server shouldn't attempt a non-uid long-pollling GET anyway
                (encore/swap-in! conns_ [:ajax uid client-uuid]
                  (fn [m] [hk-ch (encore/now-udt)]))
-               (swap! connected-uids_
-                 (fn [{:keys [ws ajax any]}]
-                   {:ws ws :ajax (conj ajax uid) :any (conj any uid)}))
+               (connect-uid! :ajax uid)
 
                ;; We rely on `on-close` to trigger for _every_ conn:
                (http-kit/on-close hk-ch
@@ -422,15 +429,15 @@
                                            (>= udt-disconnected
                                                ?udt-last-connected))]
                                   (if-not disconnected?
-                                    (encore/swapped m false)
+                                    (encore/swapped m (not :disconnected))
                                     (let [new (dissoc (get m uid) client-uuid)]
                                       (encore/swapped
                                        (if (empty? new)
                                          (dissoc m uid) ; Gc
                                          (assoc  m uid new))
-                                       true))))))]
+                                       :disconnected))))))]
                         (when disconnected?
-                          (upd-connected-uids!))))))))))))}))
+                          (upd-connected-uid! uid))))))))))))}))
 
 ;;;; Client
 
@@ -760,22 +767,31 @@
 
 #+clj
 (defn start-chsk-router-loop! [event-msg-handler ch]
-  (go-loop []
-    (try
-      (let [event-msg (<! ch)]
+  (let [ctrl-ch (chan)]
+    (go-loop []
+      (when-not ; nil or ::stop
         (try
-          (timbre/tracef "Event-msg: %s" event-msg)
-          (event-msg-handler event-msg ch)
+          (let [[v p] (async/alts! [ch ctrl-ch])]
+            (if (identical? p ctrl-ch) ::stop
+              (let [event-msg v]
+                (try
+                  (timbre/tracef "Event-msg: %s" event-msg)
+                  (do (event-msg-handler event-msg ch) nil)
+                  (catch Throwable t
+                    (timbre/errorf t "Chsk-router-loop handling error: %s" event-msg))))))
           (catch Throwable t
-            (timbre/errorf t "Chsk-router-loop handling error: %s" event-msg))))
-      (catch Throwable t
-        (timbre/errorf t "Chsk-router-loop channel error!")))
-    (recur)))
+            (timbre/errorf t "Chsk-router-loop channel error!")))
+        (recur)))
+    (fn stop! [] (async/close! ctrl-ch))))
 
 #+cljs
 (defn start-chsk-router-loop! [event-handler ch]
-  (go-loop []
-    (let [[id data :as event] (<! ch)]
-      ;; Provide ch to handler to allow event injection back into loop:
-      (event-handler event ch) ; Allow errors to throw
-      (recur))))
+  (let [ctrl-ch (chan)]
+    (go-loop []
+      (let [[v p] (async/alts! [ch ctrl-ch])]
+        (if (identical? p ctrl-ch) ::stop
+          (let [[id data :as event] v]
+            ;; Provide ch to handler to allow event injection back into loop:
+            (event-handler event ch)  ; Allow errors to throw
+            (recur)))))
+    (fn stop! [] (async/close! ctrl-ch))))

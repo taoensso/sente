@@ -1,3 +1,9 @@
+## v0.12.0 / 2014 May 1
+
+ * **NEW**: server- and client-side `start-chsk-router-loop!` fns now return a `(fn stop! [])`.
+ * [#37] **FIX** broken `[:chsk/close]` typo for Ajax connections (@sritchie).
+
+
 ## v0.11.0 / 2014 Apr 26
 
  * **CHANGE**: Removed vestigial server-side events: `[:chsk/uidport-open _]`, `[:chsk/uidport-close _]`.
