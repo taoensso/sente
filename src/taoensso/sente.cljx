@@ -214,14 +214,15 @@
                     connected-uids]}`:
     * ch-recv - core.async channel ; For server-side chsk request router, will
                                    ; receive `event-msg`s from clients.
-    * send-fn - (fn [user-id ev])   ; For server>user push
+    * send-fn - (fn [user-id ev])  ; For server>user push
     * ajax-post-fn                - (fn [ring-req]) ; For Ring CSRF-POST, chsk URL
     * ajax-get-or-ws-handshake-fn - (fn [ring-req]) ; For Ring GET,       chsk URL
     * connected-uids ; Watchable, read-only (atom {:ws #{_} :ajax #{_} :any #{_}})
 
   Options:
-    * recv-buf-or-n    ; Used for ch-recv buffer.
+    * recv-buf-or-n    ; Used for ch-recv buffer
     * user-id-fn       ; (fn [ring-req]) -> unique user-id for server>user push.
+    * csrf-token-fn    ; (fn [ring-req]) -> CSRF token for Ajax POSTs.
     * send-buf-ms-ajax ; [1]
     * send-buf-ms-ws   ; [1]
 
@@ -229,11 +230,16 @@
       server>user pushes. This is esp. important for Ajax clients which use a
       (slow) reconnecting poller. Actual event dispatch may occur <= given ms
       after send call (larger values => larger batch windows)."
-  [& [{:keys [recv-buf-or-n send-buf-ms-ajax send-buf-ms-ws user-id-fn]
+  [& [{:keys [recv-buf-or-n send-buf-ms-ajax send-buf-ms-ws
+              user-id-fn csrf-token-fn]
        :or   {recv-buf-or-n (async/sliding-buffer 1000)
               send-buf-ms-ajax 100
               send-buf-ms-ws   30
-              user-id-fn (fn [ring-req] (get-in ring-req [:session :uid]))}}]]
+              user-id-fn    (fn [ring-req] (get-in ring-req [:session :uid]))
+              csrf-token-fn (fn [ring-req]
+                              (or (get-in ring-req [:session :csrf-token])
+                                  (get-in ring-req [:session "__anti-forgery-token"])))}}]]
+
   {:pre [(encore/pos-int? send-buf-ms-ajax)
          (encore/pos-int? send-buf-ms-ws)]}
 
@@ -356,7 +362,8 @@
      :ajax-get-or-ws-handshake-fn ; ajax-poll or ws-handshake
      (fn [ring-req]
        (http-kit/with-channel ring-req hk-ch
-         (let [uid (user-id-fn ring-req)
+         (let [uid        (user-id-fn    ring-req)
+               csrf-token (csrf-token-fn ring-req)
                client-uuid ; Browser-tab / device identifier
                (str uid "-" ; Security measure (can't be controlled by client)
                  (or (get-in ring-req [:params :ajax-client-uuid])
