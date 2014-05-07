@@ -220,9 +220,8 @@
     * connected-uids ; Watchable, read-only (atom {:ws #{_} :ajax #{_} :any #{_}})
 
   Options:
-    * recv-buf-or-n    ; Used for ch-recv buffer
-    * user-id-fn       ; (fn [ring-req]) -> unique user-id, as used by
-                       ; server>user push.
+    * recv-buf-or-n    ; Used for ch-recv buffer.
+    * user-id-fn       ; (fn [ring-req]) -> unique user-id for server>user push.
     * send-buf-ms-ajax ; [1]
     * send-buf-ms-ws   ; [1]
 
@@ -272,14 +271,12 @@
      (fn [uid ev & [{:as _opts :keys [flush-send-buffer?]}]]
        (timbre/tracef "Chsk send: (->uid %s) %s" uid ev)
        (assert-event ev)
-       (assert (not (nil? uid))
-         "server>user push requires a non-nil user-id (client session :uid by default)")
        (let [ev-uuid (encore/uuid-str)
              flush-buffer!
              (fn [type]
                (when-let [pulled (encore/swap-in! send-buffers_ [type]
                                    (fn [m] (encore/swapped (dissoc m uid)
-                                                          (get    m uid))))]
+                                                           (get    m uid))))]
                  (let [[buffered-evs ev-uuids] pulled]
                    (assert (vector? buffered-evs))
                    (assert (set?    ev-uuids))
@@ -304,7 +301,7 @@
                (doseq [type [:ws :ajax]]
                  (flush-buffer! type)))
 
-             (doseq [hk-ch     (get-in @conns_ [:ws   uid])] (http-kit/close hk-ch))
+             (doseq [hk-ch      (get-in @conns_ [:ws   uid])] (http-kit/close hk-ch))
              (doseq [hk-ch (->> (get-in @conns_ [:ajax uid])
                                 (vals)
                                 (map first)
@@ -376,10 +373,9 @@
            (if (:websocket? ring-req)
              (do
                (timbre/tracef "New WebSocket channel: %s %s"
-                 (or uid "(no uid)") (str hk-ch)) ; _Must_ call `str` on ch
-               (when uid
-                 (encore/swap-in! conns_ [:ws uid] (fn [s] (conj (or s #{}) hk-ch)))
-                 (connect-uid! :ws uid))
+                 uid (str hk-ch)) ; _Must_ call `str` on ch
+               (encore/swap-in! conns_ [:ws uid] (fn [s] (conj (or s #{}) hk-ch)))
+               (connect-uid! :ws uid)
 
                (http-kit/on-receive hk-ch
                  (fn [req-edn]
@@ -396,17 +392,16 @@
                ;; We rely on `on-close` to trigger for _every_ conn:
                (http-kit/on-close hk-ch
                  (fn [status]
-                   (when uid
-                     (encore/swap-in! conns_ [:ws]
-                       (fn [m] ; {<uid> <#{hk-chs}>
-                         (let [new (disj (get m uid #{}) hk-ch)]
-                           (if (empty? new)
-                             (dissoc m uid) ; gc
-                             (assoc  m uid new)))))
-                     (upd-connected-uid! uid))))
+                   (encore/swap-in! conns_ [:ws]
+                     (fn [m] ; {<uid> <#{hk-chs}>
+                       (let [new (disj (get m uid #{}) hk-ch)]
+                         (if (empty? new)
+                           (dissoc m uid) ; gc
+                           (assoc  m uid new)))))
+                   (upd-connected-uid! uid)))
                (http-kit/send! hk-ch (pr-str [:chsk/handshake :ws])))
 
-             (when uid ; Server shouldn't attempt a non-uid long-pollling GET anyway
+             (do
                (encore/swap-in! conns_ [:ajax uid client-uuid]
                  (fn [m] [hk-ch (encore/now-udt)]))
                (connect-uid! :ajax uid)
@@ -603,7 +598,7 @@
 
 #+cljs
 (defrecord ChAjaxSocket [url chs open? ajax-client-uuid
-                         csrf-token has-uid?]
+                         csrf-token]
   IChSocket
   (chsk-type  [_] :ajax)
   (chsk-open? [chsk] @open?)
@@ -645,55 +640,48 @@
           :apparent-success))))
 
   (chsk-make! [chsk {:keys [timeout]}]
-    ;; As currently implemented (i.e. without server-side broadcast features),
-    ;; there's no point in creating an Ajax poller if we're not logged in since
-    ;; there'd be no way for the server to identify us when sending non-request
-    ;; messages.
-    (if-not has-uid?
-      (reset-chsk-state! chsk true) ; Must still mark as open to enable sends
-      ((fn async-poll-for-update! [nattempt]
+    ((fn async-poll-for-update! [nattempt]
+       (let [retry!
+             (fn []
+               (let [nattempt* (inc nattempt)]
+                 (encore/warnf
+                   "Chsk is closed: will try reconnect (%s)."
+                   nattempt*)
+                 (encore/set-exp-backoff-timeout!
+                   (partial async-poll-for-update! nattempt*)
+                   nattempt*)))
 
-         (let [retry!
-               (fn []
-                 (let [nattempt* (inc nattempt)]
-                   (encore/warnf
-                    "Chsk is closed: will try reconnect (%s)."
-                    nattempt*)
-                   (encore/set-exp-backoff-timeout!
-                    (partial async-poll-for-update! nattempt*)
-                    nattempt*)))
+             ajax-req! ; Just for Pace wrapping below
+             (fn []
+               (encore/ajax-lite url
+                 {:method :get :timeout timeout
+                  :resp-type :text ; Prefer to do our own edn reading
+                  :params {:_ (encore/now-udt) ; Force uncached resp
+                           :ajax-client-uuid ajax-client-uuid}}
+                 (fn ajax-cb [{:keys [content error]}]
+                   (if error
+                     (if (= error :timeout)
+                       (async-poll-for-update! 0)
+                       (do (reset-chsk-state! chsk false)
+                           (retry!)))
 
-               ajax-req! ; Just for Pace wrapping below
-               (fn []
-                 (encore/ajax-lite url
-                  {:method :get :timeout timeout
-                   :resp-type :text ; Prefer to do our own edn reading
-                   :params {:_ (encore/now-udt) ; Force uncached resp
-                            :ajax-client-uuid ajax-client-uuid}}
-                  (fn ajax-cb [{:keys [content error]}]
-                    (if error
-                      (if (= error :timeout)
-                        (async-poll-for-update! 0)
-                        (do (reset-chsk-state! chsk false)
-                            (retry!)))
+                     ;; The Ajax long-poller is used only for events, never cbs:
+                     (let [edn          content
+                           buffered-evs (edn/read-string edn)]
+                       (receive-buffered-evs! (:recv chs) buffered-evs)
+                       (reset-chsk-state! chsk true)
+                       (async-poll-for-update! 0))))))]
 
-                      ;; The Ajax long-poller is used only for events, never cbs:
-                      (let [edn          content
-                            buffered-evs (edn/read-string edn)]
-                        (receive-buffered-evs! (:recv chs) buffered-evs)
-                        (reset-chsk-state! chsk true)
-                        (async-poll-for-update! 0))))))]
+         (if-let [pace (aget js/window "Pace")]
+           ;; Assumes relevant extern is defined for :advanced mode compilation:
+           (.ignore pace ajax-req!) ; Pace.js shouldn't trigger for long-polling
+           (ajax-req!)))
 
-           (if-let [pace (aget js/window "Pace")]
-             ;; Assumes relevant extern is defined for :advanced mode compilation:
-             (.ignore pace ajax-req!) ; Pace.js shouldn't trigger for long-polling
-             (ajax-req!)))
-
-         (when-not @open?
-           ;; (encore/debugf "Attempting chsk Ajax handshake")
-           ;; Try handshake to confirm working conn (will enable sends):
-           (chsk-send! chsk [:chsk/handshake :ajax])))
-       0))
+       (when-not @open?
+         ;; (encore/debugf "Attempting chsk Ajax handshake")
+         ;; Try handshake to confirm working conn (will enable sends):
+         (chsk-send! chsk [:chsk/handshake :ajax])))
+     0)
     chsk))
 
 #+cljs
@@ -714,7 +702,7 @@
   Note that the *same* URL is used for: WebSockets, POSTs, GETs. Server-side
   routes should be configured accordingly."
   [url &
-   & [{:keys [csrf-token has-uid?
+   & [{:keys [csrf-token
               type recv-buf-or-n ws-kalive-ms lp-timeout]
        :or   {type          :auto
               recv-buf-or-n (async/sliding-buffer 2048) ; Mostly for buffered-evs
@@ -748,7 +736,7 @@
                     ajax-client-uuid (encore/uuid-str)]
                 (chsk-make!
                  (ChAjaxSocket. (chsk-url url) chs (atom false)
-                   ajax-client-uuid csrf-token has-uid?)
+                   ajax-client-uuid csrf-token)
                  {:timeout lp-timeout}))))
 
         type* (chsk-type chsk) ; Actual reified type
