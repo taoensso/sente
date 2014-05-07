@@ -2,41 +2,40 @@
   "Channel sockets. Otherwise known as The Shiz.
 
       Protocol  | client>server | client>server + ack/reply | server>user[1] push
-    * WebSockets:       ✓              [2]                          ✓  ; [3]
-    * Ajax:            [4]              ✓                          [5] ; [3]
+    * WebSockets:       ✓              [2]                          ✓
+    * Ajax:            [3]              ✓                          [4]
 
-    [1] ALL of a user's connected clients (browser tabs, devices, etc.).
-        Note that user > session > client > connection for consistency over time
-        + multiple devices.
+    [1] By user-id => ALL of a user's connected clients (browser tabs, devices,
+        etc.). Note that user > session > client > connection for consistency
+        over time + multiple devices.
     [2] Emulate with cb-uuid wrapping.
-    [3] By uid only (=> logged-in users only).
-    [4] Emulate with dummy-cb wrapping.
-    [5] Emulate with long-polling against uid (=> logged-in users only).
+    [3] Emulate with dummy-cb wrapping.
+    [4] Emulate with long-polling.
 
   Abbreviations:
-    * chsk  - channel socket.
+    * chsk  - Channel socket.
     * hk-ch - Http-kit Channel.
-    * uid   - User id. An application-specified identifier unique to each user
+    * uid   - User-id. An application-specified identifier unique to each user
               and sessionized under `:uid` key to enable server>user push.
               May have semantic meaning (e.g. username, email address), or not
               (e.g. random uuid) - app's discresion.
-    * cb    - callback.
-    * tout  - timeout.
+    * cb    - Callback.
+    * tout  - Timeout.
     * ws    - WebSocket/s.
 
   Special messages (implementation detail):
-    * cb replies: :chsk/closed, :chsk/timeout, :chsk/error.
-    * client-side events:
+    * Callback replies: :chsk/closed, :chsk/timeout, :chsk/error.
+    * Client-side events:
         [:chsk/handshake <#{:ws :ajax}>],
-        [:chsk/ping      <#{:ws :ajax}>], ; Though no :ajax ping
+        [:chsk/ws-ping],
         [:chsk/state [<#{:open :first-open :closed}> <#{:ws :ajax}]],
-        [:chsk/recv  <[buffered-evs]>]. ; server>user push
+        [:chsk/recv  <[buffered-evs]>] ; server>user push
 
-    * server-side events:
+    * Server-side events:
        [:chsk/bad-edn <edn>],
        [:chsk/bad-event <chsk-event>].
 
-    * event wrappers: {:chsk/clj <clj> :chsk/dummy-cb? true} (for [2]),
+    * Event wrappers: {:chsk/clj <clj> :chsk/dummy-cb? true} (for [2]),
                       {:chsk/clj <clj> :chsk/cb-uuid <uuid>} (for [4]).
 
   Notable implementation details:
@@ -44,10 +43,6 @@
       an implementation detail. Users may apply additional string encoding (e.g.
       JSON) at will. (This would incur a cost, but it'd be negligable compared
       to even the fastest network transfer times).
-    * No server>client (with/without cb) mechanism is provided since:
-      - server>user is what people actually want 90% of the time, and is a
-        preferable design pattern in general IMO.
-      - server>client could be (somewhat inefficiently) simulated with server>user.
     * core.async is used liberally where brute-force core.async allows for
       significant implementation simplifications. We lean on core.async's strong
       efficiency here.
@@ -258,7 +253,7 @@
                 :ws   {:ws (conj ws uid) :ajax ajax            :any (conj any uid)}
                 :ajax {:ws ws            :ajax (conj ajax uid) :any (conj any uid)}))))
 
-        upd-connected-uid! ; Useful for disconnects
+        upd-connected-uid! ; Useful for atomic disconnects
         (fn [uid]
           (swap! connected-uids_
             (fn [{:keys [ws ajax any]}]
@@ -274,10 +269,13 @@
     {:ch-recv ch-recv
      :connected-uids connected-uids_
      :send-fn ; server>user (by uid) push
-     (fn [uid ev & [{:as _opts :keys [flush-send-buffer?]}]]
-       (timbre/tracef "Chsk send: (->uid %s) %s" uid ev)
-       (assert-event ev)
-       (let [ev-uuid (encore/uuid-str)
+     (fn [user-id ev & [{:as _opts :keys [flush-send-buffer?]}]]
+       (let [uid      user-id
+             uid-name (str (or uid "nil"))
+             _ (timbre/tracef "Chsk send: (->uid %s) %s" uid-name ev)
+             _ (assert-event ev)
+             ev-uuid (encore/uuid-str)
+
              flush-buffer!
              (fn [type]
                (when-let [pulled (encore/swap-in! send-buffers_ [type]
@@ -301,7 +299,7 @@
 
          (if (= ev [:chsk/close])
            (do
-             (timbre/debugf "Chsk CLOSING: %s" uid)
+             (timbre/debugf "Chsk CLOSING: %s" uid-name)
 
              (when flush-send-buffer?
                (doseq [type [:ws :ajax]]
@@ -356,13 +354,14 @@
                     (http-kit/send! hk-ch resp-edn))))})
 
            (when dummy-cb?
-             (timbre/tracef "Chsk send (ajax reply): dummy-200")
-             (http-kit/send! hk-ch (pr-str :chsk/dummy-200))))))
+             (timbre/tracef "Chsk send (ajax reply): cb-dummy-200")
+             (http-kit/send! hk-ch (pr-str :chsk/cb-dummy-200))))))
 
      :ajax-get-or-ws-handshake-fn ; ajax-poll or ws-handshake
      (fn [ring-req]
        (http-kit/with-channel ring-req hk-ch
          (let [uid        (user-id-fn    ring-req)
+               uid-name   (str (or uid "nil"))
                csrf-token (csrf-token-fn ring-req)
                client-uuid ; Browser-tab / device identifier
                (str uid "-" ; Security measure (can't be controlled by client)
@@ -380,7 +379,7 @@
            (if (:websocket? ring-req)
              (do
                (timbre/tracef "New WebSocket channel: %s %s"
-                 uid (str hk-ch)) ; _Must_ call `str` on ch
+                 uid-name (str hk-ch)) ; _Must_ call `str` on ch
                (encore/swap-in! conns_ [:ws uid] (fn [s] (conj (or s #{}) hk-ch)))
                (connect-uid! :ws uid)
 
@@ -456,26 +455,26 @@
           (format "cb should be nil, an ifn, or a channel: %s" (type ?cb))))
 
 #+cljs
-(defn- pull-unused-cb-fn! [cbs-waiting cb-uuid]
+(defn- pull-unused-cb-fn! [cbs-waiting_ cb-uuid]
   (when cb-uuid
-    (first (swap! cbs-waiting
+    (first (swap! cbs-waiting_
              (fn [[_ m]] (if-let [f (m cb-uuid)]
                           [f (dissoc m cb-uuid)]
                           [nil m]))))))
 
 #+cljs
 (defn- wrap-clj->edn-msg-with-?cb "clj -> [edn ?cb-uuid]"
-  [cbs-waiting clj ?timeout-ms ?cb-fn]
+  [cbs-waiting_ clj ?timeout-ms ?cb-fn]
   (let [?cb-uuid (when ?cb-fn (encore/uuid-str))
         msg      (if-not ?cb-uuid clj {:chsk/clj clj :chsk/cb-uuid ?cb-uuid})
         ;; Note that if pr-str throws, it'll throw before swap!ing cbs-waiting:
         edn     (pr-str msg)]
     (when ?cb-uuid
-      (swap! cbs-waiting
+      (swap! cbs-waiting_
              (fn [[_ m]] [nil (assoc m ?cb-uuid ?cb-fn)]))
       (when ?timeout-ms
         (go (<! (async/timeout ?timeout-ms))
-            (when-let [cb-fn* (pull-unused-cb-fn! cbs-waiting ?cb-uuid)]
+            (when-let [cb-fn* (pull-unused-cb-fn! cbs-waiting_ ?cb-uuid)]
               (cb-fn* :chsk/timeout)))))
     [edn ?cb-uuid]))
 
@@ -518,30 +517,30 @@
       (put! ch-recv ev))))
 
 #+cljs ;; Handles reconnects, keep-alives, callbacks:
-(defrecord ChWebSocket [url chs open? socket-atom kalive-timer kalive-due?
-                        cbs-waiting ; [dissoc'd-fn {<uuid> <fn> ...}]
+(defrecord ChWebSocket [url chs open?_ socket_ kalive-timer_ kalive-due?_
+                        cbs-waiting_ ; [dissoc'd-fn {<uuid> <fn> ...}]
                         ]
   IChSocket
   (chsk-type  [_] :ws)
-  (chsk-open? [_] @open?)
+  (chsk-open? [_] @open?_)
   (chsk-send! [chsk ev] (chsk-send! chsk ev nil nil))
   (chsk-send! [chsk ev ?timeout-ms ?cb]
     ;; (encore/debugf "Chsk send: (%s) %s" (if ?cb "cb" "no cb") ev)
     (assert-send-args ev ?timeout-ms ?cb)
     (let [?cb-fn (wrap-cb-chan-as-fn ?cb ev)]
-      (if-not @open? ; Definitely closed
+      (if-not @open?_ ; Definitely closed
         (do (encore/warnf "Chsk send against closed chsk.")
             (when ?cb-fn (?cb-fn :chsk/closed)))
         (let [[edn ?cb-uuid] (wrap-clj->edn-msg-with-?cb
-                              cbs-waiting ev ?timeout-ms ?cb-fn)]
+                              cbs-waiting_ ev ?timeout-ms ?cb-fn)]
           (try
-            (.send @socket-atom edn)
-            (reset! kalive-due? false)
+            (.send @socket_ edn)
+            (reset! kalive-due?_ false)
             :apparent-success
             (catch js/Error e
               (encore/errorf "Chsk send %s" e)
               (when ?cb-uuid
-                (let [cb-fn* (or (pull-unused-cb-fn! cbs-waiting ?cb-uuid)
+                (let [cb-fn* (or (pull-unused-cb-fn! cbs-waiting_ ?cb-uuid)
                                  ?cb-fn)]
                   (cb-fn* :chsk/error)))
               false))))))
@@ -553,7 +552,7 @@
          (let [retry!
                (fn []
                  (let [nattempt* (inc nattempt)]
-                   (.clearInterval js/window @kalive-timer)
+                   (.clearInterval js/window @kalive-timer_)
                    (encore/warnf "Chsk is closed: will try reconnect (%s)."
                                  nattempt*)
                    (encore/set-exp-backoff-timeout!
@@ -577,26 +576,26 @@
                       (if (= clj [:chsk/handshake :ws])
                         (reset-chsk-state! chsk true)
                         (if ?cb-uuid
-                          (if-let [cb-fn (pull-unused-cb-fn! cbs-waiting ?cb-uuid)]
+                          (if-let [cb-fn (pull-unused-cb-fn! cbs-waiting_ ?cb-uuid)]
                             (cb-fn clj)
                             (encore/warnf "Cb reply w/o local cb-fn: %s" clj))
                           (let [buffered-evs clj]
                             (receive-buffered-evs! (:recv chs) buffered-evs)))))))
                 (aset "onopen"
                   (fn [_ws-ev]
-                    (reset! kalive-timer
+                    (reset! kalive-timer_
                       (.setInterval js/window
                         (fn []
-                          (when @kalive-due? ; Don't ping unnecessarily
-                            (chsk-send! chsk [:chsk/ping :ws]))
-                          (reset! kalive-due? true))
+                          (when @kalive-due?_ ; Don't ping unnecessarily
+                            (chsk-send! chsk [:chsk/ws-ping]))
+                          (reset! kalive-due?_ true))
                         kalive-ms))
                     ;; (reset-chsk-state! chsk true) ; NO, handshake better!
                     ))
                 (aset "onclose" ; Fires repeatedly when server is down
                   (fn [_ws-ev] (retry!))))
 
-            (reset! socket-atom))
+            (reset! socket_))
 
              ;; Couldn't even get a socket:
              (retry!))))
@@ -604,17 +603,17 @@
       chsk)))
 
 #+cljs
-(defrecord ChAjaxSocket [url chs open? ajax-client-uuid
+(defrecord ChAjaxSocket [url chs open?_ ajax-client-uuid
                          csrf-token]
   IChSocket
   (chsk-type  [_] :ajax)
-  (chsk-open? [chsk] @open?)
+  (chsk-open? [chsk] @open?_)
   (chsk-send! [chsk ev] (chsk-send! chsk ev nil nil))
   (chsk-send! [chsk ev ?timeout-ms ?cb]
     ;; (encore/debugf "Chsk send: (%s) %s" (if ?cb "cb" "no cb") ev)
     (assert-send-args ev ?timeout-ms ?cb)
     (let [?cb-fn (wrap-cb-chan-as-fn ?cb ev)]
-      (if-not (or @open? (= ev [:chsk/handshake :ajax]))
+      (if-not (or @open?_ (= ev [:chsk/handshake :ajax]))
         ;; Definitely closed
         (do (encore/warnf "Chsk send against closed chsk.")
             (when ?cb-fn (?cb-fn :chsk/closed)))
@@ -640,7 +639,7 @@
                (let [resp-edn content
                      resp-clj (edn/read-string resp-edn)]
                  (if ?cb-fn (?cb-fn resp-clj)
-                   (when (not= resp-clj :chsk/dummy-200)
+                   (when (not= resp-clj :chsk/cb-dummy-200)
                      (encore/warnf "Cb reply w/o local cb-fn: %s" resp-clj)))
                  (reset-chsk-state! chsk true)))))
 
@@ -684,7 +683,7 @@
            (.ignore pace ajax-req!) ; Pace.js shouldn't trigger for long-polling
            (ajax-req!)))
 
-       (when-not @open?
+       (when-not @open?_
          ;; (encore/debugf "Attempting chsk Ajax handshake")
          ;; Try handshake to confirm working conn (will enable sends):
          (chsk-send! chsk [:chsk/handshake :ajax])))
@@ -747,9 +746,9 @@
                  {:timeout lp-timeout}))))
 
         type* (chsk-type chsk) ; Actual reified type
-        ever-opened? (atom false)
-        state*       (fn [clj] (if (or (not= clj :open) @ever-opened?) clj
-                                  (do (reset! ever-opened? true) :first-open)))]
+        ever-opened?_ (atom false)
+        state*        (fn [clj] (if (or (not= clj :open) @ever-opened?_) clj
+                                    (do (reset! ever-opened?_ true) :first-open)))]
 
     (when chsk
       {:chsk chsk
