@@ -1,3 +1,19 @@
+## v0.13.0 / 2014 May 8
+
+ > This is a **major** release focused on simpler out-the-box setup + easier integration with a wide range of login/auth types.
+
+ * **BREAKING**: API fns removed: `chsk-type`, `chsk-open?`.
+ * **BREAKING**: The `[:chsk/state]` event form has changed for added flexibility.
+ * **NEW**: Added watchable, read-only `:state` atom to client-side `make-channel-socket!` fn result. Among other things, this atom contains any user-id provided by the server.
+ * **NEW**: It is now possible to push server>user async events to clients _without_ a user-id by providing a `nil` user-id to the server-side `chsk-send!` fn (previously `nil` uids would throw an assertion error). In particular, this means it's now possible to broadcast to users that aren't logged in.
+ * **NEW**: Server-side `make-channel-socket!` fn has picked up a `:csrf-token-fn` option which defaults to compatibility with the [Ring-Anti-Forgery](https://github.com/ring-clojure/ring-anti-forgery) middleware.
+ * **NEW**: Clients are now entirely self configuring. It's no longer necessary to transfer any state (like csrf-token or user-id) from the server; this'll be done automatically on channel socket handshake.
+ * **NEW**: Added a `chsk-reconnect!` API method that can be called to easily re-establish a channel socket connection after a login or auth change. **An example login procedure** has been added to the reference example project.
+ * **CHANGE**: The example project now randomly selects `:ajax` or `:auto` connection mode.
+
+As always, feedback welcome on any changes here. Have fun, cheers! - Peter
+
+
 ## v0.12.0 / 2014 May 1
 
  * **NEW**: server- and client-side `start-chsk-router-loop!` fns now return a `(fn stop! [])`.

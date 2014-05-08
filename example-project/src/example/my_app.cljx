@@ -5,8 +5,8 @@
 
   ------------------------------------------------------------------------------
   This example dives into Sente's full functionality quite quickly and is thus
-  probably more useful as a reference than a tutorial.
-  See the GitHub README for a somewhat gentler intro.
+  probably more useful as a reference than a tutorial. See the GitHub README for
+  a somewhat gentler intro.
   ------------------------------------------------------------------------------
 
   INSTRUCTIONS:
@@ -19,6 +19,7 @@
 
   #+clj
   (:require
+   [clojure.string     :as str]
    [compojure.core     :as comp :refer (defroutes routes GET POST)]
    [compojure.route    :as route]
    [compojure.handler  :as comp-handler]
@@ -36,12 +37,14 @@
    [cljs.core.async.macros :as asyncm :refer (go go-loop)])
   #+cljs
   (:require
+   [clojure.string  :as str]
    [cljs.core.match]
    [cljs.core.async :as async  :refer (<! >! put! chan)]
    [taoensso.encore :as encore :refer (logf)]
    [taoensso.sente  :as sente  :refer (cb-success?)]))
 
 ;; #+clj (timbre/set-level! :trace)
+#+clj (defn- logf [fmt & xs] (println (apply format fmt xs)))
 
 ;;;; Setup server-side chsk handlers -------------------------------------------
 
@@ -58,42 +61,41 @@
 
 #+clj
 (defn landing-pg-handler [req]
-  (let [;; A unique user id should be sessionized under :uid key during login -
-        ;; this could be a username, uuid, etc.
-        uid (or (-> req :session :uid) (rand-int 99))]
-    {:status 200
-     :session (assoc (:session req) :uid uid)
-     :body
-     (hiccup/html
-      [:h1 "This is my landing page, yo!"]
-      (if (empty? (:session req))
-        [:p [:strong "Step 1: "] "Please refresh your browser to get a session!"]
-        [:p [:small (format "Session: %s" (:session req))]])
-      [:hr]
-      [:p [:strong "Step 2: "] "Ensure your browser's JavaScript console is open."]
-      [:p [:strong "Step 3: "] "Try the buttons: "
-       [:button#btn1 {:type "button"} "chsk-send! (w/o reply)"]
-       [:button#btn2 {:type "button"} "chsk-send! (with reply)"]]
+  (hiccup/html
+    [:h1 "Sente reference example"]
+    [:p "An Ajax/WebSocket connection has been configured (random)."]
+    [:hr]
+    [:p [:strong "Step 1: "] "Open browser's JavaScript console."]
+    [:p [:strong "Step 2: "] "Try: "
+     [:button#btn1 {:type "button"} "chsk-send! (w/o reply)"]
+     [:button#btn2 {:type "button"} "chsk-send! (with reply)"]]
+    ;;
+    [:p [:strong "Step 3: "] "See browser's console + nREPL's std-out." ]
+    ;;
+    [:hr]
+    [:h2 "Login with a user-id"]
+    [:p  "The server can use this id to send events to *you* specifically."]
+    [:p [:input#input-login {:type :text :placeholder "User-id"}]
+        [:button#btn-login {:type "button"} "Secure login!"]]
+    [:script {:src "main.js"}] ; Include our cljs target
+    ))
 
-      [:p [:strong "Step 4: "] "Observe browser's console + nREPL's std-out." ]
-
-      ;;; Communicate releavnt state to client (you could do this any way that's
-      ;;; convenient, just keep in mind that client state is easily forged):
-      [:script (format "var csrf_token='%s';" ring-anti-forgery/*anti-forgery-token*)]
-      [:script (format "var has_uid=%s;"
-                 (if (get-in req [:session :uid]) "true" "false"))]
-      ;;
-      [:script {:src "main.js"}] ; Include our cljs target
-      )}))
+#+clj
+(defn login! [ring-request]
+  (let [{:keys [session params]} ring-request
+        {:keys [user-id]} params]
+    (logf "Login request: %s" params)
+    {:status 200 :session (assoc session :uid user-id)}))
 
 #+clj
 (defroutes my-ring-handler
   (->
    (routes
-    (GET  "/"     req (landing-pg-handler req))
+    (GET  "/"      req (landing-pg-handler req))
     ;;
-    (GET  "/chsk" req (ring-ajax-get-or-ws-handshake req))
-    (POST "/chsk" req (ring-ajax-post                req))
+    (GET  "/chsk"  req (ring-ajax-get-or-ws-handshake req))
+    (POST "/chsk"  req (ring-ajax-post                req))
+    (POST "/login" req (login! req))
     ;;
     (route/resources "/") ; Static files, notably public/main.js (our cljs target)
     (route/not-found "<h1>Page not found</h1>"))
@@ -106,7 +108,6 @@
 
    compojure.handler/site))
 
-#+clj (defn- logf [fmt & xs] (println (apply format fmt xs)))
 #+clj
 (defn run-http-server []
   (let [s   (http-kit-server/run-server (var my-ring-handler) {:port 0})
@@ -119,25 +120,19 @@
 
 ;;;; Setup client-side chsk handlers -------------------------------------------
 
-#+cljs (def csrf-token        (aget js/window "csrf_token"))
-#+cljs (def has-uid?   (true? (aget js/window "has_uid")))
-#+cljs (def chsk-config {:type :auto #_:ajax ; e/o #{:auto :ajax; :ws}
-                         :csrf-token csrf-token
-                         :has-uid?   has-uid?})
 #+cljs
-(let [{:keys [chsk ch-recv send-fn]}
+(let [{:keys [chsk ch-recv send-fn state]}
       (sente/make-channel-socket! "/chsk" ; Note the same URL as before
-        chsk-config)]
+        {:type (if (>= (rand) 0.5) :ajax :auto)})]
   (def chsk       chsk)
   (def ch-chsk    ch-recv) ; ChannelSocket's receive channel
   (def chsk-send! send-fn) ; ChannelSocket's send API fn
+  (def chsk-state state) ; Watchable, read-only atom
   )
 
 ;;;; Setup routers -------------------------------------------------------------
 
 #+cljs (logf "ClojureScript appears to have loaded correctly.")
-#+cljs (logf "`make-channel-socket!` config: %s" chsk-config)
-
 #+clj
 (defn- event-msg-handler
   [{:as ev-msg :keys [ring-req event ?reply-fn]} _]
@@ -162,7 +157,8 @@
   (logf "Event: %s" ev)
   (match [id data]
     ;; TODO Match your events here <...>
-    [:chsk/state [:first-open _]] (logf "Channel socket successfully established!")
+    [:chsk/state {:first-open? true}]
+    (logf "Channel socket successfully established!")
     [:chsk/state new-state] (logf "Chsk state change: %s" new-state)
     [:chsk/recv  payload]   (logf "Push event from server: %s" payload)
     :else (logf "Unmatched event: %s" ev)))
@@ -211,3 +207,25 @@
     (logf "Button 2 was clicked (will receive reply from server)")
     (chsk-send! [:example/button2 {:had-a-callback? "indeed"}] 5000
       (fn [cb-reply] (logf "Callback reply: %s" cb-reply)))))
+
+#+cljs
+(.addEventListener (.getElementById js/document "btn-login") "click"
+  (fn [ev]
+    (let [user-id (.-value (.getElementById js/document "input-login"))]
+      (if (str/blank? user-id)
+        (js/alert "Please enter a user-id first")
+        (do
+          (logf "Logging in with user-id %s" user-id)
+
+          ;;; Use any login procedure you'd like. Here we'll trigger an Ajax POST
+          ;;; request that resets our server-side session. Then we ask our channel
+          ;;; socket to reconnect, thereby picking up the new session.
+
+          (encore/ajax-lite "/login" {:method :post
+                                      :params
+                                      {:user-id    (str user-id)
+                                       :csrf-token (:csrf-token @chsk-state)}}
+            (fn [ajax-resp]
+              (logf "Ajax login response: %s" ajax-resp)))
+
+          (sente/chsk-reconnect! chsk))))))

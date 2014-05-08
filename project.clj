@@ -1,4 +1,4 @@
-(defproject com.taoensso/sente "0.12.0"
+(defproject com.taoensso/sente "0.13.0"
   :author "Peter Taoussanis <https://www.taoensso.com>"
   :description "Clojure channel sockets library"
   :url "https://github.com/ptaoussanis/sente"
@@ -14,7 +14,7 @@
    [org.clojure/clojurescript "0.0-2173"]
    [org.clojure/core.async    "0.1.278.0-76b25b-alpha"]
    [org.clojure/tools.reader  "0.8.3"]
-   [com.taoensso/encore       "1.4.0"]
+   [com.taoensso/encore       "1.6.0"]
    [com.taoensso/timbre       "3.1.6"]
    [http-kit                  "2.1.18"]]
 
