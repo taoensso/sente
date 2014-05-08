@@ -498,8 +498,11 @@
   (chsk-send! [chsk ev] [chsk ev ?timeout-ms ?cb]
     "Sends `[ev-id ?ev-data :as event]` over channel socket connection and returns
      true iff send seems successful.")
-  (chsk-make! [chsk] "Creates and returns a new channel socket connection,
-                     or nil on failure."))
+  (chsk-make! [chsk]
+    "Creates and returns a new channel socket connection, or nil on failure.")
+  (chsk-reconnect! [chsk]
+    "Re-establishes channel socket connection. Useful for re-authenticating after
+    login/logout, etc."))
 
 #+cljs
 (defn- merge>chsk-state! [{:keys [chs state_] :as chsk} merge-state]
@@ -559,6 +562,9 @@
                                  ?cb-fn)]
                   (cb-fn* :chsk/error)))
               false))))))
+
+  ;; Will auto-recover and handshake:
+  (chsk-reconnect! [chsk] (when-let [s @socket_] (.close s)))
 
   (chsk-make! [chsk]
     (when-let [WebSocket (or (aget js/window "WebSocket")
@@ -626,7 +632,7 @@
       chsk)))
 
 #+cljs
-(defrecord ChAjaxSocket [url chs timeout ajax-client-uuid state_]
+(defrecord ChAjaxSocket [url chs timeout ajax-client-uuid curr-xhr_ state_]
   IChSocket
   (chsk-send! [chsk ev] (chsk-send! chsk ev nil nil))
   (chsk-send! [chsk ev ?timeout-ms ?cb]
@@ -664,6 +670,9 @@
 
           :apparent-success))))
 
+  ;; Will auto-recover and handshake _iff_ uid has changed since last handshake:
+  (chsk-reconnect! [chsk] (when-let [x @curr-xhr_] (.abort x)))
+
   (chsk-make! [chsk]
     ((fn async-poll-for-update! [nattempt]
        (let [retry!
@@ -678,33 +687,41 @@
 
              ajax-req! ; Just for Pace wrapping below
              (fn []
-               (encore/ajax-lite url
-                 {:method :get :timeout timeout
-                  :resp-type :text ; Prefer to do our own edn reading
-                  :params {:_ (encore/now-udt) ; Force uncached resp
-                           :ajax-client-uuid ajax-client-uuid}}
-                 (fn ajax-cb [{:keys [content error]}]
-                   (if error
-                     (if (= error :timeout)
-                       (async-poll-for-update! 0)
-                       (do (merge>chsk-state! chsk {:open? false})
-                           (retry!)))
+               (reset! curr-xhr_
+                 (encore/ajax-lite url
+                   {:method :get :timeout timeout
+                    :resp-type :text     ; Prefer to do our own edn reading
+                    :params {:_ (encore/now-udt) ; Force uncached resp
+                             :ajax-client-uuid ajax-client-uuid}}
+                   (fn ajax-cb [{:keys [content error]}]
+                     (if error
+                       (if (or (= error :timeout)
+                               (= error :abort) ; Abort => intentional, not an error
+                               ;; It's particularly important that reconnect
+                               ;; aborts don't mark a chsk as closed since
+                               ;; we've no guarantee that a new handshake will
+                               ;; take place to remark as open (e.g. if uid
+                               ;; hasn't changed since last handshake).
+                               )
+                         (async-poll-for-update! 0)
+                         (do (merge>chsk-state! chsk {:open? false})
+                             (retry!)))
 
-                     ;; The Ajax long-poller is used only for events, never cbs:
-                     (let [edn content
-                           clj (edn/read-string edn)]
-                       (if (= (first clj) :chsk/handshake)
-                         (let [[_ [uid csrf-token]] clj]
-                           (when (str/blank? csrf-token)
-                             (encore/warnf "NO CSRF TOKEN AVAILABLE"))
-                           (merge>chsk-state! chsk
-                             {:open?      true
-                              :uid        uid
-                              :csrf-token csrf-token}))
-                         (let [buffered-evs clj]
-                           (receive-buffered-evs! (:recv chs) buffered-evs)
-                           (merge>chsk-state! chsk {:open? true})))
-                       (async-poll-for-update! 0))))))]
+                       ;; The Ajax long-poller is used only for events, never cbs:
+                       (let [edn content
+                             clj (edn/read-string edn)]
+                         (if (= (first clj) :chsk/handshake)
+                           (let [[_ [uid csrf-token]] clj]
+                             (when (str/blank? csrf-token)
+                               (encore/warnf "NO CSRF TOKEN AVAILABLE"))
+                             (merge>chsk-state! chsk
+                               {:open?      true
+                                :uid        uid
+                                :csrf-token csrf-token}))
+                           (let [buffered-evs clj]
+                             (receive-buffered-evs! (:recv chs) buffered-evs)
+                             (merge>chsk-state! chsk {:open? true})))
+                         (async-poll-for-update! 0)))))))]
 
          (if-let [pace (aget js/window "Pace")]
            ;; Assumes relevant extern is defined for :advanced mode compilation:
@@ -757,8 +774,8 @@
                    :chs           chs
                    :socket_       (atom nil)
                    :kalive-ms     ws-kalive-ms
-                   :kalive_timer_ (atom nil)
-                   :kalive_due?_  (atom true)
+                   :kalive-timer_ (atom nil)
+                   :kalive-due?_  (atom true)
                    :cbs-waiting_  (atom [nil {}])
                    :state_        (atom {:type :ws :open? false})})))
 
@@ -771,6 +788,7 @@
                      :chs              chs
                      :timeout          lp-timeout
                      :ajax-client-uuid ajax-client-uuid
+                     :curr-xhr_        (atom nil)
                      :state_           (atom {:type :ajax :open? false})})))))
 
         ever-opened?_ (atom false)
@@ -783,6 +801,7 @@
     (when chsk
       {:chsk    chsk
        :send-fn (partial chsk-send! chsk)
+       :state   (:state_ chsk)
        :ch-recv
        (async/merge
         [(->> (:internal chs) (async/map< (fn [ev] {:pre [(event? ev)]} ev)))
