@@ -184,10 +184,12 @@
                     (if (empty? ks-to-pull)
                       (encore/swapped m nil)
                       (encore/swapped
-                       (reduce-kv (fn [m k [?hk-ch udt-last-connected]]
-                                    (assoc m k [nil udt-last-connected]))
-                                  m ks-to-pull)
-                       (select-keys m ks-to-pull))))))]
+                        (reduce
+                          (fn [m k]
+                            (let [[?hk-ch udt-last-connected] (get m k)]
+                              (assoc m k [nil udt-last-connected])))
+                          m ks-to-pull)
+                        (select-keys m ks-to-pull))))))]
           (assert (or (nil? ?pulled) (map? ?pulled)))
           (let [?newly-satisfied
                 (when ?pulled
