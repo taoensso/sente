@@ -539,8 +539,21 @@
       (assert-event ev)
       (put! ch-recv ev))))
 
+#+cljs
+(defn- handle-when-handshake! [chsk clj]
+  (when (= (first clj) :chsk/handshake)
+    (let [[_ [uid csrf-token]] clj]
+      (when (str/blank? csrf-token)
+        (encore/warnf "NO CSRF TOKEN AVAILABLE"))
+      (merge>chsk-state! chsk
+        {:open?      true
+         :uid        uid
+         :csrf-token csrf-token})
+      :handled)))
+
 #+cljs ;; Handles reconnects, keep-alives, callbacks:
 (defrecord ChWebSocket [url chs socket_ kalive-ms kalive-timer_ kalive-due?_
+                        nattempt_
                         cbs-waiting_ ; [dissoc'd-fn {<uuid> <fn> ...}]
                         state_ ; {:type _ :open? _ :uid _ :csrf-token _}
                         ]
@@ -573,15 +586,14 @@
   (chsk-make! [chsk]
     (when-let [WebSocket (or (aget js/window "WebSocket")
                              (aget js/window "MozWebSocket"))]
-      ((fn connect! [nattempt]
+      ((fn connect! []
          (let [retry!
                (fn []
-                 (let [nattempt* (inc nattempt)]
+                 (let [nattempt* (swap! nattempt_ inc)]
                    (.clearInterval js/window @kalive-timer_)
                    (encore/warnf "Chsk is closed: will try reconnect (%s)."
                                  nattempt*)
-                   (encore/set-exp-backoff-timeout!
-                    (partial connect! nattempt*) nattempt*)))]
+                   (encore/set-exp-backoff-timeout! connect! nattempt*)))]
 
            (if-let [socket (try (WebSocket. url)
                                 (catch js/Error e
@@ -598,14 +610,9 @@
                           ;; receive cb replies here!:
                           [clj ?cb-uuid] (unwrap-edn-msg-with-?cb->clj edn)]
                       ;; (assert-event clj) ;; NO!
-                      (if (= (first clj) :chsk/handshake)
-                        (let [[_ [uid csrf-token]] clj]
-                          (when (str/blank? csrf-token)
-                            (encore/warnf "NO CSRF TOKEN AVAILABLE"))
-                          (merge>chsk-state! chsk
-                            {:open?      true
-                             :uid        uid
-                             :csrf-token csrf-token}))
+                      (or
+                        (and (handle-when-handshake! chsk clj)
+                             (reset! nattempt_ 0))
                         (if ?cb-uuid
                           (if-let [cb-fn (pull-unused-cb-fn! cbs-waiting_ ?cb-uuid)]
                             (cb-fn clj)
@@ -631,8 +638,7 @@
             (reset! socket_))
 
              ;; Couldn't even get a socket:
-             (retry!))))
-       0)
+             (retry!)))))
       chsk)))
 
 #+cljs
@@ -714,14 +720,8 @@
                        ;; The Ajax long-poller is used only for events, never cbs:
                        (let [edn content
                              clj (edn/read-string edn)]
-                         (if (= (first clj) :chsk/handshake)
-                           (let [[_ [uid csrf-token]] clj]
-                             (when (str/blank? csrf-token)
-                               (encore/warnf "NO CSRF TOKEN AVAILABLE"))
-                             (merge>chsk-state! chsk
-                               {:open?      true
-                                :uid        uid
-                                :csrf-token csrf-token}))
+                         (or
+                           (handle-when-handshake! chsk clj)
                            (let [buffered-evs clj]
                              (receive-buffered-evs! (:recv chs) buffered-evs)
                              (merge>chsk-state! chsk {:open? true})))
@@ -780,6 +780,7 @@
                    :kalive-ms     ws-kalive-ms
                    :kalive-timer_ (atom nil)
                    :kalive-due?_  (atom true)
+                   :nattempt_     (atom 0)
                    :cbs-waiting_  (atom [nil {}])
                    :state_        (atom {:type :ws :open? false})})))
 

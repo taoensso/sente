@@ -175,7 +175,7 @@
 (defonce broadcaster
   (go-loop [i 0]
     (<! (async/timeout 10000))
-    (println (format "Broadcasting server>client: %s" @connected-uids))
+    (println (format "Broadcasting server>user: %s" @connected-uids))
     (doseq [uid (:any @connected-uids)]
       (chsk-send! uid
         [:some/broadcast
