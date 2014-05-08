@@ -1,7 +1,8 @@
 **[API docs][]** | **[CHANGELOG][]** | [other Clojure libs][] | [Twitter][] | [contact/contributing](#contact--contributing) | current ([semantic][]) version:
 
 ```clojure
-[com.taoensso/sente "0.12.0"] ; < v1.0.0 API is subject to change
+[com.taoensso/sente "0.13.0-RC1"] ; Major usability improvements, some breaking changes
+[com.taoensso/sente "0.12.0"]     ; Stable
 ```
 
 # Sente, channel sockets for Clojure
@@ -29,7 +30,7 @@ Or: **Clojure(Script) + core.async + WebSockets/Ajax = _The Shiz_**
   * **Flexible model**: use it anywhere you'd use WebSockets/Ajax/Socket.IO, etc.
   * Standard **Ring security model**: auth as you like, HTTPS when available, CSRF support, etc.
   * **Fully documented, with examples**.
-  * Small: **~600 lines of code** for the entire client+server implementation.
+  * Small: **<900 lines of code** for the entire client+server implementation.
   * **Supported servers**: currently only [http-kit][] but [PRs welcome](https://github.com/ptaoussanis/sente/issues/2) to add support for additional servers!
 
 
@@ -50,7 +51,7 @@ So you can ignore the underlying protocol and deal directly with Sente's unified
 Add the necessary dependency to your [Leiningen][] `project.clj`. This'll provide your project with both the client (ClojureScript) + server (Clojure) side library code:
 
 ```clojure
-[com.taoensso/sente "0.11.0"]
+[com.taoensso/sente "0.13.0-RC1"]
 ```
 
 ### On the server (Clojure) side
@@ -115,13 +116,14 @@ You'll setup something similar on the client side:
   ))
 
 ;;; Add this: --->
-(let [{:keys [chsk ch-recv send-fn]}
+(let [{:keys [chsk ch-recv send-fn state]}
       (sente/make-channel-socket! "/chsk" ; Note the same path as before
        {:type :auto ; e/o #{:auto :ajax :ws}
        })]
   (def chsk       chsk)
   (def ch-chsk    ch-recv) ; ChannelSocket's receive channel
   (def chsk-send! send-fn) ; ChannelSocket's send API fn
+  (def chsk-state state)   ; Watchable, read-only atom
   )
 ```
 
@@ -208,6 +210,12 @@ If you want a simple _per-session_ identity, generate a _random uuid_. If you wa
 
 > Note that user-ids are used **only** for server>user push. client>server requests don't take a user-id.
 
+As of Sente v0.13.0+ it's also possible to send events to clients _without_ a user-id (they simply have a `nil` user-id, and you can send to that as you would any other id).
+
+#### How do I integrate Sente with my usual login/auth procedure?
+
+This is trivially easy as of Sente v0.13.0+. Please see the [reference example project][] which now includes a basic login form.
+
 #### Will Sente work with [React][]/[Reagent][]/[Om][]/etc.?
 
 Sure! I use it with Reagent myself. Sente's just a client<->server comms mechanism.
@@ -241,7 +249,7 @@ The [reference example project][] has a fully-baked example.
 
 #### Pageload: How do I know when my channels are ready client-side?
 
-You'll want to listen on the receive channel for a `[:chsk/state [:first-open :ws]]` or `[:chsk/state [:first-open :ajax]]` event. That's the signal that the socket's been established.
+You'll want to listen on the receive channel for a `[:chsk/state {:first-open? true}]` event. That's the signal that the socket's been established.
 
 #### Examples: wherefore art thou?
 
