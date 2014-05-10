@@ -248,24 +248,42 @@
 
         connect-uid!
         (fn [type uid]
-          (swap! connected-uids_
-            (fn [{:keys [ws ajax any]}]
-              (case type
-                :ws   {:ws (conj ws uid) :ajax ajax            :any (conj any uid)}
-                :ajax {:ws ws            :ajax (conj ajax uid) :any (conj any uid)}))))
+          (let [newly-connected?
+                (encore/swap-in! connected-uids_ []
+                  (fn [{:keys [ws ajax any] :as old-m}]
+                    (let [new-m
+                          (case type
+                            :ws   {:ws (conj ws uid) :ajax ajax            :any (conj any uid)}
+                            :ajax {:ws ws            :ajax (conj ajax uid) :any (conj any uid)})]
+                      (encore/swapped new-m
+                        (let [old-any (:any old-m)
+                              new-any (:any new-m)]
+                          (when (and (not (contains? old-any uid))
+                                          (contains? new-any uid))
+                            :connected))))))]
+            newly-connected?))
 
         upd-connected-uid! ; Useful for atomic disconnects
         (fn [uid]
-          (swap! connected-uids_
-            (fn [{:keys [ws ajax any]}]
-              (let [conns' @conns_
-                    any-ws-clients?   (contains? (:ws   conns') uid)
-                    any-ajax-clients? (contains? (:ajax conns') uid)
-                    any-clients?      (or any-ws-clients?
-                                          any-ajax-clients?)]
-                {:ws   (if any-ws-clients?   (conj ws   uid) (disj ws   uid))
-                 :ajax (if any-ajax-clients? (conj ajax uid) (disj ajax uid))
-                 :any  (if any-clients?      (conj any  uid) (disj any  uid))}))))]
+          (let [newly-disconnected?
+                (encore/swap-in! connected-uids_ []
+                  (fn [{:keys [ws ajax any] :as old-m}]
+                    (let [conns' @conns_
+                          any-ws-clients?   (contains? (:ws   conns') uid)
+                          any-ajax-clients? (contains? (:ajax conns') uid)
+                          any-clients?      (or any-ws-clients?
+                                                any-ajax-clients?)
+                          new-m
+                          {:ws   (if any-ws-clients?   (conj ws   uid) (disj ws   uid))
+                           :ajax (if any-ajax-clients? (conj ajax uid) (disj ajax uid))
+                           :any  (if any-clients?      (conj any  uid) (disj any  uid))}]
+                      (encore/swapped new-m
+                        (let [old-any (:any old-m)
+                              new-any (:any new-m)]
+                          (when (and      (contains? old-any uid)
+                                     (not (contains? new-any uid)))
+                            :disconnected))))))]
+            newly-disconnected?))]
 
     {:ch-recv ch-recv
      :connected-uids connected-uids_
