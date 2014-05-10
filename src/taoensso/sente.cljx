@@ -33,7 +33,9 @@
 
     * Server-side events:
        [:chsk/bad-edn <edn>],
-       [:chsk/bad-event <chsk-event>].
+       [:chsk/bad-event <chsk-event>],
+       [:chsk/uidport-open],
+       [:chsk/uidport-close].
 
     * Event wrappers: {:chsk/clj <clj> :chsk/dummy-cb? true} (for [2]),
                       {:chsk/clj <clj> :chsk/cb-uuid <uuid>} (for [4]).
@@ -260,7 +262,7 @@
                               new-any (:any new-m)]
                           (when (and (not (contains? old-any uid))
                                           (contains? new-any uid))
-                            :connected))))))]
+                            :newly-connected))))))]
             newly-connected?))
 
         upd-connected-uid! ; Useful for atomic disconnects
@@ -282,7 +284,7 @@
                               new-any (:any new-m)]
                           (when (and      (contains? old-any uid)
                                      (not (contains? new-any uid)))
-                            :disconnected))))))]
+                            :newly-disconnected))))))]
             newly-disconnected?))]
 
     {:ch-recv ch-recv
@@ -408,7 +410,8 @@
                (timbre/tracef "New WebSocket channel: %s %s"
                  uid-name (str hk-ch)) ; _Must_ call `str` on ch
                (encore/swap-in! conns_ [:ws uid] (fn [s] (conj (or s #{}) hk-ch)))
-               (connect-uid! :ws uid)
+               (when (connect-uid! :ws uid)
+                 (receive-event-msg!* [:chsk/uidport-open]))
 
                (http-kit/on-receive hk-ch
                  (fn [req-edn]
@@ -431,7 +434,8 @@
                          (if (empty? new)
                            (dissoc m uid) ; gc
                            (assoc  m uid new)))))
-                   (upd-connected-uid! uid)))
+                   (when (upd-connected-uid! uid)
+                     (receive-event-msg!* [:chsk/uidport-close]))))
 
                (handshake! hk-ch))
 
@@ -443,7 +447,8 @@
                          [hk-ch (encore/now-udt)]
                          (nil? v))))]
 
-               (connect-uid! :ajax uid)
+               (when (connect-uid! :ajax uid)
+                 (receive-event-msg!* [:chsk/uidport-open]))
 
                ;; We rely on `on-close` to trigger for _every_ conn:
                (http-kit/on-close hk-ch
@@ -473,7 +478,8 @@
                                            (assoc  m uid new))
                                          :disconnected))))))]
                          (when disconnected?
-                           (upd-connected-uid! uid)))))))
+                           (when (upd-connected-uid! uid)
+                             (receive-event-msg!* [:chsk/uidport-close]))))))))
 
                (when handshake?
                  (handshake! hk-ch) ; Client will immediately repoll
