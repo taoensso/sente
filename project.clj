@@ -15,7 +15,7 @@
    [org.clojure/core.async    "0.1.278.0-76b25b-alpha"]
    [org.clojure/tools.reader  "0.8.3"]
    [com.taoensso/encore       "1.6.0"]
-   [com.taoensso/timbre       "3.1.6"]
+   [com.taoensso/timbre       "3.2.1"]
    [http-kit                  "2.1.18"]]
 
   :test-paths ["test" "src"]
