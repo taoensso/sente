@@ -1,3 +1,12 @@
+## v0.14.0 / 2014 May 16
+
+ > Minor, non-breaking update.
+
+ * **FIX**: WebSocket reconnect exponential backoff wasn't being reset correctly.
+ * [#39] **FIX**: Race condition affecting buffered `server>user` events (@smichal).
+ * **NEW**: `[chsk/uidport-open]`, `[chsk/uidport-close]` server-side events generated on a uid connecting/disconnecting (any protocol). As before, you can watch the `connected-uids` atom for more detailed info.
+
+
 ## v0.13.0 / 2014 May 8
 
  > This is a **major** release focused on simpler out-the-box setup + easier integration with a wide range of login/auth types.

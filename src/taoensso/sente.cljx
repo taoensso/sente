@@ -33,7 +33,9 @@
 
     * Server-side events:
        [:chsk/bad-edn <edn>],
-       [:chsk/bad-event <chsk-event>].
+       [:chsk/bad-event <chsk-event>],
+       [:chsk/uidport-open],
+       [:chsk/uidport-close].
 
     * Event wrappers: {:chsk/clj <clj> :chsk/dummy-cb? true} (for [2]),
                       {:chsk/clj <clj> :chsk/cb-uuid <uuid>} (for [4]).
@@ -248,24 +250,42 @@
 
         connect-uid!
         (fn [type uid]
-          (swap! connected-uids_
-            (fn [{:keys [ws ajax any]}]
-              (case type
-                :ws   {:ws (conj ws uid) :ajax ajax            :any (conj any uid)}
-                :ajax {:ws ws            :ajax (conj ajax uid) :any (conj any uid)}))))
+          (let [newly-connected?
+                (encore/swap-in! connected-uids_ []
+                  (fn [{:keys [ws ajax any] :as old-m}]
+                    (let [new-m
+                          (case type
+                            :ws   {:ws (conj ws uid) :ajax ajax            :any (conj any uid)}
+                            :ajax {:ws ws            :ajax (conj ajax uid) :any (conj any uid)})]
+                      (encore/swapped new-m
+                        (let [old-any (:any old-m)
+                              new-any (:any new-m)]
+                          (when (and (not (contains? old-any uid))
+                                          (contains? new-any uid))
+                            :newly-connected))))))]
+            newly-connected?))
 
         upd-connected-uid! ; Useful for atomic disconnects
         (fn [uid]
-          (swap! connected-uids_
-            (fn [{:keys [ws ajax any]}]
-              (let [conns' @conns_
-                    any-ws-clients?   (contains? (:ws   conns') uid)
-                    any-ajax-clients? (contains? (:ajax conns') uid)
-                    any-clients?      (or any-ws-clients?
-                                          any-ajax-clients?)]
-                {:ws   (if any-ws-clients?   (conj ws   uid) (disj ws   uid))
-                 :ajax (if any-ajax-clients? (conj ajax uid) (disj ajax uid))
-                 :any  (if any-clients?      (conj any  uid) (disj any  uid))}))))]
+          (let [newly-disconnected?
+                (encore/swap-in! connected-uids_ []
+                  (fn [{:keys [ws ajax any] :as old-m}]
+                    (let [conns' @conns_
+                          any-ws-clients?   (contains? (:ws   conns') uid)
+                          any-ajax-clients? (contains? (:ajax conns') uid)
+                          any-clients?      (or any-ws-clients?
+                                                any-ajax-clients?)
+                          new-m
+                          {:ws   (if any-ws-clients?   (conj ws   uid) (disj ws   uid))
+                           :ajax (if any-ajax-clients? (conj ajax uid) (disj ajax uid))
+                           :any  (if any-clients?      (conj any  uid) (disj any  uid))}]
+                      (encore/swapped new-m
+                        (let [old-any (:any old-m)
+                              new-any (:any new-m)]
+                          (when (and      (contains? old-any uid)
+                                     (not (contains? new-any uid)))
+                            :newly-disconnected))))))]
+            newly-disconnected?))]
 
     {:ch-recv ch-recv
      :connected-uids connected-uids_
@@ -279,18 +299,20 @@
 
              flush-buffer!
              (fn [type]
-               (when-let [pulled (encore/swap-in! send-buffers_ [type]
-                                   (fn [m]
-                                     ;; Don't actually flush unless the event buffered with _this_
-                                     ;; send call is still buffered (awaiting flush). This means
-                                     ;; that we'll have many (go block) buffer flush calls that'll
-                                     ;; noop. They're cheap, and this approach is preferable to
-                                     ;; alternatives like flush workers.
-                                     (let [[_ ev-uuids] (get m uid)]
-                                       (if (contains? ev-uuids ev-uuid)
-                                         (encore/swapped (dissoc m uid)
-                                                         (get    m uid))
-                                         (encore/swapped m nil)))))]
+               (when-let [pulled
+                          (encore/swap-in! send-buffers_ [type]
+                            (fn [m]
+                              ;; Don't actually flush unless the event buffered
+                              ;; with _this_ send call is still buffered (awaiting
+                              ;; flush). This means that we'll have many (go
+                              ;; block) buffer flush calls that'll noop. They're
+                              ;;  cheap, and this approach is preferable to
+                              ;; alternatives like flush workers.
+                              (let [[_ ev-uuids] (get m uid)]
+                                (if (contains? ev-uuids ev-uuid)
+                                  (encore/swapped (dissoc m uid)
+                                                  (get    m uid))
+                                  (encore/swapped m nil)))))]
                  (let [[buffered-evs ev-uuids] pulled]
                    (assert (vector? buffered-evs))
                    (assert (set?    ev-uuids))
@@ -390,7 +412,8 @@
                (timbre/tracef "New WebSocket channel: %s %s"
                  uid-name (str hk-ch)) ; _Must_ call `str` on ch
                (encore/swap-in! conns_ [:ws uid] (fn [s] (conj (or s #{}) hk-ch)))
-               (connect-uid! :ws uid)
+               (when (connect-uid! :ws uid)
+                 (receive-event-msg!* [:chsk/uidport-open]))
 
                (http-kit/on-receive hk-ch
                  (fn [req-edn]
@@ -413,7 +436,8 @@
                          (if (empty? new)
                            (dissoc m uid) ; gc
                            (assoc  m uid new)))))
-                   (upd-connected-uid! uid)))
+                   (when (upd-connected-uid! uid)
+                     (receive-event-msg!* [:chsk/uidport-close]))))
 
                (handshake! hk-ch))
 
@@ -425,7 +449,8 @@
                          [hk-ch (encore/now-udt)]
                          (nil? v))))]
 
-               (connect-uid! :ajax uid)
+               (when (connect-uid! :ajax uid)
+                 (receive-event-msg!* [:chsk/uidport-open]))
 
                ;; We rely on `on-close` to trigger for _every_ conn:
                (http-kit/on-close hk-ch
@@ -455,7 +480,8 @@
                                            (assoc  m uid new))
                                          :disconnected))))))]
                          (when disconnected?
-                           (upd-connected-uid! uid)))))))
+                           (when (upd-connected-uid! uid)
+                             (receive-event-msg!* [:chsk/uidport-close]))))))))
 
                (when handshake?
                  (handshake! hk-ch) ; Client will immediately repoll
@@ -539,8 +565,21 @@
       (assert-event ev)
       (put! ch-recv ev))))
 
+#+cljs
+(defn- handle-when-handshake! [chsk clj]
+  (when (= (first clj) :chsk/handshake)
+    (let [[_ [uid csrf-token]] clj]
+      (when (str/blank? csrf-token)
+        (encore/warnf "NO CSRF TOKEN AVAILABLE"))
+      (merge>chsk-state! chsk
+        {:open?      true
+         :uid        uid
+         :csrf-token csrf-token})
+      :handled)))
+
 #+cljs ;; Handles reconnects, keep-alives, callbacks:
 (defrecord ChWebSocket [url chs socket_ kalive-ms kalive-timer_ kalive-due?_
+                        nattempt_
                         cbs-waiting_ ; [dissoc'd-fn {<uuid> <fn> ...}]
                         state_ ; {:type _ :open? _ :uid _ :csrf-token _}
                         ]
@@ -573,15 +612,14 @@
   (chsk-make! [chsk]
     (when-let [WebSocket (or (aget js/window "WebSocket")
                              (aget js/window "MozWebSocket"))]
-      ((fn connect! [nattempt]
+      ((fn connect! []
          (let [retry!
                (fn []
-                 (let [nattempt* (inc nattempt)]
+                 (let [nattempt* (swap! nattempt_ inc)]
                    (.clearInterval js/window @kalive-timer_)
                    (encore/warnf "Chsk is closed: will try reconnect (%s)."
                                  nattempt*)
-                   (encore/set-exp-backoff-timeout!
-                    (partial connect! nattempt*) nattempt*)))]
+                   (encore/set-exp-backoff-timeout! connect! nattempt*)))]
 
            (if-let [socket (try (WebSocket. url)
                                 (catch js/Error e
@@ -598,14 +636,9 @@
                           ;; receive cb replies here!:
                           [clj ?cb-uuid] (unwrap-edn-msg-with-?cb->clj edn)]
                       ;; (assert-event clj) ;; NO!
-                      (if (= (first clj) :chsk/handshake)
-                        (let [[_ [uid csrf-token]] clj]
-                          (when (str/blank? csrf-token)
-                            (encore/warnf "NO CSRF TOKEN AVAILABLE"))
-                          (merge>chsk-state! chsk
-                            {:open?      true
-                             :uid        uid
-                             :csrf-token csrf-token}))
+                      (or
+                        (and (handle-when-handshake! chsk clj)
+                             (reset! nattempt_ 0))
                         (if ?cb-uuid
                           (if-let [cb-fn (pull-unused-cb-fn! cbs-waiting_ ?cb-uuid)]
                             (cb-fn clj)
@@ -631,8 +664,7 @@
             (reset! socket_))
 
              ;; Couldn't even get a socket:
-             (retry!))))
-       0)
+             (retry!)))))
       chsk)))
 
 #+cljs
@@ -714,14 +746,8 @@
                        ;; The Ajax long-poller is used only for events, never cbs:
                        (let [edn content
                              clj (edn/read-string edn)]
-                         (if (= (first clj) :chsk/handshake)
-                           (let [[_ [uid csrf-token]] clj]
-                             (when (str/blank? csrf-token)
-                               (encore/warnf "NO CSRF TOKEN AVAILABLE"))
-                             (merge>chsk-state! chsk
-                               {:open?      true
-                                :uid        uid
-                                :csrf-token csrf-token}))
+                         (or
+                           (handle-when-handshake! chsk clj)
                            (let [buffered-evs clj]
                              (receive-buffered-evs! (:recv chs) buffered-evs)
                              (merge>chsk-state! chsk {:open? true})))
@@ -780,6 +806,7 @@
                    :kalive-ms     ws-kalive-ms
                    :kalive-timer_ (atom nil)
                    :kalive-due?_  (atom true)
+                   :nattempt_     (atom 0)
                    :cbs-waiting_  (atom [nil {}])
                    :state_        (atom {:type :ws :open? false})})))
 
