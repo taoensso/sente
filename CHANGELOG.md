@@ -1,4 +1,6 @@
-## Pending / unreleased
+## v0.14.0 / 2014 May 16
+
+ > Minor, non-breaking update.
 
  * **FIX**: WebSocket reconnect exponential backoff wasn't being reset correctly.
  * [#39] **FIX**: Race condition affecting buffered `server>user` events (@smichal).
