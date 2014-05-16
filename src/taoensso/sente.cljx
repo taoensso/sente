@@ -299,18 +299,20 @@
 
              flush-buffer!
              (fn [type]
-               (when-let [pulled (encore/swap-in! send-buffers_ [type]
-                                   (fn [m]
-                                     ;; Don't actually flush unless the event buffered with _this_
-                                     ;; send call is still buffered (awaiting flush). This means
-                                     ;; that we'll have many (go block) buffer flush calls that'll
-                                     ;; noop. They're cheap, and this approach is preferable to
-                                     ;; alternatives like flush workers.
-                                     (let [[_ ev-uuids] (get m uid)]
-                                       (if (contains? ev-uuids ev-uuid)
-                                         (encore/swapped (dissoc m uid)
-                                                         (get    m uid))
-                                         (encore/swapped m nil)))))]
+               (when-let [pulled
+                          (encore/swap-in! send-buffers_ [type]
+                            (fn [m]
+                              ;; Don't actually flush unless the event buffered
+                              ;; with _this_ send call is still buffered (awaiting
+                              ;; flush). This means that we'll have many (go
+                              ;; block) buffer flush calls that'll noop. They're
+                              ;;  cheap, and this approach is preferable to
+                              ;; alternatives like flush workers.
+                              (let [[_ ev-uuids] (get m uid)]
+                                (if (contains? ev-uuids ev-uuid)
+                                  (encore/swapped (dissoc m uid)
+                                                  (get    m uid))
+                                  (encore/swapped m nil)))))]
                  (let [[buffered-evs ev-uuids] pulled]
                    (assert (vector? buffered-evs))
                    (assert (set?    ev-uuids))
