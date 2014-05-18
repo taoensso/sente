@@ -1,3 +1,10 @@
+## v0.14.1 / 2014 May 18
+
+ > Minor, non-breaking update.
+
+ * **FIX**: Handshakes were interfering with singleton WebSocket callback replies.
+
+
 ## v0.14.0 / 2014 May 16
 
  > Minor, non-breaking update.
