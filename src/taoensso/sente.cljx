@@ -567,7 +567,8 @@
 
 #+cljs
 (defn- handle-when-handshake! [chsk clj]
-  (when (= (first clj) :chsk/handshake)
+  (when (and (vector? clj) ; Nb clj may be callback reply
+             (= (first clj) :chsk/handshake))
     (let [[_ [uid csrf-token]] clj]
       (when (str/blank? csrf-token)
         (encore/warnf "NO CSRF TOKEN AVAILABLE"))
