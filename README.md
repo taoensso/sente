@@ -239,10 +239,7 @@ Yup, it's automatic for both Ajax and WebSockets. If the page serving your JavaS
 
 #### Security: CSRF protection?
 
-**This is important**. Sente has support, but you'll need to do a couple things on your end:
-
-  1. Server-side: you'll need to use middleware like `ring-anti-forgery` to generate and check CSRF codes. The `ring-ajax-post` handler should be covered (i.e. protected).
-  2. Client-side: you'll need to pass the page's csrf code to the `make-channel-socket!` constructor.
+**This is important**. Sente has support, but you'll need to use middleware like `ring-anti-forgery` to generate and check CSRF codes. The `ring-ajax-post` handler should be covered (i.e. protected).
 
 The [reference example project][] has a fully-baked example.
 
