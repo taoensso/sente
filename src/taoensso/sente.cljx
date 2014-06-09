@@ -236,6 +236,7 @@
               user-id-fn    (fn [ring-req] (get-in ring-req [:session :uid]))
               csrf-token-fn (fn [ring-req]
                               (or (get-in ring-req [:session :csrf-token])
+                                  (get-in ring-req [:session :ring.middleware.anti-forgery/anti-forgery-token])
                                   (get-in ring-req [:session "__anti-forgery-token"])))}}]]
 
   {:pre [(encore/pos-int? send-buf-ms-ajax)
