@@ -1,3 +1,12 @@
+## v0.15.0 / 2014 July 11
+
+ > Minor, non-breaking update.
+
+ * **CHANGE**: Support for new (namespaced) [Ring Anti-Forgery](https://github.com/ring-clojure/ring-anti-forgery/commit/69082e6eac533a0c62c8418c78684030eeefbcec) session key (@DomKM).
+ * **CHANGE**: `[chsk/uidport-close]` event now triggers only 5 seconds after a WebSocket channel is closed (same as Ajax channels). Helps prevent unnecessary noise during window refresh, etc.
+ * **NEW** [#50]: Added a `:chsk-url-fn` option to client-side `make-channel-socket!` fn for full URL control.
+
+
 ## v0.14.1 / 2014 May 18
 
  > Minor, non-breaking update.
