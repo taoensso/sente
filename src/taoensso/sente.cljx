@@ -437,8 +437,22 @@
                          (if (empty? new)
                            (dissoc m uid) ; gc
                            (assoc  m uid new)))))
-                   (when (upd-connected-uid! uid)
-                     (receive-event-msg!* [:chsk/uidport-close]))))
+
+                   ;; (when (upd-connected-uid! uid)
+                   ;;   (receive-event-msg!* [:chsk/uidport-close]))
+
+                   (go
+                     ;; Allow some time for possible reconnects (sole window
+                     ;; refresh, etc.):
+                     (<! (async/timeout 5000))
+
+                     ;; Note different (simpler) semantics here than Ajax
+                     ;; case since we don't have/want a `udt-disconnected` value.
+                     ;; Ajax semantics: 'no reconnect since disconnect+5s'.
+                     ;; WS semantics: 'still disconnected after disconnect+5s'.
+                     ;;
+                     (when (upd-connected-uid! uid)
+                       (receive-event-msg!* [:chsk/uidport-close])))))
 
                (handshake! hk-ch))
 
