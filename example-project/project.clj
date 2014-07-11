@@ -12,7 +12,7 @@
   :dependencies
   [[org.clojure/clojure       "1.6.0"]
    ;;
-   [org.clojure/clojurescript "0.0-2173"]
+   [org.clojure/clojurescript "0.0-2268"]
    [org.clojure/core.async    "0.1.278.0-76b25b-alpha"]
    ;;
    [com.taoensso/sente        "0.14.1"] ; <--- Sente
@@ -20,8 +20,8 @@
    ;;
    [http-kit                  "2.1.18"] ; <--- http-kit (currently required)
    ;;
-   [compojure                 "1.1.6"]  ; Or routing lib of your choice
-   [ring                      "1.2.1"]
+   [compojure                 "1.1.8"]  ; Or routing lib of your choice
+   [ring                      "1.3.0"]
    [hiccup                    "1.0.5"]  ; Optional, just for HTML
    [org.clojure/core.match    "0.2.1"]  ; Optional but quite handly
    ;; [ring-anti-forgery      "0.3.0"]  ; Buggy
@@ -29,9 +29,11 @@
    ]
 
   :plugins
-  [[lein-cljsbuild      "1.0.2"]
-   [com.keminglabs/cljx "0.3.2"] ; Must precede Austin!
-   [com.cemerick/austin "0.1.4"]]
+  [[lein-pprint         "1.1.1"]
+   [lein-ancient        "0.5.5"]
+   [com.cemerick/austin "0.1.4"]
+   [com.keminglabs/cljx "0.4.0"]
+   [lein-cljsbuild      "1.0.3"]]
 
   :hooks [cljx.hooks leiningen.cljsbuild]
   :cljx
@@ -51,4 +53,4 @@
   ;; connect to with Cider+emacs or your IDE of choice:
   :aliases
   {"build-once" ["do" "cljx" "once," "cljsbuild" "once"]
-   "start-dev" ["with-profile" "+dev" "repl" ":headless"]})
+   "start-dev"  ["repl" ":headless"]})

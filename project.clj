@@ -12,10 +12,10 @@
 
   :dependencies
   [[org.clojure/clojure       "1.5.1"]
-   [org.clojure/clojurescript "0.0-2173"]
+   [org.clojure/clojurescript "0.0-2268"]
    [org.clojure/core.async    "0.1.278.0-76b25b-alpha"]
-   [org.clojure/tools.reader  "0.8.3"]
-   [com.taoensso/encore       "1.6.0"]
+   [org.clojure/tools.reader  "0.8.5"]
+   [com.taoensso/encore       "1.7.0"]
    [com.taoensso/timbre       "3.2.1"]
    [http-kit                  "2.1.18"]]
 
