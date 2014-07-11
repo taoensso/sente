@@ -763,8 +763,8 @@
     chsk))
 
 #+cljs
-(defn- chsk-url [path & [websocket?]]
-  (let [{:keys [protocol host pathname]} (encore/get-window-location)]
+(def ^:private default-chsk-url-fn
+  (fn [path {:as window-location :keys [protocol host pathname]} websocket?]
     (str (if-not websocket? protocol (if (= protocol "https:") "wss:" "ws:"))
          "//" host (or path pathname))))
 
@@ -780,11 +780,14 @@
   Note that the *same* URL is used for: WebSockets, POSTs, GETs. Server-side
   routes should be configured accordingly."
   [url &
-   & [{:keys [type recv-buf-or-n ws-kalive-ms lp-timeout]
+   & [{:keys [type recv-buf-or-n ws-kalive-ms lp-timeout
+              chsk-url-fn ; (fn [path window-location websocket?]) -> URL string
+              ]
        :or   {type          :auto
               recv-buf-or-n (async/sliding-buffer 2048) ; Mostly for buffered-evs
               ws-kalive-ms  38000
-              lp-timeout    38000}}
+              lp-timeout    38000
+              chsk-url-fn   default-chsk-url-fn}}
       _deprecated-more-opts]]
 
   {:pre [(#{:ajax :ws :auto} type)]}
@@ -797,12 +800,14 @@
              :recv     (chan recv-buf-or-n)
              :internal (chan recv-buf-or-n)}
 
+        window-location (encore/get-window-location)
+
         chsk
         (or
          (and (not= type :ajax)
               (chsk-make!
                 (map->ChWebSocket
-                  {:url           (chsk-url url :ws)
+                  {:url           (chsk-url-fn url window-location :ws)
                    :chs           chs
                    :socket_       (atom nil)
                    :kalive-ms     ws-kalive-ms
@@ -817,7 +822,7 @@
                     ajax-client-uuid (encore/uuid-str)]
                 (chsk-make!
                   (map->ChAjaxSocket
-                    {:url              (chsk-url url)
+                    {:url              (chsk-url-fn url window-location (not :ws))
                      :chs              chs
                      :timeout          lp-timeout
                      :ajax-client-uuid ajax-client-uuid
