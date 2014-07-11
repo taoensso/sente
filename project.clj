@@ -9,6 +9,7 @@
   :min-lein-version "2.3.3"
   :global-vars {*warn-on-reflection* true
                 *assert* true}
+
   :dependencies
   [[org.clojure/clojure       "1.5.1"]
    [org.clojure/clojurescript "0.0-2173"]
@@ -18,48 +19,63 @@
    [com.taoensso/timbre       "3.2.1"]
    [http-kit                  "2.1.18"]]
 
-  :test-paths ["test" "src"]
+  :plugins
+  [[com.keminglabs/cljx "0.4.0"]
+   [lein-cljsbuild      "1.0.3"]]
+
   :profiles
   {;; :default [:base :system :user :provided :dev]
+   :server-jvm {:jvm-opts ^:replace ["-server"]}
    :1.6  {:dependencies [[org.clojure/clojure     "1.6.0"]]}
-   :test {:dependencies [[expectations            "1.4.56"]
-                         [reiddraper/simple-check "0.5.6"]]
+   :test {:dependencies [[expectations            "2.0.7"]
+                         [org.clojure/test.check  "0.5.8"]
+                         ;; [com.cemerick/double-check "0.5.7"]
+                         ]
           :plugins [[lein-expectations "0.0.8"]
                     [lein-autoexpect   "1.2.2"]]}
-   :dev* [:dev {:jvm-opts ^:replace ["-server"]
-                :hooks [cljx.hooks leiningen.cljsbuild]}]
+
    :dev
    [:1.6 :test
     {:plugins
-     [[lein-ancient                    "0.5.4"]
-      [com.keminglabs/cljx             "0.3.2"] ; Must precede Austin!
+     [[lein-pprint                     "1.1.1"]
+      [lein-ancient                    "0.5.5"]
       [com.cemerick/austin             "0.1.4"]
-      [lein-cljsbuild                  "1.0.2"]
-      [com.cemerick/clojurescript.test "0.2.2"]
-      [codox                           "0.6.7"]]
+      [lein-expectations               "0.0.8"]
+      [lein-autoexpect                 "1.2.2"]
+      [com.cemerick/clojurescript.test "0.3.1"]
+      [codox                           "0.8.10"]]}]}
 
-     :cljx
-     {:builds
-      [{:source-paths ["src" "test"] :rules :clj  :output-path "target/classes"}
-       {:source-paths ["src" "test"] :rules :cljs :output-path "target/classes"}]}
+  :cljx
+  {:builds
+   [{:source-paths ["src" "test"] :rules :clj  :output-path "target/classes"}
+    {:source-paths ["src" "test"] :rules :cljs :output-path "target/classes"}]}
 
-     :cljsbuild
-     {:test-commands {"node"    ["node" :node-runner "target/main.js"]
-                      "phantom" ["phantomjs" :runner "target/main.js"]}
-      :builds ; Compiled in parallel
-      [{:id :main
-        :source-paths ["src" "test" "target/classes"]
-        :compiler     {:output-to "target/main.js"
-                       :optimizations :advanced
-                       :pretty-print false}}]}}]}
+  :cljsbuild
+  {:test-commands {"node"    ["node" :node-runner "target/main.js"]
+                   "phantom" ["phantomjs" :runner "target/main.js"]}
+   :builds
+   [{:id :main
+     :source-paths ["src" "test" "target/classes"]
+     :compiler     {:output-to "target/main.js"
+                    :optimizations :advanced
+                    :pretty-print false}}]}
 
-  :codox {:sources ["target/classes"]} ; For use with cljx
+  :test-paths ["test" "src"]
+  ;;:hooks    [cljx.hooks leiningen.cljsbuild]
+  :prep-tasks [["cljx" "once"] "javac" "compile"]
+  :codox {:language :clojure ; [:clojure :clojurescript] ; No support?
+          :sources  ["target/classes"]
+          :src-linenum-anchor-prefix "L"
+          :src-dir-uri "http://github.com/ptaoussanis/encore/blob/master/src/"
+          :src-uri-mapping {#"target/classes"
+                            #(.replaceFirst (str %) "(.cljs$|.clj$)" ".cljx")}}
+
   :aliases
   {"test-all"   ["with-profile" "default:+1.6" "expectations"]
    "test-auto"  ["with-profile" "+test" "autoexpect"]
    "build-once" ["do" "cljx" "once," "cljsbuild" "once"]
    "deploy-lib" ["do" "build-once," "deploy" "clojars," "install"]
-   "start-dev"  ["with-profile" "+dev*" "repl" ":headless"]}
+   "start-dev"  ["with-profile" "+server-jvm" "repl" ":headless"]}
 
   :repositories
   {"sonatype"
