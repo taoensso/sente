@@ -12,7 +12,7 @@
   INSTRUCTIONS:
     1. Call `lein start-dev` at your terminal.
     2. Connect to development nREPL (port will be printed).
-    3. Evaluate this namespace.
+    3. Evaluate this namespace and `(start-http-server!)` in this namespace.
     4. Open browser & point to local http server (port will be printed).
     5. Observe browser's console + nREPL's std-out."
   {:author "Peter Taoussanis"}
@@ -108,15 +108,23 @@
 
    compojure.handler/site))
 
+#+clj (defonce http-server_ (atom nil))
 #+clj
-(defn run-http-server []
+(defn stop-http-server! []
+  (when-let [current-server @http-server_]
+    (current-server :timeout 100)))
+
+#+clj
+(defn start-http-server! []
   (let [s   (http-kit-server/run-server (var my-ring-handler) {:port 0})
         uri (format "http://localhost:%s/" (:local-port (meta s)))]
+    (stop-http-server!)
     (logf "Http-kit server is running at `%s`" uri)
     (.browse (java.awt.Desktop/getDesktop)
-             (java.net.URI. uri))))
+             (java.net.URI. uri))
+    (reset! http-server_ s)))
 
-#+clj (defonce http-server (run-http-server)) ; Runs once, on first eval
+(comment (start-http-server!))
 
 ;;;; Setup client-side chsk handlers -------------------------------------------
 
