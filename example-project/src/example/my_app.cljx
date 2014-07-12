@@ -204,36 +204,40 @@
 ;;;; Setup client buttons
 
 #+cljs
-(.addEventListener (.getElementById js/document "btn1") "click"
-  (fn [ev]
-    (logf "Button 1 was clicked (won't receive any reply from server)")
-    (chsk-send! [:example/button1 {:had-a-callback? "nope"}])))
+(when-let [target-el (.getElementById js/document "btn1")]
+  (.addEventListener target-el "click"
+    (fn [ev]
+      (logf "Button 1 was clicked (won't receive any reply from server)")
+      (chsk-send! [:example/button1 {:had-a-callback? "nope"}]))))
 
 #+cljs
-(.addEventListener (.getElementById js/document "btn2") "click"
-  (fn [ev]
-    (logf "Button 2 was clicked (will receive reply from server)")
-    (chsk-send! [:example/button2 {:had-a-callback? "indeed"}] 5000
-      (fn [cb-reply] (logf "Callback reply: %s" cb-reply)))))
+(when-let [target-el (.getElementById js/document "btn2")]
+  (.addEventListener target-el "click"
+    (fn [ev]
+      (logf "Button 2 was clicked (will receive reply from server)")
+      (chsk-send! [:example/button2 {:had-a-callback? "indeed"}] 5000
+        (fn [cb-reply] (logf "Callback reply: %s" cb-reply))))))
 
 #+cljs
-(.addEventListener (.getElementById js/document "btn-login") "click"
-  (fn [ev]
-    (let [user-id (.-value (.getElementById js/document "input-login"))]
-      (if (str/blank? user-id)
-        (js/alert "Please enter a user-id first")
-        (do
-          (logf "Logging in with user-id %s" user-id)
+(when-let [target-el (.getElementById js/document "btn-login")]
+  (.addEventListener target-el "click"
+    (fn [ev]
+      (let [user-id (.-value (.getElementById js/document "input-login"))]
+        (if (str/blank? user-id)
+          (js/alert "Please enter a user-id first")
+          (do
+            (logf "Logging in with user-id %s" user-id)
 
-          ;;; Use any login procedure you'd like. Here we'll trigger an Ajax POST
-          ;;; request that resets our server-side session. Then we ask our channel
-          ;;; socket to reconnect, thereby picking up the new session.
+            ;;; Use any login procedure you'd like. Here we'll trigger an Ajax
+            ;;; POST request that resets our server-side session. Then we ask
+            ;;; our channel socket to reconnect, thereby picking up the new
+            ;;; session.
 
-          (encore/ajax-lite "/login" {:method :post
-                                      :params
-                                      {:user-id    (str user-id)
-                                       :csrf-token (:csrf-token @chsk-state)}}
-            (fn [ajax-resp]
-              (logf "Ajax login response: %s" ajax-resp)))
+            (encore/ajax-lite "/login" {:method :post
+                                        :params
+                                        {:user-id    (str user-id)
+                                         :csrf-token (:csrf-token @chsk-state)}}
+              (fn [ajax-resp]
+                (logf "Ajax login response: %s" ajax-resp)))
 
-          (sente/chsk-reconnect! chsk))))))
+            (sente/chsk-reconnect! chsk)))))))
