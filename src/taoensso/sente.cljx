@@ -586,7 +586,7 @@
              (= (first clj) :chsk/handshake))
     (let [[_ [uid csrf-token]] clj]
       (when (str/blank? csrf-token)
-        (encore/warnf "NO CSRF TOKEN AVAILABLE"))
+        (encore/warnf "Sente warning: NO CSRF TOKEN AVAILABLE"))
       (merge>chsk-state! chsk
         {:open?      true
          :uid        uid
