@@ -799,8 +799,8 @@
               ]
        :or   {type          :auto
               recv-buf-or-n (async/sliding-buffer 2048) ; Mostly for buffered-evs
-              ws-kalive-ms  38000
-              lp-timeout    38000
+              ws-kalive-ms  25000 ; < Heroku 30s conn timeout
+              lp-timeout    25000 ; ''
               chsk-url-fn   default-chsk-url-fn}}
       _deprecated-more-opts]]
 
