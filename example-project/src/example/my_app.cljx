@@ -12,9 +12,12 @@
   INSTRUCTIONS:
     1. Call `lein start-dev` at your terminal.
     2. Connect to development nREPL (port will be printed).
-    3. Evaluate this namespace.
+    3. Evaluate this namespace and `(start-http-server!)` in this namespace.
     4. Open browser & point to local http server (port will be printed).
-    5. Observe browser's console + nREPL's std-out."
+    5. Observe browser's console + nREPL's std-out.
+
+  LIGHT TABLE USERS:
+    To configure Cljx support please see Ref. http://goo.gl/fKL5Z4."
   {:author "Peter Taoussanis"}
 
   #+clj
@@ -108,15 +111,23 @@
 
    compojure.handler/site))
 
+#+clj (defonce http-server_ (atom nil))
 #+clj
-(defn run-http-server []
+(defn stop-http-server! []
+  (when-let [current-server @http-server_]
+    (current-server :timeout 100)))
+
+#+clj
+(defn start-http-server! []
   (let [s   (http-kit-server/run-server (var my-ring-handler) {:port 0})
         uri (format "http://localhost:%s/" (:local-port (meta s)))]
+    (stop-http-server!)
     (logf "Http-kit server is running at `%s`" uri)
     (.browse (java.awt.Desktop/getDesktop)
-             (java.net.URI. uri))))
+             (java.net.URI. uri))
+    (reset! http-server_ s)))
 
-#+clj (defonce http-server (run-http-server)) ; Runs once, on first eval
+(comment (start-http-server!))
 
 ;;;; Setup client-side chsk handlers -------------------------------------------
 
@@ -196,36 +207,40 @@
 ;;;; Setup client buttons
 
 #+cljs
-(.addEventListener (.getElementById js/document "btn1") "click"
-  (fn [ev]
-    (logf "Button 1 was clicked (won't receive any reply from server)")
-    (chsk-send! [:example/button1 {:had-a-callback? "nope"}])))
+(when-let [target-el (.getElementById js/document "btn1")]
+  (.addEventListener target-el "click"
+    (fn [ev]
+      (logf "Button 1 was clicked (won't receive any reply from server)")
+      (chsk-send! [:example/button1 {:had-a-callback? "nope"}]))))
 
 #+cljs
-(.addEventListener (.getElementById js/document "btn2") "click"
-  (fn [ev]
-    (logf "Button 2 was clicked (will receive reply from server)")
-    (chsk-send! [:example/button2 {:had-a-callback? "indeed"}] 5000
-      (fn [cb-reply] (logf "Callback reply: %s" cb-reply)))))
+(when-let [target-el (.getElementById js/document "btn2")]
+  (.addEventListener target-el "click"
+    (fn [ev]
+      (logf "Button 2 was clicked (will receive reply from server)")
+      (chsk-send! [:example/button2 {:had-a-callback? "indeed"}] 5000
+        (fn [cb-reply] (logf "Callback reply: %s" cb-reply))))))
 
 #+cljs
-(.addEventListener (.getElementById js/document "btn-login") "click"
-  (fn [ev]
-    (let [user-id (.-value (.getElementById js/document "input-login"))]
-      (if (str/blank? user-id)
-        (js/alert "Please enter a user-id first")
-        (do
-          (logf "Logging in with user-id %s" user-id)
+(when-let [target-el (.getElementById js/document "btn-login")]
+  (.addEventListener target-el "click"
+    (fn [ev]
+      (let [user-id (.-value (.getElementById js/document "input-login"))]
+        (if (str/blank? user-id)
+          (js/alert "Please enter a user-id first")
+          (do
+            (logf "Logging in with user-id %s" user-id)
 
-          ;;; Use any login procedure you'd like. Here we'll trigger an Ajax POST
-          ;;; request that resets our server-side session. Then we ask our channel
-          ;;; socket to reconnect, thereby picking up the new session.
+            ;;; Use any login procedure you'd like. Here we'll trigger an Ajax
+            ;;; POST request that resets our server-side session. Then we ask
+            ;;; our channel socket to reconnect, thereby picking up the new
+            ;;; session.
 
-          (encore/ajax-lite "/login" {:method :post
-                                      :params
-                                      {:user-id    (str user-id)
-                                       :csrf-token (:csrf-token @chsk-state)}}
-            (fn [ajax-resp]
-              (logf "Ajax login response: %s" ajax-resp)))
+            (encore/ajax-lite "/login" {:method :post
+                                        :params
+                                        {:user-id    (str user-id)
+                                         :csrf-token (:csrf-token @chsk-state)}}
+              (fn [ajax-resp]
+                (logf "Ajax login response: %s" ajax-resp)))
 
-          (sente/chsk-reconnect! chsk))))))
+            (sente/chsk-reconnect! chsk)))))))

@@ -1,7 +1,6 @@
 (ns taoensso.sente.tests.main
   (:require [expectations   :as test :refer :all]
-            [taoensso.sente :as sente  :refer ()]
-            [taoensso.sente.utils :as utils]))
+            [taoensso.sente :as sente  :refer ()]))
 
 (comment (test/run-tests '[taoensso.sente.tests.main]))
 

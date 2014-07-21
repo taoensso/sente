@@ -1,3 +1,11 @@
+## v0.15.1 / 2014 July 21
+
+ > Hotfix focused on adjusting default options for Heroku users.
+
+ * **FIX** [#56]: Decrease default keep-alive values to work with [Heroku's http-routing timeouts](https://devcenter.heroku.com/articles/http-routing#timeouts).
+ * Minor reference example improvements.
+
+
 ## v0.15.0 / 2014 July 11
 
  > Minor, non-breaking update.
