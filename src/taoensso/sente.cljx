@@ -48,6 +48,13 @@
     * core.async is used liberally where brute-force core.async allows for
       significant implementation simplifications. We lean on core.async's strong
       efficiency here.
+    * For WebSocket fallback we use long-polling rather than HTTP 1.1 streaming
+      (chunked transfer encoding). Http-kit _does_ support chunked transfer
+      encoding but a small minority of browsers &/or proxies do not. Instead of
+      implementing all 3 modes (WebSockets, streaming, long-polling) - it seemed
+      reasonable to focus on the two extremes. In any case client support for
+      WebSockets is growing rapidly so fallback modes will become increasingly
+      irrelevant in time.
 
   General-use notes:
     * Single HTTP req+session persists over entire chsk session but cannot
