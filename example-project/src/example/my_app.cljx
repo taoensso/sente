@@ -14,7 +14,10 @@
     2. Connect to development nREPL (port will be printed).
     3. Evaluate this namespace and `(start-http-server!)` in this namespace.
     4. Open browser & point to local http server (port will be printed).
-    5. Observe browser's console + nREPL's std-out."
+    5. Observe browser's console + nREPL's std-out.
+
+  LIGHT TABLE USERS:
+    To configure Cljx support please see Ref. http://goo.gl/fKL5Z4."
   {:author "Peter Taoussanis"}
 
   #+clj
