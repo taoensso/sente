@@ -785,14 +785,23 @@
 
 #+cljs
 (def default-chsk-url-fn
-  "`window-location` keys:
-    :href     ; \"http://www.example.org:80/foo/bar?q=baz#bang\"
-    :protocol ; \"http:\" ; Note the :
-    :hostname ; \"example.org\"
-    :host     ; \"example.org:80\"
-    :pathname ; \"/foo/bar\"
-    :search   ; \"?q=baz\"
-    :hash     ; \"#bang\""
+  "(ƒ [path window-location websocket?]) -> server-side chsk route URL string.
+
+    * path       - As provided to client-side `make-channel-socket!` fn
+                   (usu. \"/chsk\").
+    * websocket? - True for WebSocket connections, false for Ajax (long-polling)
+                   connections.
+    * window-location - Map with keys:
+      :href     ; \"http://www.example.org:80/foo/bar?q=baz#bang\"
+      :protocol ; \"http:\" ; Note the :
+      :hostname ; \"example.org\"
+      :host     ; \"example.org:80\"
+      :pathname ; \"/foo/bar\"
+      :search   ; \"?q=baz\"
+      :hash     ; \"#bang\"
+
+  Note that the *same* URL is used for: WebSockets, POSTs, GETs. Server-side
+  routes should be configured accordingly."
   (fn [path {:as window-location :keys [protocol host pathname]} websocket?]
     (str (if-not websocket? protocol (if (= protocol "https:") "wss:" "ws:"))
          "//" host (or path pathname))))
@@ -811,13 +820,8 @@
     * ws-kalive-ms ; Ping to keep a WebSocket conn alive if no activity w/in
                    ; given number of milliseconds.
     * lp-kalive-ms ; Ping to keep a long-polling (Ajax) conn alive ''.
-    * chsk-url-fn  ; (fn [path window-location websocket?]) -> server's chsk URL.
-                   ; Must return an URL that matches your server-side chsk route,
-                   ; see `default-chsk-url-fn` for details.
-
-  Note that the *same* URL is used for: WebSockets, POSTs, GETs. Server-side
-  routes should be configured accordingly."
-  [url &
+    * chsk-url-fn  ; Please see `default-chsk-url-fn` for details."
+  [path &
    & [{:keys [type recv-buf-or-n ws-kalive-ms lp-timeout chsk-url-fn]
        :or   {type          :auto
               recv-buf-or-n (async/sliding-buffer 2048) ; Mostly for buffered-evs
@@ -843,7 +847,7 @@
          (and (not= type :ajax)
               (chsk-make!
                 (map->ChWebSocket
-                  {:url           (chsk-url-fn url window-location :ws)
+                  {:url           (chsk-url-fn path window-location :ws)
                    :chs           chs
                    :socket_       (atom nil)
                    :kalive-ms     ws-kalive-ms
@@ -858,7 +862,7 @@
                     ajax-client-uuid (encore/uuid-str)]
                 (chsk-make!
                   (map->ChAjaxSocket
-                    {:url              (chsk-url-fn url window-location (not :ws))
+                    {:url              (chsk-url-fn path window-location (not :ws))
                      :chs              chs
                      :timeout          lp-timeout
                      :ajax-client-uuid ajax-client-uuid
