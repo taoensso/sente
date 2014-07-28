@@ -155,7 +155,7 @@ Term          | Form                                                            
 
   * So clients can use `chsk-send!` to send `event`s to the server. They can optionally request a reply, with timeout.
   * The server can likewise use `chsk-send!` to send `event`s to _all_ the clients (browser tabs, devices, etc.) of a particular connected user by his/her `user-id`.
-  * The server can also use an `event-msg`'s `?reply-fn` to _reply_ to a client `event` using an _arbitrary edn value_.
+  * The server can also use an `event-msg`'s `?reply-fn` to _reply_ to a particular client `event` using an _arbitrary edn value_.
 
 > It's worth noting that the server>user push `(chsk-send! <user-id> <event>)` takes a mandatory **user-id** argument. See the FAQ later for more info.
 
@@ -243,7 +243,7 @@ Yup, it's automatic for both Ajax and WebSockets. If the page serving your JavaS
 
 The [reference example project][] has a fully-baked example.
 
-#### Pageload: How do I know when my channels are ready client-side?
+#### Pageload: How do I know when Sente is ready client-side?
 
 You'll want to listen on the receive channel for a `[:chsk/state {:first-open? true}]` event. That's the signal that the socket's been established.
 
