@@ -52,9 +52,10 @@
       (chunked transfer encoding). Http-kit _does_ support chunked transfer
       encoding but a small minority of browsers &/or proxies do not. Instead of
       implementing all 3 modes (WebSockets, streaming, long-polling) - it seemed
-      reasonable to focus on the two extremes. In any case client support for
-      WebSockets is growing rapidly so fallback modes will become increasingly
-      irrelevant in time.
+      reasonable to focus on the two extremes (performance + compatibility). In
+      any case client support for WebSockets is growing rapidly so fallback
+      modes will become increasingly irrelevant while the extra simplicity will
+      continue to pay dividends.
 
   General-use notes:
     * Single HTTP req+session persists over entire chsk session but cannot
@@ -224,8 +225,7 @@
     * ajax-get-or-ws-handshake-fn - (fn [ring-req]) ; For Ring GET,       chsk URL
     * connected-uids ; Watchable, read-only (atom {:ws #{_} :ajax #{_} :any #{_}})
 
-  Options:
-    * recv-buf-or-n    ; Used for ch-recv buffer
+  Common options:
     * user-id-fn       ; (fn [ring-req]) -> unique user-id for server>user push.
     * csrf-token-fn    ; (fn [ring-req]) -> CSRF token for Ajax POSTs.
     * send-buf-ms-ajax ; [1]
@@ -784,7 +784,15 @@
     chsk))
 
 #+cljs
-(def ^:private default-chsk-url-fn
+(def default-chsk-url-fn
+  "`window-location` keys:
+    :href     ; \"http://www.example.org:80/foo/bar?q=baz#bang\"
+    :protocol ; \"http:\" ; Note the :
+    :hostname ; \"example.org\"
+    :host     ; \"example.org:80\"
+    :pathname ; \"/foo/bar\"
+    :search   ; \"?q=baz\"
+    :hash     ; \"#bang\""
   (fn [path {:as window-location :keys [protocol host pathname]} websocket?]
     (str (if-not websocket? protocol (if (= protocol "https:") "wss:" "ws:"))
          "//" host (or path pathname))))
@@ -798,12 +806,19 @@
     * send-fn - API fn to send client>server[1].
     * state   - Watchable, read-only (atom {:type _ :open? _ :uid _ :csrf-token _}).
 
+  Common options:
+    * type         ; e/o #{:auto :ws :ajax}. You'll usually want the default (:auto).
+    * ws-kalive-ms ; Ping to keep a WebSocket conn alive if no activity w/in
+                   ; given number of milliseconds.
+    * lp-kalive-ms ; Ping to keep a long-polling (Ajax) conn alive ''.
+    * chsk-url-fn  ; (fn [path window-location websocket?]) -> server's chsk URL.
+                   ; Must return an URL that matches your server-side chsk route,
+                   ; see `default-chsk-url-fn` for details.
+
   Note that the *same* URL is used for: WebSockets, POSTs, GETs. Server-side
   routes should be configured accordingly."
   [url &
-   & [{:keys [type recv-buf-or-n ws-kalive-ms lp-timeout
-              chsk-url-fn ; (fn [path window-location websocket?]) -> URL string
-              ]
+   & [{:keys [type recv-buf-or-n ws-kalive-ms lp-timeout chsk-url-fn]
        :or   {type          :auto
               recv-buf-or-n (async/sliding-buffer 2048) ; Mostly for buffered-evs
               ws-kalive-ms  25000 ; < Heroku 30s conn timeout
