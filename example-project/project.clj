@@ -24,8 +24,7 @@
    [ring                      "1.3.0"]
    [hiccup                    "1.0.5"]  ; Optional, just for HTML
    [org.clojure/core.match    "0.2.1"]  ; Optional but quite handly
-   ;; [ring-anti-forgery      "0.3.0"]  ; Buggy
-   [com.taoensso.forks/ring-anti-forgery "0.3.1"]  ; Optional, for easy CSRF protection
+   [ring-anti-forgery         "1.0.0"]  ; Optional, for easy CSRF protection
    ]
 
   :plugins
