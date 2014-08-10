@@ -22,9 +22,9 @@
    ;;
    [compojure                 "1.1.8"]  ; Or routing lib of your choice
    [ring                      "1.3.0"]
+   [ring/ring-defaults        "0.1.1"]
    [hiccup                    "1.0.5"]  ; Optional, just for HTML
    [org.clojure/core.match    "0.2.1"]  ; Optional but quite handly
-   [ring-anti-forgery         "1.0.0"]  ; Optional, for easy CSRF protection
    ]
 
   :plugins
