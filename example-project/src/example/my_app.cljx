@@ -23,9 +23,9 @@
   #+clj
   (:require
    [clojure.string     :as str]
-   [compojure.core     :as comp :refer (defroutes routes GET POST)]
+   [compojure.core     :as comp :refer (defroutes GET POST)]
    [compojure.route    :as route]
-   [compojure.handler  :as comp-handler]
+   [ring.middleware.defaults :refer [wrap-defaults site-defaults]]
    [hiccup.core        :as hiccup]
    [org.httpkit.server :as http-kit-server]
    [clojure.core.match :as match :refer (match)]
@@ -95,27 +95,28 @@
     {:status 200 :session (assoc session :uid user-id)}))
 
 #+clj
-(defroutes my-ring-handler
-  (->
-   (routes
-    (GET  "/"      req (landing-pg-handler req))
-    ;;
-    (GET  "/chsk"  req (ring-ajax-get-or-ws-handshake req))
-    (POST "/chsk"  req (ring-ajax-post                req))
-    (POST "/login" req (login! req))
-    ;;
-    (route/resources "/") ; Static files, notably public/main.js (our cljs target)
-    (route/not-found "<h1>Page not found</h1>"))
+(defroutes my-routes
+  (GET  "/"      req (landing-pg-handler req))
+  ;;
+  (GET  "/chsk"  req (ring-ajax-get-or-ws-handshake req))
+  (POST "/chsk"  req (ring-ajax-post                req))
+  (POST "/login" req (login! req))
+  ;;
+  (route/resources "/") ; Static files, notably public/main.js (our cljs target)
+  (route/not-found "<h1>Page not found</h1>"))
 
-   ;;; Middleware
+#+clj
+(def my-middleware
+  (assoc-in site-defaults [:security :anti-forgery] 
+            {:read-token (fn [req] (-> req :params :csrf-token))}))
 
-   ;; Sente adds a :csrf-token param to Ajax requests:
-   (ring-anti-forgery/wrap-anti-forgery
-    {:read-token (fn [req] (-> req :params :csrf-token))})
+#+clj
+(def my-ring-handler
+  (wrap-defaults my-routes my-middleware))
 
-   compojure.handler/site))
+#+clj 
+(defonce http-server_ (atom nil))
 
-#+clj (defonce http-server_ (atom nil))
 #+clj
 (defn stop-http-server! []
   (when-let [current-server @http-server_]
