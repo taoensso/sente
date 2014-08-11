@@ -25,7 +25,7 @@
    [clojure.string     :as str]
    [compojure.core     :as comp :refer (defroutes GET POST)]
    [compojure.route    :as route]
-   [ring.middleware.defaults :refer [wrap-defaults site-defaults]]
+   [ring.middleware.defaults]
    [hiccup.core        :as hiccup]
    [org.httpkit.server :as http-kit-server]
    [clojure.core.match :as match :refer (match)]
@@ -106,16 +106,13 @@
   (route/not-found "<h1>Page not found</h1>"))
 
 #+clj
-(def my-middleware
-  (assoc-in site-defaults [:security :anti-forgery] 
-            {:read-token (fn [req] (-> req :params :csrf-token))}))
-
-#+clj
 (def my-ring-handler
-  (wrap-defaults my-routes my-middleware))
+  (let [ring-defaults-config
+        (assoc-in ring.middleware.defaults/site-defaults [:security :anti-forgery]
+          {:read-token (fn [req] (-> req :params :csrf-token))})]
+   (ring.middleware.defaults/wrap-defaults my-routes ring-defaults-config)))
 
-#+clj 
-(defonce http-server_ (atom nil))
+#+clj (defonce http-server_ (atom nil))
 
 #+clj
 (defn stop-http-server! []
