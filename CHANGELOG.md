@@ -1,3 +1,5 @@
+> This project uses [Break Versioning](https://github.com/ptaoussanis/encore/blob/master/BREAK-VERSIONING.md) as of **Aug 16, 2014**.
+
 ## v0.15.1 / 2014 July 21
 
  > Hotfix focused on adjusting default options for Heroku users.
