@@ -1,4 +1,4 @@
-(defproject com.taoensso/sente "0.15.1"
+(defproject com.taoensso/sente "0.15.1-SNAPSHOT"
   :author "Peter Taoussanis <https://www.taoensso.com>"
   :description "Clojure channel sockets library"
   :url "https://github.com/ptaoussanis/sente"
@@ -17,7 +17,9 @@
    [org.clojure/tools.reader  "0.8.5"]
    [com.taoensso/encore       "1.7.0"]
    [com.taoensso/timbre       "3.2.1"]
-   [http-kit                  "2.1.18"]]
+   [http-kit                  "2.1.18"]
+   [com.cognitect/transit-clj "0.8.247"]
+   [com.cognitect/transit-cljs "0.8.182"]]
 
   :plugins
   [[com.keminglabs/cljx "0.4.0"]
