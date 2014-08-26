@@ -53,7 +53,7 @@
 
 #+clj
 (let [{:keys [ch-recv send-fn ajax-post-fn ajax-get-or-ws-handshake-fn
-              connected-uids]}
+              connected-uids] :as chan-sock}
       (sente/make-channel-socket! {})]
   (def ring-ajax-post                ajax-post-fn)
   (def ring-ajax-get-or-ws-handshake ajax-get-or-ws-handshake-fn)
@@ -134,9 +134,9 @@
 ;;;; Setup client-side chsk handlers -------------------------------------------
 
 #+cljs
-(let [{:keys [chsk ch-recv send-fn state]}
+(let [{:keys [chsk ch-recv send-fn state] :as chan-sock}
       (sente/make-channel-socket! "/chsk" ; Note the same URL as before
-        {:type (if (>= (rand) 0.5) :ajax :auto)})]
+                                  {:type (if (>= (rand) 0.5) :ajax :auto)})]
   (def chsk       chsk)
   (def ch-chsk    ch-recv) ; ChannelSocket's receive channel
   (def chsk-send! send-fn) ; ChannelSocket's send API fn
@@ -148,7 +148,7 @@
 #+cljs (logf "ClojureScript appears to have loaded correctly.")
 #+clj
 (defn- event-msg-handler
-  [{:as ev-msg :keys [ring-req event ?reply-fn]} _]
+  [{:as ev-msg :keys [ring-req event ?reply-fn]}]
   (let [session (:session ring-req)
         uid     (:uid session)
         [id data :as ev] event]
@@ -163,7 +163,7 @@
 
 #+clj
 (defonce chsk-router
-  (sente/start-chsk-router-loop! event-msg-handler ch-chsk))
+  (sente/start-message-router! event-msg-handler ch-chsk))
 
 #+cljs
 (defn- event-handler [[id data :as ev] _]
@@ -178,7 +178,7 @@
 
 #+cljs
 (defonce chsk-router
-  (sente/start-chsk-router-loop! event-handler ch-chsk))
+  (sente/start-message-router! event-handler ch-chsk))
 
 ;;;; Example: broadcast server>user
 
