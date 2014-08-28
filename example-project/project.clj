@@ -10,22 +10,23 @@
                 *assert* true}
 
   :dependencies
-  [[org.clojure/clojure       "1.6.0"]
+  [;; [org.clojure/clojure    "1.6.0"]
+   [org.clojure/clojure       "1.7.0-alpha1"] ; May use any v1.5.1+
    ;;
-   [org.clojure/clojurescript "0.0-2268"]
-   [org.clojure/core.async    "0.1.278.0-76b25b-alpha"]
+   [org.clojure/clojurescript "0.0-2322"]
+   [org.clojure/core.async    "0.1.338.0-5c5012-alpha"]
    ;;
    [com.taoensso/sente        "0.15.1"] ; <--- Sente
    [com.taoensso/timbre       "3.2.1"]
    ;;
-   [http-kit                  "2.1.18"] ; <--- http-kit (currently required)
+   [http-kit                  "2.1.19"] ; <--- http-kit (currently required)
    ;;
    [compojure                 "1.1.8"]  ; Or routing lib of your choice
-   [ring                      "1.3.0"]
+   [ring                      "1.3.1"]
    ;; [ring-anti-forgery      "1.0.0"]
    [ring/ring-defaults        "0.1.1"]  ; Incl. `ring-anti-forgery`, etc.
    [hiccup                    "1.0.5"]  ; Optional, just for HTML
-   [org.clojure/core.match    "0.2.1"]  ; Optional but quite handly
+   [org.clojure/core.match    "0.2.2"]  ; Optional but quite handly
    ]
 
   :plugins
@@ -53,4 +54,8 @@
   ;; connect to with Cider+emacs or your IDE of choice:
   :aliases
   {"build-once" ["do" "cljx" "once," "cljsbuild" "once"]
-   "start-dev"  ["repl" ":headless"]})
+   "start-dev"  ["repl" ":headless"]}
+
+  :repositories
+  [["sonatype" {:url "http://oss.sonatype.org/content/repositories/releases"
+                :snapshots false}]])

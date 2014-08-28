@@ -11,15 +11,15 @@
                 *assert* true}
 
   :dependencies
-  [[org.clojure/clojure       "1.5.1"]
-   [org.clojure/clojurescript "0.0-2268"]
-   [org.clojure/core.async    "0.1.278.0-76b25b-alpha"]
-   [org.clojure/tools.reader  "0.8.5"]
-   [com.taoensso/encore       "1.7.0"]
-   [com.taoensso/timbre       "3.2.1"]
-   [http-kit                  "2.1.18"]
-   [com.cognitect/transit-clj "0.8.247"]
-   [com.cognitect/transit-cljs "0.8.182"]]
+  [[org.clojure/clojure        "1.5.1"]
+   [org.clojure/clojurescript  "0.0-2322"]
+   [org.clojure/core.async     "0.1.338.0-5c5012-alpha"]
+   [org.clojure/tools.reader   "0.8.7"]
+   [com.taoensso/encore        "1.7.1"]
+   [com.taoensso/timbre        "3.2.1"]
+   [com.cognitect/transit-clj  "0.8.247"]
+   [com.cognitect/transit-cljs "0.8.184"]
+   [http-kit                   "2.1.19"]]
 
   :plugins
   [[com.keminglabs/cljx "0.4.0"]
@@ -29,15 +29,16 @@
   {;; :default [:base :system :user :provided :dev]
    :server-jvm {:jvm-opts ^:replace ["-server"]}
    :1.6  {:dependencies [[org.clojure/clojure     "1.6.0"]]}
-   :test {:dependencies [[expectations            "2.0.7"]
-                         [org.clojure/test.check  "0.5.8"]
+   :1.7  {:dependencies [[org.clojure/clojure     "1.7.0-alpha1"]]}
+   :test {:dependencies [[expectations            "2.0.9"]
+                         [org.clojure/test.check  "0.5.9"]
                          ;; [com.cemerick/double-check "0.5.7"]
                          ]
           :plugins [[lein-expectations "0.0.8"]
                     [lein-autoexpect   "1.2.2"]]}
 
    :dev
-   [:1.6 :test
+   [:1.7 :test
     {:plugins
      [[lein-pprint                     "1.1.1"]
       [lein-ancient                    "0.5.5"]
@@ -73,7 +74,7 @@
                             #(.replaceFirst (str %) "(.cljs$|.clj$)" ".cljx")}}
 
   :aliases
-  {"test-all"   ["with-profile" "default:+1.6" "expectations"]
+  {"test-all"   ["with-profile" "default:+1.6:+1.7" "expectations"]
    "test-auto"  ["with-profile" "+test" "autoexpect"]
    "build-once" ["do" "cljx" "once," "cljsbuild" "once"]
    "deploy-lib" ["do" "build-once," "deploy" "clojars," "install"]
