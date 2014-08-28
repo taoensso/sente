@@ -1,5 +1,18 @@
 > This project uses [Break Versioning](https://github.com/ptaoussanis/encore/blob/master/BREAK-VERSIONING.md) as of **Aug 16, 2014**.
 
+## v1.0.0-SNAPSHOT / 2014 Sep 1
+
+ > This is a MAJOR but NON-breaking release with a bunch of improvements, most notably efficiency improvements.
+
+ * **NEW**: Added `chsk-destroy!` client-side API fn.
+ * **NEW** [#60]: Several transfer format efficiency improvements (faster, less bandwidth use).
+ * **NEW** [#12], [#59], [#60], [#66], [#67]: Added `:packer` option to client+server-side `make-channel-socket!` fns. This can be used to plug in an arbitrary de/serialization format. The default continues to be edn (which gives the best common-case performance and doesn't require any extra dependencies). An experimental Transit-based packer is included which allows manual + smart (automatic) per-payload format selection. See the updated reference example for details. Big thanks to @ckarlsen for getting the work started on this!
+ * **DEPRECATED**: `start-chsk-router-loop!`->`start-chsk-router!` (both client + server-side). There's a new event-handler format that's consistent between the client + server, and that makes componentizing Sente considerably easier. See the updated reference example for details. Big thanks to @hugoduncan for his work & input on this!
+ * **CHANGE**: Client-side router now traps+logs errors like the server-side router.
+ * **CHANGE**: General code improvements/refactoring, stuff I'd been meaning to do forever and wanted to get in before a v1 release.
+ * **CHANGE**: Further improvements to the reference example to make it play better with LightTable.
+
+
 ## v0.15.1 / 2014 July 21
 
  > Hotfix focused on adjusting default options for Heroku users.
@@ -65,7 +78,7 @@ As always, feedback welcome on any changes here. Have fun, cheers! - Peter
 
 ## v0.10.1 / 2014 Apr 17
 
- * [#27] **FIX** broken :advanced mode compilation (@ostronom).
+ * [#27] **FIX** broken :advanced mode compilation (**@ostronom**).
 
 
 ## v0.10.0 / 2014 Apr 17

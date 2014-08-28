@@ -1,7 +1,7 @@
 **[API docs][]** | **[CHANGELOG][]** | [other Clojure libs][] | [Twitter][] | [contact/contrib](#contact--contributing) | current [Break Version][]:
 
 ```clojure
-[com.taoensso/sente "0.15.1"] ; Stable
+[com.taoensso/sente "1.0.0"] ; Major NON-breaking upgrade (see CHANGELOG for details)
 ```
 
 # Sente, channel sockets for Clojure
@@ -21,16 +21,16 @@ Or: **Clojure(Script) + core.async + WebSockets/Ajax = _The Shiz_**
 ## What's in the box™?
   * **Bidirectional a/sync comms** over both **WebSockets** and **Ajax** (auto-fallback).
   * **Robust**: auto keep-alives, buffering, protocol selection, reconnects. **It just works™**.
-  * Efficient design incl. transparent event batching for **low-bandwidth use, even over Ajax**.
-  * Full, **transparent support for [edn][]** over the wire (JSON, XML, and other arbitrary string-encoded formats may be used as edn strings).
+  * Highly efficient design incl. transparent event batching for **low-bandwidth use, even over Ajax**.
+  * Send arbitrary Clojure vals over [edn][] or [Transit](https://github.com/cognitect/transit-cljs) (JSON, MessagePack, etc.).
   * **Tiny, simple API**: `make-channel-socket!` and you're good to go.
   * Automatic, sensible support for users connected with **multiple clients** and/or devices simultaneously.
   * Realtime info on **which users are connected** over which protocols (v0.10.0+).
   * **Flexible model**: use it anywhere you'd use WebSockets/Ajax/Socket.IO, etc.
   * Standard **Ring security model**: auth as you like, HTTPS when available, CSRF support, etc.
   * **Fully documented, with examples**.
-  * Small: **<900 lines of code** for the entire client+server implementation.
-  * **Supported servers**: currently only [http-kit][] but [PRs welcome](https://github.com/ptaoussanis/sente/issues/2) to add support for additional servers!
+  * **Small codebase**: ~1k lines for the entire client+server implementation.
+  * **Supported servers**: currently only [http-kit][] but a pluggable interface is planned.
 
 
 ### Capabilities
@@ -50,7 +50,7 @@ So you can ignore the underlying protocol and deal directly with Sente's unified
 Add the necessary dependency to your [Leiningen][] `project.clj`. This'll provide your project with both the client (ClojureScript) + server (Clojure) side library code:
 
 ```clojure
-[com.taoensso/sente "0.15.1"]
+[com.taoensso/sente "1.0.0"]
 ```
 
 ### On the server (Clojure) side
@@ -132,7 +132,7 @@ You're good to go! The client will automatically initiate a WebSocket or repeati
 
 #### Client-side API
 
-  * `ch-recv` is a **core.async channel** that'll receive `event`s.
+  * `ch-recv` is a **core.async channel** that'll receive `event-msg`s.
   * `chsk-send!` is a `(fn [event & [?timeout-ms ?cb-fn]])`. This is for standard **client>server req>resp calls**.
 
 #### Server-side API
@@ -145,7 +145,7 @@ You're good to go! The client will automatically initiate a WebSocket or repeati
 Term          | Form                                                                  |
 ------------- | --------------------------------------------------------------------- |
 **event**     | `[<ev-id> <?ev-data>]`, e.g. `[:my-app/some-req {:data "data"}]`      |
-**event-msg** | `{:ring-req _ :event _ :?reply-fn _}`                                 |
+**event-msg** | `{:ring-req _ :event _ :?reply-fn _ :push-fn _ <...>}` (server-side)  |
 `<ev-id>`     | A _namespaced_ keyword like `:my-app/some-req`                        |
 `<?ev-data>`  | An optional _arbitrary edn value_ like `{:data "data"}`               |
 `:ring-req`   | Ring map for Ajax request or WebSocket's initial handshake request    |
@@ -184,7 +184,7 @@ Term          | Form                                                            
 Some important differences to note:
 
   * The Ajax request is slow to initialize, and bulky (HTTP overhead).
-  * The Sente request is pre-initialized (usu. WebSocket), and lean (edn protocol).
+  * The Sente request is pre-initialized (usu. WebSocket), and lean (edn/transit protocol).
 
 ### Ajax/Sente comparison: server>user push
 
@@ -221,13 +221,7 @@ Sure! I use it with Reagent myself. Sente's just a client<->server comms mechani
 
 #### What if I need to use JSON, XML, raw strings, etc.?
 
-Sente uses edn as an _implementation detail_ of its transfer format. Anything sent with Sente will arrive at the other end as _Clojure data_.
-
-Send a map, get a map. Send a vector, get a vector. Send a string, get a string.
-
-And since JSON, XML, etc. are all string-encoded formats, using them with Sente is trivial: just **send the encoded data as a string**, and remember to decode it on the other end however you like.
-
-Relative to network transfer times, the cost of (for example) `json->edn->json->data` vs `json->data` is negligable. It's also worth noting that the additional encoding isn't actually going to waste, it's buying you features implemented transparently by Sente like protocol negotiation and event batching. These can often outweigh any additional encoding cost.
+As of v1, Sente uses an extensible client<->server serialization mechanism. It uses edn by default since this usu. gives good performance and doesn't require any external dependencies. The [reference example project][] shows how you can plug in an alternative de/serializer. In particular, note that Sente ships with a Transit de/serializer that allows manual or smart (automatic) per-payload format selection.
 
 #### How do I route client/server events?
 
