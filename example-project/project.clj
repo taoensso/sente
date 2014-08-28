@@ -27,7 +27,11 @@
    [ring/ring-defaults        "0.1.1"]  ; Incl. `ring-anti-forgery`, etc.
    [hiccup                    "1.0.5"]  ; Optional, just for HTML
    [org.clojure/core.match    "0.2.2"]  ; Optional but quite handly
-   ]
+   ;;
+   ;;; Transit deps optional; may be used to aid perf. of larger data payloads
+   ;;; (see reference example for details):
+   [com.cognitect/transit-clj  "0.8.247"]
+   [com.cognitect/transit-cljs "0.8.184"]]
 
   :plugins
   [[lein-pprint         "1.1.1"]
