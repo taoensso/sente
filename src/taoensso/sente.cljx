@@ -52,9 +52,10 @@
       (chunked transfer encoding). Http-kit _does_ support chunked transfer
       encoding but a small minority of browsers &/or proxies do not. Instead of
       implementing all 3 modes (WebSockets, streaming, long-polling) - it seemed
-      reasonable to focus on the two extremes. In any case client support for
-      WebSockets is growing rapidly so fallback modes will become increasingly
-      irrelevant in time.
+      reasonable to focus on the two extremes (performance + compatibility). In
+      any case client support for WebSockets is growing rapidly so fallback
+      modes will become increasingly irrelevant while the extra simplicity will
+      continue to pay dividends.
 
   General-use notes:
     * Single HTTP req+session persists over entire chsk session but cannot
@@ -131,10 +132,11 @@
 
 #+clj
 (defn event-msg?
-  "Valid {:client-uuid _ :ring-req _ :event _ :?reply-fn _} form?"
+  "Valid {:client-uuid _ :ring-req _ :event _ :?reply-fn _ :channel_socket _} form?"
   [x]
-  (and (map? x) (= (count x) 4)
-       (every? #{:client-uuid :ring-req :event :?reply-fn} (keys x))
+  (and (map? x) (= (count x) 5)
+       (every? #{:client-uuid :ring-req :event :?reply-fn :channel-socket}
+               (keys x))
        (let [{:keys [client-uuid hk-ch ring-req event ?reply-fn]} x]
          (and (string? client-uuid) ; Set by client (Ajax) or server (WebSockets)
               (map? ring-req)
@@ -143,11 +145,13 @@
 
 #+clj
 (defn- receive-event-msg!
-  [ch-recv {:as ev-msg :keys [client-uuid ring-req event ?reply-fn]}]
+  [ch-recv {:as ev-msg
+            :keys [client-uuid ring-req event ?reply-fn channel-socket]}]
   (let [ev-msg*
-        {:client-uuid client-uuid ; Browser-tab / device identifier
-         :ring-req    ring-req
-         :event       (if (event? event) event [:chsk/bad-event event])
+        {:client-uuid    client-uuid ; Browser-tab / device identifier
+         :ring-req       ring-req
+         :event          (if (event? event) event [:chsk/bad-event event])
+         :channel-socket channel-socket
          :?reply-fn
          (if (ifn? ?reply-fn) ?reply-fn
            (-> (fn [resp-clj] ; Dummy warn fn
@@ -224,8 +228,7 @@
     * ajax-get-or-ws-handshake-fn - (fn [ring-req]) ; For Ring GET,       chsk URL
     * connected-uids ; Watchable, read-only (atom {:ws #{_} :ajax #{_} :any #{_}})
 
-  Options:
-    * recv-buf-or-n    ; Used for ch-recv buffer
+  Common options:
     * user-id-fn       ; (fn [ring-req]) -> unique user-id for server>user push.
     * csrf-token-fn    ; (fn [ring-req]) -> CSRF token for Ajax POSTs.
     * send-buf-ms-ajax ; [1]
@@ -293,81 +296,81 @@
                           (when (and      (contains? old-any uid)
                                      (not (contains? new-any uid)))
                             :newly-disconnected))))))]
-            newly-disconnected?))]
+            newly-disconnected?))
+        send-fn (fn [user-id ev & [{:as _opts :keys [flush-send-buffer?]}]]
+                  (let [uid      user-id
+                        uid-name (str (or uid "nil"))
+                        _ (timbre/tracef "Chsk send: (->uid %s) %s" uid-name ev)
+                        _ (assert-event ev)
+                        ev-uuid (encore/uuid-str)
+
+                        flush-buffer!
+                        (fn [type]
+                          (when-let [pulled
+                                     (encore/swap-in!
+                                      send-buffers_ [type]
+                                      (fn [m]
+                                        ;; Don't actually flush unless the event buffered
+                                        ;; with _this_ send call is still buffered (awaiting
+                                        ;; flush). This means that we'll have many (go
+                                        ;; block) buffer flush calls that'll noop. They're
+                                        ;;  cheap, and this approach is preferable to
+                                        ;; alternatives like flush workers.
+                                        (let [[_ ev-uuids] (get m uid)]
+                                          (if (contains? ev-uuids ev-uuid)
+                                            (encore/swapped (dissoc m uid)
+                                                            (get    m uid))
+                                            (encore/swapped m nil)))))]
+                            (let [[buffered-evs ev-uuids] pulled]
+                              (assert (vector? buffered-evs))
+                              (assert (set?    ev-uuids))
+
+                              (let [buffered-evs-edn (pr-str buffered-evs)]
+                                (case type
+                                  :ws   (send-buffered-evs>ws-clients!
+                                         conns_ uid buffered-evs-edn)
+                                  :ajax (send-buffered-evs>ajax-clients!
+                                         conns_ uid buffered-evs-edn))))))]
+
+                    (if (= ev [:chsk/close])
+                      (do
+                        (timbre/debugf "Chsk CLOSING: %s" uid-name)
+
+                        (when flush-send-buffer?
+                          (doseq [type [:ws :ajax]]
+                            (flush-buffer! type)))
+
+                        (doseq [hk-ch      (get-in @conns_ [:ws   uid])] (http-kit/close hk-ch))
+                        (doseq [hk-ch (->> (get-in @conns_ [:ajax uid])
+                                           (vals)
+                                           (map first)
+                                           (remove nil?))] (http-kit/close hk-ch)))
+
+                      (do
+                        ;; Buffer event
+                        (doseq [type [:ws :ajax]]
+                          (encore/swap-in! send-buffers_ [type uid]
+                                           (fn [old-v]
+                                             (if-not old-v [[ev] #{ev-uuid}]
+                                                     (let [[buffered-evs ev-uuids] old-v]
+                                                       [(conj buffered-evs ev)
+                                                        (conj ev-uuids     ev-uuid)])))))
+
+                        ;; Flush event buffers after relevant timeouts:
+                        ;; * May actually flush earlier due to another timeout.
+                        ;; * We send to _all_ of a uid's connections.
+                        ;; * Broadcasting is possible but I'd suggest doing it rarely, and
+                        ;;   only to users we know/expect are actually online.
+                        (go (when-not flush-send-buffer? (<! (async/timeout send-buf-ms-ws)))
+                            (flush-buffer! :ws))
+                        (go (when-not flush-send-buffer? (<! (async/timeout send-buf-ms-ajax)))
+                            (flush-buffer! :ajax)))))
+
+                  nil)]
 
     {:ch-recv ch-recv
      :connected-uids connected-uids_
-     :send-fn ; server>user (by uid) push
-     (fn [user-id ev & [{:as _opts :keys [flush-send-buffer?]}]]
-       (let [uid      user-id
-             uid-name (str (or uid "nil"))
-             _ (timbre/tracef "Chsk send: (->uid %s) %s" uid-name ev)
-             _ (assert-event ev)
-             ev-uuid (encore/uuid-str)
-
-             flush-buffer!
-             (fn [type]
-               (when-let [pulled
-                          (encore/swap-in! send-buffers_ [type]
-                            (fn [m]
-                              ;; Don't actually flush unless the event buffered
-                              ;; with _this_ send call is still buffered (awaiting
-                              ;; flush). This means that we'll have many (go
-                              ;; block) buffer flush calls that'll noop. They're
-                              ;;  cheap, and this approach is preferable to
-                              ;; alternatives like flush workers.
-                              (let [[_ ev-uuids] (get m uid)]
-                                (if (contains? ev-uuids ev-uuid)
-                                  (encore/swapped (dissoc m uid)
-                                                  (get    m uid))
-                                  (encore/swapped m nil)))))]
-                 (let [[buffered-evs ev-uuids] pulled]
-                   (assert (vector? buffered-evs))
-                   (assert (set?    ev-uuids))
-
-                   (let [buffered-evs-edn (pr-str buffered-evs)]
-                     (case type
-                       :ws   (send-buffered-evs>ws-clients!   conns_
-                               uid buffered-evs-edn)
-                       :ajax (send-buffered-evs>ajax-clients! conns_
-                               uid buffered-evs-edn))))))]
-
-         (if (= ev [:chsk/close])
-           (do
-             (timbre/debugf "Chsk CLOSING: %s" uid-name)
-
-             (when flush-send-buffer?
-               (doseq [type [:ws :ajax]]
-                 (flush-buffer! type)))
-
-             (doseq [hk-ch      (get-in @conns_ [:ws   uid])] (http-kit/close hk-ch))
-             (doseq [hk-ch (->> (get-in @conns_ [:ajax uid])
-                                (vals)
-                                (map first)
-                                (remove nil?))] (http-kit/close hk-ch)))
-
-           (do
-             ;; Buffer event
-             (doseq [type [:ws :ajax]]
-               (encore/swap-in! send-buffers_ [type uid]
-                 (fn [old-v]
-                   (if-not old-v [[ev] #{ev-uuid}]
-                     (let [[buffered-evs ev-uuids] old-v]
-                       [(conj buffered-evs ev)
-                        (conj ev-uuids     ev-uuid)])))))
-
-             ;;; Flush event buffers after relevant timeouts:
-             ;; * May actually flush earlier due to another timeout.
-             ;; * We send to _all_ of a uid's connections.
-             ;; * Broadcasting is possible but I'd suggest doing it rarely, and
-             ;;   only to users we know/expect are actually online.
-             (go (when-not flush-send-buffer? (<! (async/timeout send-buf-ms-ws)))
-                 (flush-buffer! :ws))
-             (go (when-not flush-send-buffer? (<! (async/timeout send-buf-ms-ajax)))
-                 (flush-buffer! :ajax)))))
-
-       nil)
-
+     :send-fn send-fn; server>user (by uid) push
      :ajax-post-fn ; Does not participate in `conns_` (has specific req->resp)
      (fn [ring-req]
        (http-kit/with-channel ring-req hk-ch
@@ -386,7 +389,10 @@
                   (timbre/tracef "Chsk send (ajax reply): %s" resp-clj)
                   (let [resp-edn (pr-str resp-clj)]
                     ;; true iff apparent success:
-                    (http-kit/send! hk-ch resp-edn))))})
+                    (http-kit/send! hk-ch resp-edn))))
+              :channel-socket {:ch-recv ch-recv
+                               :connected-uids connected-uids_
+                               :send-fn send-fn}})
 
            (when dummy-cb?
              (timbre/tracef "Chsk send (ajax reply): cb-dummy-200")
@@ -409,7 +415,10 @@
                    {:client-uuid  client-uuid ; Fixed (constant) with handshake
                     :ring-req     ring-req    ; ''
                     :event        event
-                    :?reply-fn    ?reply-fn}))
+                    :?reply-fn    ?reply-fn
+                    :channel-socket {:ch-recv ch-recv
+                                     :connected-uids connected-uids_
+                                     :send-fn send-fn}}))
 
                handshake!
                (fn [hk-ch] (http-kit/send! hk-ch
@@ -784,7 +793,24 @@
     chsk))
 
 #+cljs
-(def ^:private default-chsk-url-fn
+(def default-chsk-url-fn
+  "(ƒ [path window-location websocket?]) -> server-side chsk route URL string.
+
+    * path       - As provided to client-side `make-channel-socket!` fn
+                   (usu. \"/chsk\").
+    * websocket? - True for WebSocket connections, false for Ajax (long-polling)
+                   connections.
+    * window-location - Map with keys:
+      :href     ; \"http://www.example.org:80/foo/bar?q=baz#bang\"
+      :protocol ; \"http:\" ; Note the :
+      :hostname ; \"example.org\"
+      :host     ; \"example.org:80\"
+      :pathname ; \"/foo/bar\"
+      :search   ; \"?q=baz\"
+      :hash     ; \"#bang\"
+
+  Note that the *same* URL is used for: WebSockets, POSTs, GETs. Server-side
+  routes should be configured accordingly."
   (fn [path {:as window-location :keys [protocol host pathname]} websocket?]
     (str (if-not websocket? protocol (if (= protocol "https:") "wss:" "ws:"))
          "//" host (or path pathname))))
@@ -798,12 +824,14 @@
     * send-fn - API fn to send client>server[1].
     * state   - Watchable, read-only (atom {:type _ :open? _ :uid _ :csrf-token _}).
 
-  Note that the *same* URL is used for: WebSockets, POSTs, GETs. Server-side
-  routes should be configured accordingly."
-  [url &
-   & [{:keys [type recv-buf-or-n ws-kalive-ms lp-timeout
-              chsk-url-fn ; (fn [path window-location websocket?]) -> URL string
-              ]
+  Common options:
+    * type         ; e/o #{:auto :ws :ajax}. You'll usually want the default (:auto).
+    * ws-kalive-ms ; Ping to keep a WebSocket conn alive if no activity w/in
+                   ; given number of milliseconds.
+    * lp-kalive-ms ; Ping to keep a long-polling (Ajax) conn alive ''.
+    * chsk-url-fn  ; Please see `default-chsk-url-fn` for details."
+  [path &
+   & [{:keys [type recv-buf-or-n ws-kalive-ms lp-timeout chsk-url-fn]
        :or   {type          :auto
               recv-buf-or-n (async/sliding-buffer 2048) ; Mostly for buffered-evs
               ws-kalive-ms  25000 ; < Heroku 30s conn timeout
@@ -828,7 +856,7 @@
          (and (not= type :ajax)
               (chsk-make!
                 (map->ChWebSocket
-                  {:url           (chsk-url-fn url window-location :ws)
+                  {:url           (chsk-url-fn path window-location :ws)
                    :chs           chs
                    :socket_       (atom nil)
                    :kalive-ms     ws-kalive-ms
@@ -843,7 +871,7 @@
                     ajax-client-uuid (encore/uuid-str)]
                 (chsk-make!
                   (map->ChAjaxSocket
-                    {:url              (chsk-url-fn url window-location (not :ws))
+                    {:url              (chsk-url-fn path window-location (not :ws))
                      :chs              chs
                      :timeout          lp-timeout
                      :ajax-client-uuid ajax-client-uuid
@@ -855,17 +883,25 @@
                         (if (or (not (:open? state)) @ever-opened?_)
                           state
                           (do (reset! ever-opened?_ true)
-                              (assoc state :first-open? true))))]
+                              (assoc state :first-open? true))))
+        ch-sock {:chsk    chsk
+                 :send-fn (partial chsk-send! chsk)
+                 :state   (:state_ chsk)}]
 
     (when chsk
-      {:chsk    chsk
-       :send-fn (partial chsk-send! chsk)
-       :state   (:state_ chsk)
-       :ch-recv
-       (async/merge
-        [(->> (:internal chs) (async/map< (fn [ev] {:pre [(event? ev)]} ev)))
-         (->> (:state chs)    (async/map< (fn [state] [:chsk/state (state* state)])))
-         (->> (:recv  chs)    (async/map< (fn [ev]    [:chsk/recv  ev])))])})))
+      (assoc ch-sock
+        :ch-recv
+        (async/merge
+         [(->> (:internal chs) (async/map< (fn [ev]
+                                             {:pre [(event? ev)]}
+                                             {:event ev
+                                              :channel-socket ch-sock})))
+          (->> (:state chs)    (async/map< (fn [state]
+                                             {:event [:chsk/state (state* state)]
+                                              :channel-socket ch-sock})))
+          (->> (:recv  chs)    (async/map< (fn [ev]
+                                             {:event [:chsk/recv  ev]
+                                              :channel-socket ch-sock})))])))))
 
 ;;;; Routers
 
@@ -888,14 +924,61 @@
         (recur)))
     (fn stop! [] (async/close! ctrl-ch))))
 
+#+clj
+(defn start-message-router!
+  "Start an asynchronous loop that will route received messages to the
+  event-msg-handler function.  Returns a function of no arguments that
+  can be called to stop routing messages."
+  [event-msg-handler ch-recv]
+  (let [ctrl-ch (chan)]
+    (go-loop []
+      (when-not ; nil or ::stop
+        (try
+          (let [[v p] (async/alts! [ch-recv ctrl-ch])]
+            (if (identical? p ctrl-ch)
+              ::stop
+              (let [event-msg v]
+                (try
+                  (timbre/tracef "Event-msg: %s" event-msg)
+                  (event-msg-handler event-msg)
+                  nil
+                  (catch Throwable t
+                    (timbre/errorf
+                     t "Message-router handling error for event: %s"
+                     event-msg))))))
+          (catch Throwable t
+            (timbre/errorf t "Message-router channel error!")))
+        (recur)))
+    (fn stop! [] (async/close! ctrl-ch))))
+
 #+cljs
 (defn start-chsk-router-loop! [event-handler ch]
   (let [ctrl-ch (chan)]
     (go-loop []
       (let [[v p] (async/alts! [ch ctrl-ch])]
         (if (identical? p ctrl-ch) ::stop
-          (let [[id data :as event] v]
+          (let [[id data :as event] (:event v)]
             ;; Provide ch to handler to allow event injection back into loop:
             (event-handler event ch)  ; Allow errors to throw
+            (recur)))))
+    (fn stop! [] (async/close! ctrl-ch))))
+
+#+cljs
+(defn start-message-router!
+  "Start an asynchronous loop that will route received messages to the
+  event-msg-handler function.  Returns a function of no arguments that
+  can be called to stop routing messages."
+  [event-handler ch]
+  (let [ctrl-ch (chan)]
+    (go-loop []
+      (let [[v p] (async/alts! [ch ctrl-ch])]
+        (if (identical? p ctrl-ch)
+          ::stop
+          (let [[id data :as event] (:event v)]
+            ;; Provide channel-socket to handler
+            (event-handler
+             (-> v
+                 (assoc-in [:channel-socket :ch-recv] ch)
+                 (assoc :event event))) ; Allow errors to throw
             (recur)))))
     (fn stop! [] (async/close! ctrl-ch))))

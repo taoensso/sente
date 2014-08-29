@@ -23,9 +23,9 @@
   #+clj
   (:require
    [clojure.string     :as str]
-   [compojure.core     :as comp :refer (defroutes routes GET POST)]
+   [compojure.core     :as comp :refer (defroutes GET POST)]
    [compojure.route    :as route]
-   [compojure.handler  :as comp-handler]
+   [ring.middleware.defaults]
    [hiccup.core        :as hiccup]
    [org.httpkit.server :as http-kit-server]
    [clojure.core.match :as match :refer (match)]
@@ -53,7 +53,7 @@
 
 #+clj
 (let [{:keys [ch-recv send-fn ajax-post-fn ajax-get-or-ws-handshake-fn
-              connected-uids]}
+              connected-uids] :as chan-sock}
       (sente/make-channel-socket! {})]
   (def ring-ajax-post                ajax-post-fn)
   (def ring-ajax-get-or-ws-handshake ajax-get-or-ws-handshake-fn)
@@ -84,34 +84,36 @@
     ))
 
 #+clj
-(defn login! [ring-request]
+(defn login!
+  "Here's where you'll add your server-side login/auth procedure (Friend, etc.).
+  In our simplified example we'll just always successfully authenticate the user
+  with whatever user-id they provided in the auth request."
+  [ring-request]
   (let [{:keys [session params]} ring-request
         {:keys [user-id]} params]
     (logf "Login request: %s" params)
     {:status 200 :session (assoc session :uid user-id)}))
 
 #+clj
-(defroutes my-ring-handler
-  (->
-   (routes
-    (GET  "/"      req (landing-pg-handler req))
-    ;;
-    (GET  "/chsk"  req (ring-ajax-get-or-ws-handshake req))
-    (POST "/chsk"  req (ring-ajax-post                req))
-    (POST "/login" req (login! req))
-    ;;
-    (route/resources "/") ; Static files, notably public/main.js (our cljs target)
-    (route/not-found "<h1>Page not found</h1>"))
+(defroutes my-routes
+  (GET  "/"      req (landing-pg-handler req))
+  ;;
+  (GET  "/chsk"  req (ring-ajax-get-or-ws-handshake req))
+  (POST "/chsk"  req (ring-ajax-post                req))
+  (POST "/login" req (login! req))
+  ;;
+  (route/resources "/") ; Static files, notably public/main.js (our cljs target)
+  (route/not-found "<h1>Page not found</h1>"))
 
-   ;;; Middleware
-
-   ;; Sente adds a :csrf-token param to Ajax requests:
-   (ring-anti-forgery/wrap-anti-forgery
-    {:read-token (fn [req] (-> req :params :csrf-token))})
-
-   compojure.handler/site))
+#+clj
+(def my-ring-handler
+  (let [ring-defaults-config
+        (assoc-in ring.middleware.defaults/site-defaults [:security :anti-forgery]
+          {:read-token (fn [req] (-> req :params :csrf-token))})]
+   (ring.middleware.defaults/wrap-defaults my-routes ring-defaults-config)))
 
 #+clj (defonce http-server_ (atom nil))
+
 #+clj
 (defn stop-http-server! []
   (when-let [current-server @http-server_]
@@ -132,9 +134,9 @@
 ;;;; Setup client-side chsk handlers -------------------------------------------
 
 #+cljs
-(let [{:keys [chsk ch-recv send-fn state]}
+(let [{:keys [chsk ch-recv send-fn state] :as chan-sock}
       (sente/make-channel-socket! "/chsk" ; Note the same URL as before
-        {:type (if (>= (rand) 0.5) :ajax :auto)})]
+                                  {:type (if (>= (rand) 0.5) :ajax :auto)})]
   (def chsk       chsk)
   (def ch-chsk    ch-recv) ; ChannelSocket's receive channel
   (def chsk-send! send-fn) ; ChannelSocket's send API fn
@@ -146,7 +148,7 @@
 #+cljs (logf "ClojureScript appears to have loaded correctly.")
 #+clj
 (defn- event-msg-handler
-  [{:as ev-msg :keys [ring-req event ?reply-fn]} _]
+  [{:as ev-msg :keys [ring-req event ?reply-fn]}]
   (let [session (:session ring-req)
         uid     (:uid session)
         [id data :as ev] event]
@@ -161,7 +163,7 @@
 
 #+clj
 (defonce chsk-router
-  (sente/start-chsk-router-loop! event-msg-handler ch-chsk))
+  (sente/start-message-router! event-msg-handler ch-chsk))
 
 #+cljs
 (defn- event-handler [[id data :as ev] _]
@@ -176,7 +178,7 @@
 
 #+cljs
 (defonce chsk-router
-  (sente/start-chsk-router-loop! event-handler ch-chsk))
+  (sente/start-message-router! event-handler ch-chsk))
 
 ;;;; Example: broadcast server>user
 

@@ -1,4 +1,4 @@
-**[API docs][]** | **[CHANGELOG][]** | [other Clojure libs][] | [Twitter][] | [contact/contributing](#contact--contributing) | current ([semantic][]) version:
+**[API docs][]** | **[CHANGELOG][]** | [other Clojure libs][] | [Twitter][] | [contact/contrib](#contact--contributing) | current [Break Version][]:
 
 ```clojure
 [com.taoensso/sente "0.15.1"] ; Stable
@@ -155,7 +155,7 @@ Term          | Form                                                            
 
   * So clients can use `chsk-send!` to send `event`s to the server. They can optionally request a reply, with timeout.
   * The server can likewise use `chsk-send!` to send `event`s to _all_ the clients (browser tabs, devices, etc.) of a particular connected user by his/her `user-id`.
-  * The server can also use an `event-msg`'s `?reply-fn` to _reply_ to a client `event` using an _arbitrary edn value_.
+  * The server can also use an `event-msg`'s `?reply-fn` to _reply_ to a particular client `event` using an _arbitrary edn value_.
 
 > It's worth noting that the server>user push `(chsk-send! <user-id> <event>)` takes a mandatory **user-id** argument. See the FAQ later for more info.
 
@@ -243,7 +243,7 @@ Yup, it's automatic for both Ajax and WebSockets. If the page serving your JavaS
 
 The [reference example project][] has a fully-baked example.
 
-#### Pageload: How do I know when my channels are ready client-side?
+#### Pageload: How do I know when Sente is ready client-side?
 
 You'll want to listen on the receive channel for a `[:chsk/state {:first-open? true}]` event. That's the signal that the socket's been established.
 
@@ -252,6 +252,20 @@ You'll want to listen on the receive channel for a `[:chsk/state {:first-open? t
 There's a full [reference example project][] in the repo. Call `lein start-dev` in that dir to get a (headless) development repl that you can connect to with [Cider][] (emacs) or your IDE.
 
 Further instructions are provided in the relevant namespace.
+
+#### How can server-side channel socket events modify a user's session?
+
+Recall that server-side `event-msg`s are of the form `{:ring-req _ :event _ :?reply-fn _}`, so each server-side event is accompanied by the relevant[*] Ring request.
+
+> * For WebSocket events this is the initial Ring HTTP handshake request, for Ajax events it's just the Ring HTTP Ajax request.
+
+The Ring request's `:session` key is an immutable value, so how do you modify a session in response to an event? You won't be doing this often, but it can be handy (e.g. for login/logout forms).
+
+You've got two choices:
+
+1. Write any changes directly to your Ring SessionStore (i.e. the mutable state that's actually backing your sessions). You'll need the relevant user's session key, which you can find under your Ring request's `:cookies` key. This is flexible, but requires that you know how+where your session data is being stored.
+
+2. Just use regular HTTP Ajax requests for stuff that needs to modify sessions (like login/logout), since these will automatically go through the usual Ring session middleware and let you modify a session with a simple `{:status 200 :session <new-session>}` response. This is the strategy the reference example takes.
 
 #### Any other questions?
 
@@ -275,7 +289,8 @@ Copyright &copy; 2012-2014 Peter Taoussanis. Distributed under the [Eclipse Publ
 [CHANGELOG]: <https://github.com/ptaoussanis/sente/releases>
 [other Clojure libs]: <https://www.taoensso.com/clojure-libraries>
 [Twitter]: <https://twitter.com/ptaoussanis>
-[semantic]: <http://semver.org/>
+[SemVer]: <http://semver.org/>
+[Break Version]: <https://github.com/ptaoussanis/encore/blob/master/BREAK-VERSIONING.md>
 [reference example project]: <https://github.com/ptaoussanis/sente/tree/master/example-project>
 [Leiningen]: <http://leiningen.org/>
 [CDS]: <http://clojure-doc.org/>
