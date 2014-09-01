@@ -226,11 +226,11 @@
   (do (require '[taoensso.sente.packers.transit :as transit])
       (def edn-packer   interfaces/edn-packer)
       (def flexi-packer (transit/get-flexi-packer)))
-  (unpack edn-packer   (pack edn-packer   nil             "hello"))
-  (unpack flexi-packer (pack flexi-packer nil             "hello"))
-  (unpack flexi-packer (pack flexi-packer {}              [:foo/bar {}] "my-cb-uuid"))
-  (unpack flexi-packer (pack flexi-packer {:msgpack true} [:foo/bar {}] "my-cb-uuid"))
-  (unpack flexi-packer (pack flexi-packer {}              [:foo/bar {}] :ajax-cb)))
+  (unpack edn-packer   (pack edn-packer   nil          "hello"))
+  (unpack flexi-packer (pack flexi-packer nil          "hello"))
+  (unpack flexi-packer (pack flexi-packer {}           [:foo/bar {}] "my-cb-uuid"))
+  (unpack flexi-packer (pack flexi-packer {:json true} [:foo/bar {}] "my-cb-uuid"))
+  (unpack flexi-packer (pack flexi-packer {}           [:foo/bar {}] :ajax-cb)))
 
 ;;;; Server API
 

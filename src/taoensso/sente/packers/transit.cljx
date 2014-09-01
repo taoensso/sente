@@ -22,6 +22,9 @@
             [cognitect.transit :as transit]
             [taoensso.sente.interfaces :as interfaces :refer (pack unpack)]))
 
+;; TODO Nb note that Transit-cljs doesn't seem to actually have msgpack support
+;; for the moment
+
 (defn- get-charset [transit-fmt]
   ;; :msgpack appears to need ISO-8859-1 to retain binary data correctly when
   ;; string-encoded, all other (non-binary) formats can get UTF-8:
@@ -45,28 +48,28 @@
 
 (def ^:private edn-packer     interfaces/edn-packer) ; Alias
 (def ^:private json-packer    (->TransitPacker :json))
-(def ^:private msgpack-packer (->TransitPacker :msgpack))
+;; (def ^:private msgpack-packer (->TransitPacker :msgpack))
 
 ;;;; FlexiPacker
 
-(defn- max-flexi-format? [fmt] (= fmt :msgpack))
+(defn- max-flexi-format? [fmt] (= fmt :json #_:msgpack))
 (def ^:private max-flexi-format
-  (let [ordered-formats [nil :edn :json :msgpack]
+  (let [ordered-formats [nil :edn :json #_:msgpack]
         scored-formats  (zipmap ordered-formats (next (range)))]
     (fn [xs] (apply max-key scored-formats xs))))
 
-(comment (max-flexi-format [:msgpack :json]))
+(comment (max-flexi-format [#_:msgpack :json :edn]))
 
 (defn- auto-flexi-format [x]
   (cond
     (string? x) ; Large strings are common for HTML, etc.
     (let [c (count x)]
-      (cond (> c 500) :msgpack
+      (cond ;; (> c 500) :msgpack
             (> c 300) :json))
 
     (and (sequential? x) (counted? x))
     (let [c (count x)]
-      (cond (> c 50) :msgpack
+      (cond ;; (> c 50) :msgpack
             (> c 20) :json
             ;; TODO Try heuristically? (check random sample, etc.)
             ))))
@@ -83,7 +86,7 @@
           ;;                (auto-flexi-format x))
           fmt (max-flexi-format [?auto-format ?meta-format default-fmt])]
       (case fmt
-        :msgpack (str "m" (pack msgpack-packer x))
+        ;; :msgpack (str "m" (pack msgpack-packer x))
         :json    (str "j" (pack json-packer    x))
         :edn     (str "e" (pack edn-packer     x)))))
 
@@ -91,7 +94,7 @@
     (let [prefix (encore/substr s 0 1)
           s*     (encore/substr s 1)]
       (case prefix
-        "m" (unpack msgpack-packer s*)
+        ;; "m" (unpack msgpack-packer s*)
         "j" (unpack json-packer    s*)
         "e" (unpack edn-packer     s*)
         (throw (ex-info (str "Malformed FlexiPacker data: " s)
@@ -112,7 +115,7 @@
   (let [default-fmt (or ?default-fmt :edn)]
     (assert (#{:edn ; Not a transit format
                ;; Transit formats:
-               :json :json-verbose :msgpack} default-fmt))
+               :json :json-verbose #_:msgpack} default-fmt))
     (->FlexiPacker default-fmt)))
 
 (def default-flexi-packer (get-flexi-packer :edn))
@@ -130,7 +133,7 @@
   (let [data
         {:sm "Hello this is just a small string"
          :md {:a :A :b :B :c :C :d "This is a slightly larger datum, yo"}
-         :lg ^:msgpack
+         :lg ^:json ; ^:msgpack
          {:a "ahjkhfkjdhfkjdhfjkhdfjkhdjkfhdfkjhdfkjsdsfsifsuifuiosudfd"
           :b "fdjhfkjdhfjkdhfjkdhfjkhdjfkhdjkfhdfjkhsfsfiueiuiuiufiuiid"
           :c "fdjhfs[pdopoeiroejlkjfdklfjdkjfkdjfkldsfdfueiuiyqqqhahdhf"
@@ -146,11 +149,11 @@
 
     {:size {:edn     (size edn-packer)
             :json    (size json-packer)
-            :msgpack (size msgpack-packer)
+            ;; :msgpack (size msgpack-packer)
             :flexi   (size (get-flexi-packer))}
      :time {:edn     (bench edn-packer)
             :json    (bench json-packer)
-            :msgpack (bench msgpack-packer)
+            ;; :msgpack (bench msgpack-packer)
             :flexi   (bench (get-flexi-packer))}})
 
   {:size {:edn 35,   :json 43,   :msgpack 41},
