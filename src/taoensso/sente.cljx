@@ -96,6 +96,29 @@
 
 ;; (set-logging-level! :trace) ; For debugging
 
+;;;; Ajax
+
+#+cljs
+(def ajax-call
+  "Alpha - subject to change.
+  Simple+lightweight Ajax via Google Closure. Returns nil, or the xhr instance.
+  Ref. https://developers.google.com/closure/library/docs/xhrio.
+
+  (ajax-call \"/my-post-route\"
+    {:method     :post
+     :params     {:username \"Rich Hickey\"
+                  :type     \"Awesome\"}
+     :headers    {\"Foo\" \"Bar\"}
+     :resp-type  :text
+     :timeout-ms 7000}
+    (fn async-callback [resp-map]
+      (let [{:keys [?status ?error ?content ?content-type]} resp-map]
+        ;; ?status - 200, 404, ..., or nil on no response
+        ;; ?error  - e/o #{:xhr-pool-depleted :exception :http-error :abort
+        ;;                 :timeout <http-error-status> nil}
+        (js/alert (str \"Ajax response: \" resp-map)))))"
+  encore/ajax-lite)
+
 ;;;; Events
 ;; * Clients & server both send `event`s and receive (i.e. route) `event-msg`s.
 
@@ -797,7 +820,7 @@
       chsk)))
 
 #+cljs
-(defrecord ChAjaxSocket [url chs timeout ajax-client-uuid curr-xhr_ state_ packer]
+(defrecord ChAjaxSocket [url chs timeout-ms ajax-client-uuid curr-xhr_ state_ packer]
   IChSocket
   (chsk-send! [chsk ev] (chsk-send! chsk ev nil nil))
   (chsk-send! [chsk ev ?timeout-ms ?cb]
@@ -808,8 +831,8 @@
         (do (warnf "Chsk send against closed chsk.")
             (when ?cb-fn (?cb-fn :chsk/closed)))
         (do
-          (encore/ajax-lite url
-           {:method :post :timeout ?timeout-ms
+          (ajax-call url
+           {:method :post :timeout-ms ?timeout-ms
             :resp-type :text ; We'll do our own pstr decoding
             :params
             (let [ppstr (pack packer (meta ev) ev (when ?cb-fn :ajax-cb))]
@@ -817,14 +840,15 @@
                :ppstr      ppstr
                :csrf-token (:csrf-token @state_)})}
 
-           (fn ajax-cb [{:keys [content error]}]
-             (if error
-               (if (= error :timeout)
+           (fn ajax-cb [{:keys [?error ?content]}]
+             (if ?error
+               (if (= ?error :timeout)
                  (when ?cb-fn (?cb-fn :chsk/timeout))
                  (do (merge>chsk-state! chsk {:open? false})
                      (when ?cb-fn (?cb-fn :chsk/error))))
 
-               (let [resp-ppstr   content
+               (let [content      ?content
+                     resp-ppstr   content
                      [resp-clj _] (unpack packer resp-ppstr)]
                  (if ?cb-fn (?cb-fn resp-clj)
                    (when (not= resp-clj :chsk/dummy-cb-200)
@@ -853,15 +877,15 @@
                ajax-req! ; Just for Pace wrapping below
                (fn []
                  (reset! curr-xhr_
-                   (encore/ajax-lite url
-                     {:method :get :timeout timeout
+                   (ajax-call url
+                     {:method :get :timeout-ms timeout-ms
                       :resp-type :text ; Prefer to do our own pstr reading
                       :params {:_ (encore/now-udt) ; Force uncached resp
                                :ajax-client-uuid ajax-client-uuid}}
-                     (fn ajax-cb [{:keys [content error]}]
-                       (if error
-                         (if (or (= error :timeout)
-                                 (= error :abort) ; Abort => intentional, not err
+                     (fn ajax-cb [{:keys [?error ?content]}]
+                       (if ?error
+                         (if (or (= ?error :timeout)
+                                 (= ?error :abort) ; Abort => intentional, not err
                                  ;; It's particularly important that reconnect
                                  ;; aborts don't mark a chsk as closed since
                                  ;; we've no guarantee that a new handshake will
@@ -873,7 +897,8 @@
                                (retry!)))
 
                          ;; The Ajax long-poller is used only for events, never cbs:
-                         (let [ppstr   content
+                         (let [content ?content
+                               ppstr   content
                                [clj _] (unpack packer ppstr)]
                            (or
                              (handle-when-handshake! chsk clj)
@@ -929,11 +954,12 @@
     :chsk-url-fn  ; Please see `default-chsk-url-fn` for details.
     :packer       ; :edn (default), or an IPacker implementation (experimental)."
   [path &
-   & [{:keys [type recv-buf-or-n ws-kalive-ms lp-timeout chsk-url-fn packer]
+   & [{:keys [type recv-buf-or-n ws-kalive-ms lp-timeout-ms chsk-url-fn packer]
+       :as   opts
        :or   {type          :auto
               recv-buf-or-n (async/sliding-buffer 2048) ; Mostly for buffered-evs
               ws-kalive-ms  25000 ; < Heroku 30s conn timeout
-              lp-timeout    25000 ; ''
+              lp-timeout-ms 25000 ; ''
               chsk-url-fn   default-chsk-url-fn
               packer        :edn}}
       _deprecated-more-opts]]
@@ -941,6 +967,8 @@
   {:pre [(#{:ajax :ws :auto} type)]}
   (when (not (nil? _deprecated-more-opts))
     (warnf "`make-channel-socket!` fn signature CHANGED with Sente v0.10.0."))
+  (when (contains? opts :lp-timeout)
+    (warnf ":lp-timeout opt has CHANGED; please use :lp-timout-ms."))
 
   (let [packer (interfaces/coerce-packer packer)
         window-location (encore/get-window-location)
@@ -988,7 +1016,7 @@
                     {:url              (chsk-url-fn path window-location (not :ws))
                      :chs              private-chs
                      :packer           packer
-                     :timeout          lp-timeout
+                     :timeout-ms       lp-timeout-ms
                      :ajax-client-uuid ajax-client-uuid
                      :curr-xhr_        (atom nil)
                      :state_           (atom {:type :ajax :open? false

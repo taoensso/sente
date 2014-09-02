@@ -235,7 +235,7 @@
             ;;; our channel socket to reconnect, thereby picking up the new
             ;;; session.
 
-            (encore/ajax-lite "/login"
+            (sente/ajax-call "/login"
               {:method :post
                :params {:user-id    (str user-id)
                         :csrf-token (:csrf-token @chsk-state)}}
