@@ -1,7 +1,7 @@
 **[API docs][]** | **[CHANGELOG][]** | [other Clojure libs][] | [Twitter][] | [contact/contrib](#contact--contributing) | current [Break Version][]:
 
 ```clojure
-[com.taoensso/sente "1.0.0"] ; May be BREAKING, see CHANGELOG for details
+[com.taoensso/sente "1.1.0"] ; May be BREAKING, see CHANGELOG for details
 ```
 
 # Sente, channel sockets for Clojure

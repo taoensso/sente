@@ -1,5 +1,12 @@
 > This project uses [Break Versioning](https://github.com/ptaoussanis/encore/blob/master/BREAK-VERSIONING.md) as of **Aug 16, 2014**.
 
+## v1.1.0 / 2014 Sep 7
+
+ * **FIX**: https://github.com/ptaoussanis/timbre/issues/79 (unnecessary deps being pulled in).
+ * **NEW**: Added client-side `ajax-call` utility.
+ * **NEW**: Added keys to `event-msg`s: `:id` (event-id), `:?data` (event-?data).
+
+
 ## v1.0.0 / 2014 Sep 2
 
  > This is a MAJOR release with a bunch of improvements, most notably efficiency improvements. It is BREAKING if-and-only-if you read from the client-side :ch-recv channel directly.
