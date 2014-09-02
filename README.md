@@ -184,7 +184,7 @@ Term          | Form                                                            
 Some important differences to note:
 
   * The Ajax request is slow to initialize, and bulky (HTTP overhead).
-  * The Sente request is pre-initialized (usu. WebSocket), and lean (edn/transit protocol).
+  * The Sente request is pre-initialized (usu. WebSocket), and lean (edn/Transit protocol).
 
 ### Ajax/Sente comparison: server>user push
 
