@@ -2,7 +2,7 @@
 
 ## v1.0.0 / 2014 Sep 2
 
- > This is a MAJOR but NON-breaking release with a bunch of improvements, most notably efficiency improvements.
+ > This is a MAJOR release with a bunch of improvements, most notably efficiency improvements. It is BREAKING if-and-only-if you read from the client-side :ch-recv channel directly.
 
  * **NEW**: Added `chsk-destroy!` client-side API fn.
  * **NEW** [#60]: Several transfer format efficiency improvements (faster, less bandwidth use).
@@ -11,6 +11,7 @@
  * **CHANGE**: Client-side router now traps+logs errors like the server-side router.
  * **CHANGE**: General code improvements/refactoring, stuff I'd been meaning to do forever and wanted to get in before a v1 release.
  * **CHANGE**: Further improvements to the reference example to make it play better with LightTable.
+ * **BREAKING**: the client-side `:ch-recv` channel now receives `event-msg` (maps) rather than `event` (vectors). `(:event <event-msg>)` will return the `event-msg`'s `event`.
 
 
 ## v0.15.1 / 2014 July 21
