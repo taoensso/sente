@@ -14,7 +14,7 @@
   [[org.clojure/clojure        "1.5.1"]
    [org.clojure/clojurescript  "0.0-2322"]
    [org.clojure/core.async     "0.1.338.0-5c5012-alpha"]
-   [org.clojure/tools.reader   "0.8.7"]
+   [org.clojure/tools.reader   "0.8.8"]
    [com.taoensso/encore        "1.8.1"]
    [com.taoensso/timbre        "3.2.1"]
    [http-kit                   "2.1.19"]]
@@ -27,9 +27,9 @@
   {;; :default [:base :system :user :provided :dev]
    :server-jvm {:jvm-opts ^:replace ["-server"]}
    :1.6  {:dependencies [[org.clojure/clojure     "1.6.0"]]}
-   :1.7  {:dependencies [[org.clojure/clojure     "1.7.0-alpha1"]]}
+   :1.7  {:dependencies [[org.clojure/clojure     "1.7.0-alpha2"]]}
    :test {:dependencies [[com.cognitect/transit-clj  "0.8.247"]
-                         [com.cognitect/transit-cljs "0.8.184"]
+                         [com.cognitect/transit-cljs "0.8.188"]
                          [expectations               "2.0.9"]
                          [org.clojure/test.check     "0.5.9"]
                          ;; [com.cemerick/double-check "0.5.7"]

@@ -11,7 +11,7 @@
 
   :dependencies
   [;; [org.clojure/clojure    "1.6.0"]
-   [org.clojure/clojure       "1.7.0-alpha1"] ; May use any v1.5.1+
+   [org.clojure/clojure       "1.7.0-alpha2"] ; May use any v1.5.1+
    ;;
    [org.clojure/clojurescript "0.0-2322"]
    [org.clojure/core.async    "0.1.338.0-5c5012-alpha"]
@@ -21,7 +21,7 @@
    ;;
    [http-kit                  "2.1.19"] ; <--- http-kit (currently required)
    ;;
-   [compojure                 "1.1.8"]  ; Or routing lib of your choice
+   [compojure                 "1.1.9"]  ; Or routing lib of your choice
    [ring                      "1.3.1"]
    ;; [ring-anti-forgery      "1.0.0"]
    [ring/ring-defaults        "0.1.1"]  ; Incl. `ring-anti-forgery`, etc.
@@ -30,7 +30,7 @@
    ;;; Transit deps optional; may be used to aid perf. of larger data payloads
    ;;; (see reference example for details):
    [com.cognitect/transit-clj  "0.8.247"]
-   [com.cognitect/transit-cljs "0.8.184"]]
+   [com.cognitect/transit-cljs "0.8.188"]]
 
   :plugins
   [[lein-pprint         "1.1.1"]
