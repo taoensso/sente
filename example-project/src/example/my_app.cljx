@@ -28,7 +28,6 @@
    [ring.middleware.defaults]
    [hiccup.core        :as hiccup]
    [org.httpkit.server :as http-kit-server]
-   [clojure.core.match :as match :refer (match)]
    [clojure.core.async :as async :refer (<! <!! >! >!! put! chan go go-loop)]
    [taoensso.timbre    :as timbre]
    [taoensso.sente     :as sente]
@@ -39,12 +38,10 @@
 
   #+cljs
   (:require-macros
-   [cljs.core.match.macros :refer (match)]
    [cljs.core.async.macros :as asyncm :refer (go go-loop)])
   #+cljs
   (:require
    [clojure.string  :as str]
-   [cljs.core.match]
    [cljs.core.async :as async  :refer (<! >! put! chan)]
    [taoensso.encore :as encore :refer (logf)]
    [taoensso.sente  :as sente  :refer (cb-success?)]
@@ -126,10 +123,11 @@
 
 ;;;; Client-side setup
 
-(def ^:private random-chsk-type-for-fun (if (>= (rand) 0.5) :ajax :auto))
-
+#+cljs (logf "ClojureScript appears to have loaded correctly.")
 #+cljs
-(let [{:keys [chsk ch-recv send-fn state]}
+(let [random-chsk-type-for-fun (if (>= (rand) 0.5) :ajax :auto)
+
+      {:keys [chsk ch-recv send-fn state]}
       (sente/make-channel-socket! "/chsk" ; Note the same URL as before
         {:type   random-chsk-type-for-fun
          :packer packer})]
@@ -141,67 +139,48 @@
 
 ;;;; Routing handlers
 
-#+cljs (logf "ClojureScript appears to have loaded correctly.")
-#+clj
-(defn- event-msg-handler "Server-side event-msg handler."
-  [{:as   ev-msg
-    :keys [event ring-req ?reply-fn send-fn ; ... Useful stuff in here
-           ]}]
-  (let [session (:session ring-req)
-        uid     (:uid session)
-        [id data :as ev] event]
+;; So you'll want to define one server-side and one client-side
+;; (fn event-msg-handler [ev-msg]) to correctly handle incoming events. How you
+;; actually do this is entirely up to you. In this example we use a multimethod
+;; that dispatches to a method based on the `event-msg`'s event-id. Some
+;; alternatives include a simple `case`/`cond`/`condp` against event-ids, or
+;; `core.match` against events.
 
-    (logf "Event: %s" ev)
-    (match [id data]
-      ;; TODO: Match your events here, reply when appropriate <...>
-      :else
-      (do (logf "Unmatched event: %s" ev)
-          (when-not (:dummy-reply-fn (meta ?reply-fn))
-            (?reply-fn {:umatched-event-as-echoed-from-from-server ev}))))))
+(defmulti event-msg-handler
+  "Dispatch to `event-msg` handler methods by (namespaced) event-id keyword."
+  :ev-id)
+
+#+clj
+(do ; Server-side methods
+  (defmethod event-msg-handler :default ; Fallback
+    [{:as ev-msg :keys [event ev-id ev-?data ring-req ?reply-fn send-fn]}]
+    (let [session (:session ring-req)
+          uid     (:uid     session)]
+      (logf "Unhandled event: %s" event)
+      (when-not (:dummy-reply-fn (meta ?reply-fn))
+        (?reply-fn {:umatched-event-as-echoed-from-from-server event}))))
+
+  ;; Add your (defmethod event-msg-handler <event-id> [ev-msg] <body>)s here...
+  )
 
 #+cljs
-(defn- event-msg-handler "Client-side event-msg handler."
-  [{:as   ev-msg
-    :keys [event ch-recv send-fn ; ... Useful stuff in here
-           ]}]
-  (let [[id data :as ev] event]
+(do ; Client-side methods
+  (defmethod event-msg-handler :default ; Fallback
+    [{:as ev-msg :keys [event]}]
+    (logf "Unhandled event: %s" event))
 
-    (logf "Event: %s" ev)
-    (match [id data]
-      ;; TODO Match your events here <...>
-      [:chsk/state {:first-open? true}]
+  (defmethod event-msg-handler :chsk/state
+    [{:as ev-msg :keys [ev-?data]}]
+    (if (= ev-?data {:first-open? true})
       (logf "Channel socket successfully established!")
+      (logf "Channel socket state change: %s" ev-?data)))
 
-      [:chsk/state new-state] (logf "Chsk state change: %s" new-state)
-      [:chsk/recv  payload]   (logf "Push event from server: %s" payload)
+  (defmethod event-msg-handler :chsk/recv
+    [{:as ev-msg :keys [ev-?data]}]
+    (logf "Push event from server: %s" ev-?data))
 
-      :else (logf "Unmatched event: %s" ev))))
-
-;;;; Example: broadcast server>user
-
-;; As an example of push notifications, we'll setup a server loop to broadcast
-;; an event to _all_ possible user-ids every 10 seconds:
-#+clj
-(defn start-broadcaster! []
-  (go-loop [i 0]
-    (<! (async/timeout 10000))
-    (println (format "Broadcasting server>user: %s" @connected-uids))
-    (doseq [uid (:any @connected-uids)]
-      (chsk-send! uid
-        [:some/broadcast
-         {:what-is-this "A broadcast pushed from server"
-          :how-often    "Every 10 seconds"
-          :to-whom uid
-          :i i}]))
-    (recur (inc i))))
-
-#+clj ; Note that this'll be fast+reliable even over Ajax!:
-(defn test-fast-server>user-pushes []
-  (doseq [uid (:any @connected-uids)]
-    (doseq [i (range 100)]
-      (chsk-send! uid [:fast-push/is-fast (str "hello " i "!!")]))))
-
-(comment (test-fast-server>user-pushes))
+  ;; Add your (defmethod handle-event-msg! <event-id> [ev-msg] <body>)s here...
+  )
 
 ;;;; Client-side UI
 
@@ -242,6 +221,32 @@
               (fn [ajax-resp] (logf "Ajax login response: %s" ajax-resp)))
 
             (sente/chsk-reconnect! chsk)))))))
+
+;;;; Example: broadcast server>user
+
+;; As an example of push notifications, we'll setup a server loop to broadcast
+;; an event to _all_ possible user-ids every 10 seconds:
+#+clj
+(defn start-broadcaster! []
+  (go-loop [i 0]
+    (<! (async/timeout 10000))
+    (println (format "Broadcasting server>user: %s" @connected-uids))
+    (doseq [uid (:any @connected-uids)]
+      (chsk-send! uid
+        [:some/broadcast
+         {:what-is-this "A broadcast pushed from server"
+          :how-often    "Every 10 seconds"
+          :to-whom uid
+          :i i}]))
+    (recur (inc i))))
+
+#+clj ; Note that this'll be fast+reliable even over Ajax!:
+(defn test-fast-server>user-pushes []
+  (doseq [uid (:any @connected-uids)]
+    (doseq [i (range 100)]
+      (chsk-send! uid [:fast-push/is-fast (str "hello " i "!!")]))))
+
+(comment (test-fast-server>user-pushes))
 
 ;;;; Init
 

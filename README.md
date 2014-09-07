@@ -105,13 +105,11 @@ You'll setup something similar on the client side:
 ```clojure
 (ns my-client-side-ns ; .cljs
   (:require-macros
-   [cljs.core.match.macros :refer (match)] ; Optional, useful
    [cljs.core.async.macros :as asyncm :refer (go go-loop)])
   (:require
    ;; <other stuff>
-   [cljs.core.match] ; Optional, useful
    [cljs.core.async :as async :refer (<! >! put! chan)]
-   [taoensso.sente :as sente :refer (cb-success?)] ; <--- Add this
+   [taoensso.sente  :as sente :refer (cb-success?)] ; <--- Add this
   ))
 
 ;;; Add this: --->
@@ -225,7 +223,7 @@ As of v1, Sente uses an extensible client<->server serialization mechanism. It u
 
 #### How do I route client/server events?
 
-However you like! If you don't have many events, a simple `cond` will probably do. I use [core.match][] myself since it's a nice fit and works well with both Clojure and ClojureScript. The [reference example project][] has a fully-baked example.
+However you like! If you don't have many events, a simple `cond` will probably do. Otherwise a multimethod dispatching against event ids works well (this is the approach taken in the [reference example project][].
 
 #### Security: is there HTTPS support?
 
@@ -297,7 +295,6 @@ Copyright &copy; 2012-2014 Peter Taoussanis. Distributed under the [Eclipse Publ
 [Go]: <http://en.wikipedia.org/wiki/Go_game>
 [edn]: <https://github.com/edn-format/edn>
 [http-kit]: <https://github.com/http-kit/http-kit>
-[core.match]: <https://github.com/clojure/core.match>
 [React]: <http://facebook.github.io/react/>
 [Reagent]: <https://github.com/holmsand/reagent>
 [Om]: <https://github.com/swannodette/om>

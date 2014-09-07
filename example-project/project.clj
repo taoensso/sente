@@ -26,7 +26,6 @@
    ;; [ring-anti-forgery      "1.0.0"]
    [ring/ring-defaults        "0.1.1"]  ; Incl. `ring-anti-forgery`, etc.
    [hiccup                    "1.0.5"]  ; Optional, just for HTML
-   [org.clojure/core.match    "0.2.2"]  ; Optional but quite handly
    ;;
    ;;; Transit deps optional; may be used to aid perf. of larger data payloads
    ;;; (see reference example for details):
