@@ -15,13 +15,13 @@
    [org.clojure/clojurescript  "0.0-2322"]
    [org.clojure/core.async     "0.1.338.0-5c5012-alpha"]
    [org.clojure/tools.reader   "0.8.7"]
-   [com.taoensso/encore        "1.7.3"]
+   [com.taoensso/encore        "1.8.1"]
    [com.taoensso/timbre        "3.2.1"]
    [http-kit                   "2.1.19"]]
 
-  :plugins
-  [[com.keminglabs/cljx "0.4.0"]
-   [lein-cljsbuild      "1.0.3"]]
+  ;; :plugins
+  ;; [[com.keminglabs/cljx "0.4.0"]
+  ;;  [lein-cljsbuild      "1.0.3"]]
 
   :profiles
   {;; :default [:base :system :user :provided :dev]
@@ -40,7 +40,11 @@
    :dev
    [:1.7 :test
     {:plugins
-     [[lein-pprint                     "1.1.1"]
+     [;; These must be in :dev, Ref. https://github.com/lynaghk/cljx/issues/47:
+      [com.keminglabs/cljx             "0.4.0"]
+      [lein-cljsbuild                  "1.0.3"]
+      ;;
+      [lein-pprint                     "1.1.1"]
       [lein-ancient                    "0.5.5"]
       [com.cemerick/austin             "0.1.4"]
       [lein-expectations               "0.0.8"]
@@ -64,8 +68,10 @@
                     :pretty-print false}}]}
 
   :test-paths ["test" "src"]
-  ;;:hooks    [cljx.hooks leiningen.cljsbuild]
-  :prep-tasks [["cljx" "once"] "javac" "compile"]
+  ;;:hooks      [cljx.hooks leiningen.cljsbuild]
+  ;;:prep-tasks [["cljx" "once"] "javac" "compile"]
+  :prep-tasks   [["with-profile" "+dev" ; Workaround for :dev cljx
+                  "cljx" "once"] "javac" "compile"]
   :codox {:language :clojure ; [:clojure :clojurescript] ; No support?
           :sources  ["target/classes"]
           :src-linenum-anchor-prefix "L"
