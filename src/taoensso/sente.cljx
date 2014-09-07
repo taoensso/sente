@@ -133,6 +133,8 @@
 
 (defn event? "Valid [ev-id ?ev-data] form?" [x] (nil? (validate-event x)))
 
+(defn as-event [x] (if (event? x) x [:chsk/bad-event x]))
+
 (defn assert-event [x]
   (when-let [?err (validate-event x)]
     (let [err-fmt
@@ -154,7 +156,8 @@
   #+cljs
   (and
     (map? x)
-    (encore/keys= x #{:ch-recv :send-fn :state :event})
+    (encore/keys= x #{:ch-recv :send-fn :state :event
+                      :ev-id :ev-?data})
     (let [{:keys [ch-recv send-fn state event]} x]
       (and
         (chan?        ch-recv)
@@ -166,7 +169,8 @@
   (and
     (map? x)
     (encore/keys= x #{:ch-recv :send-fn :connected-uids
-                      :client-uuid :ring-req :event :?reply-fn})
+                      :client-uuid :ring-req :event :?reply-fn
+                      :ev-id :ev-?data})
     (let [{:keys [ch-recv send-fn connected-uids
                   client-uuid ring-req event ?reply-fn]} x]
       (and
@@ -184,14 +188,16 @@
 (defn- put-event-msg>ch-recv!
   "All server-side `event-msg`s go through this."
   [ch-recv {:as ev-msg :keys [event ?reply-fn]}]
-  (let [valid-event (if (event? event) event [:chsk/bad-event event])
-        ?reply-fn   (if (ifn? ?reply-fn) ?reply-fn
-                      ^:dummy-reply-fn ; Useful for routers, etc.
-                      (fn [resp-clj]
-                        (warnf "Trying to reply to non-cb event: %s (with reply %s)"
+  (let [[ev-id ev-?data :as valid-event] (as-event event)
+        ?reply-fn (if (ifn? ?reply-fn) ?reply-fn
+                    ^:dummy-reply-fn ; Useful for routers, etc.
+                    (fn [resp-clj]
+                      (warnf "Trying to reply to non-cb event: %s (with reply %s)"
                           valid-event resp-clj)))
         ev-msg* (merge ev-msg {:event     valid-event
-                               :?reply-fn ?reply-fn})]
+                               :?reply-fn ?reply-fn
+                               :ev-id     ev-id
+                               :ev-?data  ev-?data})]
     (if-not (event-msg? ev-msg*)
       (warnf "Bad ev-msg: %s" ev-msg) ; Log 'n drop
       (put! ch-recv ev-msg*))))
@@ -642,7 +648,7 @@
   (chsk-destroy!   [chsk] "Kills socket, stops auto-reconnects.")
   (chsk-reconnect! [chsk] "Drops connection, allows auto-reconnect. Useful for reauthenticating after login/logout.")
   (chsk-send!      [chsk ev] [chsk ev ?timeout-ms ?cb]
-    "Sends `[ev-id ?ev-data :as event]`, returns true on apparent success."))
+    "Sends `[ev-id ev-?data :as event]`, returns true on apparent success."))
 
 #+cljs
 (defn- assert-send-args [x ?timeout-ms ?cb]
@@ -982,10 +988,10 @@
                           (do (reset! ever-opened?_ true)
                               (assoc state :first-open? true))))
 
-        public-ch-recv
+        public-ch-recv ; Takes `ev`s, returns `ev-msg`s
         (async/merge
           ;; TODO map< is deprecated in favour of transformers:
-          [(async/map< (fn [ev]    (assert (event? ev)) ev)   (:internal private-chs))
+          [(async/map< (fn [ev]    (as-event ev))             (:internal private-chs))
            (async/map< (fn [state] [:chsk/state (state* state)]) (:state private-chs))
            (async/map< (fn [ev]    [:chsk/recv  ev])          (:<server  private-chs))]
           ;; recv-buf-or-n ; Seems to be malfunctioning
@@ -1027,11 +1033,13 @@
         public-ch-recv
         (async/map<
           ;; All client-side `event-msg`s go through this:
-          (fn ev->ev-msg [ev]
-            {:ch-recv public-ch-recv
-             :send-fn send-fn
-             :state   (:state_ chsk)
-             :event   ev})
+          (fn ev->ev-msg [[ev-id ev-?data :as ev]]
+            {:ch-recv  public-ch-recv
+             :send-fn  send-fn
+             :state    (:state_ chsk)
+             :event    ev
+             :ev-id    ev-id
+             :ev-?data ev-?data})
           public-ch-recv)]
 
     (when chsk
