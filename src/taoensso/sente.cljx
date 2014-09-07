@@ -156,8 +156,7 @@
   #+cljs
   (and
     (map? x)
-    (encore/keys= x #{:ch-recv :send-fn :state :event
-                      :ev-id :ev-?data})
+    (encore/keys= x #{:ch-recv :send-fn :state :event :id :?data})
     (let [{:keys [ch-recv send-fn state event]} x]
       (and
         (chan?        ch-recv)
@@ -169,8 +168,7 @@
   (and
     (map? x)
     (encore/keys= x #{:ch-recv :send-fn :connected-uids
-                      :client-uuid :ring-req :event :?reply-fn
-                      :ev-id :ev-?data})
+                      :client-uuid :ring-req :event :id :?data :?reply-fn})
     (let [{:keys [ch-recv send-fn connected-uids
                   client-uuid ring-req event ?reply-fn]} x]
       (and
@@ -196,8 +194,8 @@
                           valid-event resp-clj)))
         ev-msg* (merge ev-msg {:event     valid-event
                                :?reply-fn ?reply-fn
-                               :ev-id     ev-id
-                               :ev-?data  ev-?data})]
+                               :id        ev-id
+                               :?data     ev-?data})]
     (if-not (event-msg? ev-msg*)
       (warnf "Bad ev-msg: %s" ev-msg) ; Log 'n drop
       (put! ch-recv ev-msg*))))
@@ -1038,8 +1036,8 @@
              :send-fn  send-fn
              :state    (:state_ chsk)
              :event    ev
-             :ev-id    ev-id
-             :ev-?data ev-?data})
+             :id       ev-id
+             :?data    ev-?data})
           public-ch-recv)]
 
     (when chsk

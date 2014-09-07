@@ -146,14 +146,16 @@
 ;; alternatives include a simple `case`/`cond`/`condp` against event-ids, or
 ;; `core.match` against events.
 
-(defmulti event-msg-handler
-  "Dispatch to `event-msg` handler methods by (namespaced) event-id keyword."
-  :ev-id)
+(defmulti event-msg-handler :id) ; Dispatch on event-id
+;; Wrap for logging, catching, etc.:
+(defn     event-msg-handler* [{:as ev-msg :keys [id ?data event]}]
+  (logf "Event: %s" event)
+  (event-msg-handler ev-msg))
 
 #+clj
 (do ; Server-side methods
   (defmethod event-msg-handler :default ; Fallback
-    [{:as ev-msg :keys [event ev-id ev-?data ring-req ?reply-fn send-fn]}]
+    [{:as ev-msg :keys [event id ?data ring-req ?reply-fn send-fn]}]
     (let [session (:session ring-req)
           uid     (:uid     session)]
       (logf "Unhandled event: %s" event)
@@ -170,14 +172,14 @@
     (logf "Unhandled event: %s" event))
 
   (defmethod event-msg-handler :chsk/state
-    [{:as ev-msg :keys [ev-?data]}]
-    (if (= ev-?data {:first-open? true})
+    [{:as ev-msg :keys [?data]}]
+    (if (= ?data {:first-open? true})
       (logf "Channel socket successfully established!")
-      (logf "Channel socket state change: %s" ev-?data)))
+      (logf "Channel socket state change: %s" ?data)))
 
   (defmethod event-msg-handler :chsk/recv
-    [{:as ev-msg :keys [ev-?data]}]
-    (logf "Push event from server: %s" ev-?data))
+    [{:as ev-msg :keys [?data]}]
+    (logf "Push event from server: %s" ?data))
 
   ;; Add your (defmethod handle-event-msg! <event-id> [ev-msg] <body>)s here...
   )
@@ -271,7 +273,7 @@
 (defn  stop-router! [] (when-let [stop-f @router_] (stop-f)))
 (defn start-router! []
   (stop-router!)
-  (reset! router_ (sente/start-chsk-router! ch-chsk event-msg-handler)))
+  (reset! router_ (sente/start-chsk-router! ch-chsk event-msg-handler*)))
 
 (defn start! []
   (start-router!)
