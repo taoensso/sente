@@ -946,6 +946,7 @@
 (defn make-channel-socket!
   "Returns a map with keys:
     :ch-recv ; core.async channel to receive `event-msg`s (internal or from clients).
+             ; May `put!` (inject) arbitrary `event`s to this channel.
     :send-fn ; (fn [event & [?timeout-ms ?cb-fn]]) for client>server send.
     :state   ; Watchable, read-only (atom {:type _ :open? _ :uid _ :csrf-token _}).
     :chsk    ; IChSocket implementer. You can usu. ignore this.
@@ -986,10 +987,12 @@
                           (do (reset! ever-opened?_ true)
                               (assoc state :first-open? true))))
 
-        public-ch-recv ; Takes `ev`s, returns `ev-msg`s
+        ;;; TODO
+        ;; * map< is deprecated in favour of transducers.
+        ;; * Maybe allow a flag to skip wrapping of :chsk/recv events?.
+        public-ch-recv
         (async/merge
-          ;; TODO map< is deprecated in favour of transformers:
-          [(async/map< (fn [ev]    (as-event ev))             (:internal private-chs))
+          [(:internal private-chs)
            (async/map< (fn [state] [:chsk/state (state* state)]) (:state private-chs))
            (async/map< (fn [ev]    [:chsk/recv  ev])          (:<server  private-chs))]
           ;; recv-buf-or-n ; Seems to be malfunctioning
@@ -1030,19 +1033,21 @@
 
         public-ch-recv
         (async/map<
-          ;; All client-side `event-msg`s go through this:
-          (fn ev->ev-msg [[ev-id ev-?data :as ev]]
-            {:ch-recv  public-ch-recv
-             :send-fn  send-fn
-             :state    (:state_ chsk)
-             :event    ev
-             :id       ev-id
-             :?data    ev-?data})
+          ;; All client-side `event-msg`s go through this (allows client to
+          ;; inject arbitrary synthetic events into router for handling):
+          (fn ev->ev-msg [ev]
+            (let [[ev-id ev-?data :as ev] (as-event ev)]
+              {:ch-recv  public-ch-recv
+               :send-fn  send-fn
+               :state    (:state_ chsk)
+               :event    ev
+               :id       ev-id
+               :?data    ev-?data}))
           public-ch-recv)]
 
     (when chsk
       {:chsk    chsk
-       :ch-recv public-ch-recv
+       :ch-recv public-ch-recv ; `ev`s->`ev-msg`s ch
        :send-fn send-fn
        :state   (:state_ chsk)})))
 
