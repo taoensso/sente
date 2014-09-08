@@ -1057,7 +1057,7 @@
   "Creates a go-loop to call `(event-msg-handler <event-msg>)` and returns a
   `(fn stop! [])`. Catches & logs errors. Advanced users may choose to instead
   write their own loop against `ch-recv`."
-  [ch-recv event-msg-handler]
+  [ch-recv event-msg-handler & [{:as opts :keys [trace-evs?]}]]
   (let [ch-ctrl (chan)]
     (go-loop []
       (when-not
@@ -1065,17 +1065,18 @@
           (try
             (let [[v p] (async/alts! [ch-recv ch-ctrl])]
               (if (identical? p ch-ctrl) ::stop
-                (let [event-msg v]
+                  (let [{:as event-msg :keys [event]} v]
                   (try
-                    (tracef "Pre-handler event-msg: %s" event-msg)
+                    (when trace-evs?
+                      (tracef "Pre-handler event: %s" event))
                     (if-not (event-msg? event-msg)
                       ;; Shouldn't be possible here, but we're being cautious:
-                      (errorf "Bad event-msg: %s" event-msg) ; Log 'n drop
+                      (errorf "Bad event: %s" event) ; Log 'n drop
                       (event-msg-handler event-msg))
                     nil
                     (catch #+clj Throwable #+cljs :default t
                       (errorf #+clj t
-                        "Chsk router handling error: %s" event-msg))))))
+                        "Chsk router handling error: %s" event))))))
             (catch #+clj Throwable #+cljs :default t
               (errorf #+clj t
                 "Chsk router channel error!"))))
