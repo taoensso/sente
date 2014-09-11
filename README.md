@@ -259,6 +259,14 @@ You've got two choices:
 
 2. Just use regular HTTP Ajax requests for stuff that needs to modify sessions (like login/logout), since these will automatically go through the usual Ring session middleware and let you modify a session with a simple `{:status 200 :session <new-session>}` response. This is the strategy the reference example takes.
 
+#### Any other examples?
+
+Here's some more unofficial/**user-submitted** examples for those interested! (**PRs welcome!**):
+
+Example          | Author        | Comments                                         |
+---------------- | ------------- | ------------------------------------------------ |
+[om-mouse]       | @tf0054       | Basic example: tracks mouse pos using Om.        |
+
 #### Any other questions?
 
 If I've missed something here, feel free to open a GitHub issue or pop me an email!
@@ -301,3 +309,4 @@ Copyright &copy; 2012-2014 Peter Taoussanis. Distributed under the [Eclipse Publ
 [Chord]: <https://github.com/james-henderson/chord>
 [jetty7-websockets-async]: <https://github.com/lynaghk/jetty7-websockets-async>
 [Socket.IO]: <http://socket.io/>
+[om-mouse]: <https://git.geekli.st/tf0054/om-mouse/tree/master>
