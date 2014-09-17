@@ -1061,10 +1061,10 @@
   (let [ch-ctrl (chan)]
     (go-loop []
       (when-not
-        (identical? ::stop
+        (encore/kw-identical? ::stop
           (try
             (let [[v p] (async/alts! [ch-recv ch-ctrl])]
-              (if (identical? p ch-ctrl) ::stop
+              (if (encore/kw-identical? p ch-ctrl) ::stop
                   (let [{:as event-msg :keys [event]} v]
                   (try
                     (when trace-evs?
