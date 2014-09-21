@@ -367,9 +367,7 @@
             newly-disconnected?))
 
         send-fn ; server>user (by uid) push
-        (fn [user-id ev
-            ;; Extra arity currently undocumented:
-            & [{:as _opts :keys [flush-send-buffer?]}]]
+        (fn [user-id ev & [{:as opts :keys [flush?]}]]
           (let [uid      user-id
                 uid-name (str (or uid "nil"))
                 _ (tracef "Chsk send: (->uid %s) %s" uid-name ev)
@@ -413,7 +411,7 @@
             (if (= ev [:chsk/close]) ; Currently undocumented
               (do
                 (debugf "Chsk closing (client may reconnect): %s" uid-name)
-                (when flush-send-buffer?
+                (when flush?
                   (doseq [type [:ws :ajax]]
                     (flush-buffer! type)))
 
@@ -438,9 +436,9 @@
                 ;; * We send to _all_ of a uid's connections.
                 ;; * Broadcasting is possible but I'd suggest doing it rarely, and
                 ;;   only to users we know/expect are actually online.
-                (go (when-not flush-send-buffer? (<! (async/timeout send-buf-ms-ws)))
+                (go (when-not flush? (<! (async/timeout send-buf-ms-ws)))
                   (flush-buffer! :ws))
-                (go (when-not flush-send-buffer? (<! (async/timeout send-buf-ms-ajax)))
+                (go (when-not flush? (<! (async/timeout send-buf-ms-ajax)))
                   (flush-buffer! :ajax)))))
 
           ;; Server-side send is async so nothing useful to return (currently
@@ -665,8 +663,17 @@
   (chsk-init!      [chsk] "Implementation detail.")
   (chsk-destroy!   [chsk] "Kills socket, stops auto-reconnects.")
   (chsk-reconnect! [chsk] "Drops connection, allows auto-reconnect. Useful for reauthenticating after login/logout.")
-  (chsk-send!      [chsk ev] [chsk ev ?timeout-ms ?cb]
-    "Sends `[ev-id ev-?data :as event]`, returns true on apparent success."))
+  (chsk-send!*     [chsk ev opts] "Implementation detail."))
+
+#+cljs
+(defn chsk-send!
+  "Sends `[ev-id ev-?data :as event]`, returns true on apparent success."
+  ([chsk ev]                 (chsk-send! chsk ev {}))
+  ([chsk ev ?timeout-ms ?cb] (chsk-send! chsk ev {:timeout-ms ?timeout-ms
+                                                  :cb         ?cb}))
+  ([chsk ev opts]
+     (tracef "Chsk send: (%s) %s" (assoc opts :cb (boolean (:cb opts))) ev)
+     (chsk-send!* chsk ev opts)))
 
 #+cljs
 (defn- assert-send-args [x ?timeout-ms ?cb]
@@ -745,14 +752,14 @@
      ]
 
   IChSocket
-  (chsk-send! [chsk ev] (chsk-send! chsk ev nil nil))
-  (chsk-send! [chsk ev ?timeout-ms ?cb]
-    ;; (debugf "Chsk send: (%s) %s" (if ?cb "cb" "no cb") ev)
+  (chsk-send!* [chsk ev {:as opts ?timeout-ms :timeout-ms ?cb :cb :keys [flush?]}]
     (assert-send-args ev ?timeout-ms ?cb)
     (let [?cb-fn (cb-chan-as-fn ?cb ev)]
       (if-not (:open? @state_) ; Definitely closed
         (do (warnf "Chsk send against closed chsk.")
             (when ?cb-fn (?cb-fn :chsk/closed)))
+
+        ;; TODO Buffer before sending (but honor `:flush?`)
         (let [?cb-uuid (when ?cb-fn
                          (encore/uuid-str 6)) ; Mini uuid (short-lived, per client)
               ppstr    (pack packer (meta ev) ev ?cb-uuid)]
@@ -846,14 +853,14 @@
 #+cljs
 (defrecord ChAjaxSocket [url chs timeout-ms ajax-client-uuid curr-xhr_ state_ packer]
   IChSocket
-  (chsk-send! [chsk ev] (chsk-send! chsk ev nil nil))
-  (chsk-send! [chsk ev ?timeout-ms ?cb]
-    ;; (debugf "Chsk send: (%s) %s" (if ?cb "cb" "no cb") ev)
+  (chsk-send!* [chsk ev {:as opts ?timeout-ms :timeout-ms ?cb :cb :keys [flush?]}]
     (assert-send-args ev ?timeout-ms ?cb)
     (let [?cb-fn (cb-chan-as-fn ?cb ev)]
       (if-not (:open? @state_) ; Definitely closed
         (do (warnf "Chsk send against closed chsk.")
             (when ?cb-fn (?cb-fn :chsk/closed)))
+
+        ;; TODO Buffer before sending (but honor `:flush?`)
         (do
           (ajax-call url
            {:method :post :timeout-ms ?timeout-ms
