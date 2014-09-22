@@ -94,7 +94,7 @@
   #+clj  (timbre/set-level!           level)
   #+cljs (reset! encore/logging-level level))
 
-(set-logging-level! :trace) ; For debugging
+;; (set-logging-level! :trace) ; For debugging
 
 ;;;; Ajax
 
@@ -307,29 +307,15 @@
         connected-uids_ (atom {:ws #{} :ajax #{} :any #{}})
         send-buffers_   (atom {:ws  {} :ajax  {}}) ; {<uid> [<buffered-evs> <#{ev-uuids}>]}
 
-        _ (add-watch conns_ ::conns-trace
-            (fn [_ _ old new]
-              (when (not= old new) (tracef "conns_ change: %s" (str new)))))
-
-        _ (add-watch connected-uids_ ::connected-uids-trace
-            (fn [_ _ old new]
-              (when (not= old new) (tracef "connected-uids_ change: %s" (str new)))))
-
         connect-uid!
         (fn [type uid]
           (let [newly-connected?
                 (encore/swap-in! connected-uids_ []
                   (fn [{:keys [ws ajax any] :as old-m}]
-                    (assert (set? ws))
-                    (assert (set? ajax))
-                    (assert (set? any))
                     (let [new-m
                           (case type
                             :ws   {:ws (conj ws uid) :ajax ajax            :any (conj any uid)}
                             :ajax {:ws ws            :ajax (conj ajax uid) :any (conj any uid)})]
-                      (assert (set? (:ws   new-m)))
-                      (assert (set? (:ajax new-m)))
-                      (assert (set? (:any  new-m)))
                       (encore/swapped new-m
                         (let [old-any (:any old-m)
                               new-any (:any new-m)]
@@ -343,9 +329,6 @@
           (let [newly-disconnected?
                 (encore/swap-in! connected-uids_ []
                   (fn [{:keys [ws ajax any] :as old-m}]
-                    (assert (set? ws))
-                    (assert (set? ajax))
-                    (assert (set? any))
                     (let [conns' @conns_
                           any-ws-clients?   (contains? (:ws   conns') uid)
                           any-ajax-clients? (contains? (:ajax conns') uid)
@@ -355,9 +338,6 @@
                           {:ws   (if any-ws-clients?   (conj ws   uid) (disj ws   uid))
                            :ajax (if any-ajax-clients? (conj ajax uid) (disj ajax uid))
                            :any  (if any-clients?      (conj any  uid) (disj any  uid))}]
-                      (assert (set? (:ws   new-m)))
-                      (assert (set? (:ajax new-m)))
-                      (assert (set? (:any  new-m)))
                       (encore/swapped new-m
                         (let [old-any (:any old-m)
                               new-any (:any new-m)]
