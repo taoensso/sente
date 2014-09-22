@@ -16,6 +16,8 @@
    [org.clojure/clojurescript "0.0-2322"]
    [org.clojure/core.async    "0.1.338.0-5c5012-alpha"]
    ;;
+   [cider/cider-nrepl         "0.7.0"]  ; Optional, for use with Emacs
+   ;;
    [com.taoensso/sente        "1.1.1-SNAPSHOT"] ; <--- Sente
    [com.taoensso/timbre       "3.3.1"]
    ;;

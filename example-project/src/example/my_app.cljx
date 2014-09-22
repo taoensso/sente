@@ -12,9 +12,11 @@
   INSTRUCTIONS:
     1. Call `lein start-dev` at your terminal.
     2. Connect to development nREPL (port will be printed).
-    3. Evaluate this namespace and `(start!)` in this namespace.
-    4. Open browser & point to local http server (port will be printed).
-    5. Observe browser's console + nREPL's std-out.
+    3. Evaluate this namespace (M-x `cider-load-current-buffer` for CIDER+Emacs).
+    4. Evaluate `(start!)` in this namespace (M-x `cider-eval-last-sexp` for
+       CIDER+Emacs).
+    5. Open browser & point to local http server (port will be printed).
+    6. Observe browser's console + nREPL's std-out.
 
   LIGHT TABLE USERS:
     To configure Cljx support please see Ref. http://goo.gl/fKL5Z4."
