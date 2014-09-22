@@ -15,7 +15,7 @@
    [org.clojure/clojurescript  "0.0-2322"]
    [org.clojure/core.async     "0.1.338.0-5c5012-alpha"]
    [org.clojure/tools.reader   "0.8.8"]
-   [com.taoensso/encore        "1.9.1"]
+   [com.taoensso/encore        "1.9.2"]
    [com.taoensso/timbre        "3.3.1"]
    [http-kit                   "2.1.19"]]
 
