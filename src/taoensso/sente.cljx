@@ -723,6 +723,10 @@
          :csrf-token csrf-token})
       :handled)))
 
+#+cljs
+(defn set-exp-backoff-timeout! [nullary-f & [nattempt]]
+  (.setTimeout js/window nullary-f (encore/exp-backoff (or nattempt 0))))
+
 #+cljs ;; Handles reconnects, keep-alives, callbacks:
 (defrecord ChWebSocket
     [url chs socket_ kalive-ms kalive-timer_ kalive-due?_ nattempt_
@@ -779,7 +783,7 @@
                    (let [nattempt* (swap! nattempt_ inc)]
                      (.clearInterval js/window @kalive-timer_)
                      (warnf "Chsk is closed: will try reconnect (%s)." nattempt*)
-                     (encore/set-exp-backoff-timeout! connect! nattempt*)))]
+                     (set-exp-backoff-timeout! connect! nattempt*)))]
 
              (if-let [socket (try (WebSocket. url)
                                   (catch js/Error e
@@ -881,7 +885,7 @@
                (fn []
                  (let [nattempt* (inc nattempt)]
                    (warnf "Chsk is closed: will try reconnect (%s)." nattempt*)
-                   (encore/set-exp-backoff-timeout!
+                   (set-exp-backoff-timeout!
                      (partial async-poll-for-update! nattempt*)
                      nattempt*)))
 
