@@ -1,4 +1,4 @@
-(defproject com.taoensso.examples/sente "1.1.1-SNAPSHOT"
+(defproject com.taoensso.examples/sente "1.2.0"
   :description "Sente, reference web-app example project"
   :url "https://github.com/ptaoussanis/sente"
   :license {:name "Eclipse Public License"
@@ -18,7 +18,7 @@
    ;;
    [cider/cider-nrepl         "0.7.0"]  ; Optional, for use with Emacs
    ;;
-   [com.taoensso/sente        "1.1.1-SNAPSHOT"] ; <--- Sente
+   [com.taoensso/sente        "1.2.0"] ; <--- Sente
    [com.taoensso/timbre       "3.3.1"]
    ;;
    [http-kit                  "2.1.19"] ; <--- http-kit (currently required)
