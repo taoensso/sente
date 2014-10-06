@@ -147,7 +147,7 @@ Term          | Form                                                            
 `<ev-id>`     | A _namespaced_ keyword like `:my-app/some-req`                        |
 `<?ev-data>`  | An optional _arbitrary edn value_ like `{:data "data"}`               |
 `:ring-req`   | Ring map for Ajax request or WebSocket's initial handshake request    |
-`:?reply-fn`  | Present only when client requested a reply (otherwise logs a warning) |
+`:?reply-fn`  | Present only when client requested a reply.                           |
 
 #### Summary
 
