@@ -161,7 +161,7 @@
     (let [session (:session ring-req)
           uid     (:uid     session)]
       (logf "Unhandled event: %s" event)
-      (when-not (:dummy-reply-fn (meta ?reply-fn))
+      (when ?reply-fn
         (?reply-fn {:umatched-event-as-echoed-from-from-server event}))))
 
   ;; Add your (defmethod event-msg-handler <event-id> [ev-msg] <body>)s here...

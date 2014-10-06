@@ -187,11 +187,11 @@
   "All server-side `event-msg`s go through this."
   [ch-recv {:as ev-msg :keys [event ?reply-fn]}]
   (let [[ev-id ev-?data :as valid-event] (as-event event)
-        ?reply-fn (if (ifn? ?reply-fn) ?reply-fn
-                    ^:dummy-reply-fn ; Useful for routers, etc.
-                    (fn [resp-clj]
-                      (warnf "Trying to reply to non-cb event: %s (with reply %s)"
-                          valid-event resp-clj)))
+        ;; ?reply-fn (if (ifn? ?reply-fn) ?reply-fn
+        ;;             ^:dummy-reply-fn ; Useful for routers, etc.
+        ;;             (fn [resp-clj]
+        ;;               (warnf "Trying to reply to non-cb event: %s (with reply %s)"
+        ;;                   valid-event resp-clj)))
         ev-msg* (merge ev-msg {:event     valid-event
                                :?reply-fn ?reply-fn
                                :id        ev-id
