@@ -265,7 +265,7 @@ Here's some more unofficial/**user-submitted** examples for those interested! (*
 
 Example          | Author        | Comments                                         |
 ---------------- | ------------- | ------------------------------------------------ |
-[om-mouse]       | @tf0054       | Basic example: tracks mouse pos using Om.        |
+[om-mouse]       | [@tf0054]     | Basic example: tracks mouse pos using Om.        |
 
 #### Any other questions?
 
@@ -282,7 +282,6 @@ Otherwise reach me (Peter Taoussanis) at [taoensso.com][] or on [Twitter][]. Che
 ## License
 
 Copyright &copy; 2012-2014 Peter Taoussanis. Distributed under the [Eclipse Public License][], the same as Clojure.
-
 
 [API docs]: <http://ptaoussanis.github.io/sente/>
 [CHANGELOG_]: <https://github.com/ptaoussanis/sente/blob/master/CHANGELOG.md>
@@ -310,3 +309,4 @@ Copyright &copy; 2012-2014 Peter Taoussanis. Distributed under the [Eclipse Publ
 [jetty7-websockets-async]: <https://github.com/lynaghk/jetty7-websockets-async>
 [Socket.IO]: <http://socket.io/>
 [om-mouse]: <https://git.geekli.st/tf0054/om-mouse/tree/master>
+[@tf0054]: https://github.com/tf0054
