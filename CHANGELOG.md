@@ -1,5 +1,15 @@
 > This project uses [Break Versioning](https://github.com/ptaoussanis/encore/blob/master/BREAK-VERSIONING.md) as of **Aug 16, 2014**.
 
+## v1.2.0 / 2014 Oct 6
+
+This is a maintenance update that is **non-breaking UNLESS**:
+1. You are not using the default server-side chsk router.
+2. You are relying on (`?reply-fn <args>)` to log a warning rather than throw an NPE for nil `?reply-fn`s.
+
+ * **FIX**: Broken chsk router shutdown due to http://goo.gl/be8CGP.
+ * **BREAKING** [#77]: No longer substitute a dummy (logging) `?reply-fn` for non-callback events.
+
+
 ## v1.1.0 / 2014 Sep 7
 
  * **FIX**: https://github.com/ptaoussanis/timbre/issues/79 (unnecessary deps being pulled in).

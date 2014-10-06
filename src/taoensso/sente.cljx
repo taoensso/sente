@@ -187,11 +187,11 @@
   "All server-side `event-msg`s go through this."
   [ch-recv {:as ev-msg :keys [event ?reply-fn]}]
   (let [[ev-id ev-?data :as valid-event] (as-event event)
-        ?reply-fn (if (ifn? ?reply-fn) ?reply-fn
-                    ^:dummy-reply-fn ; Useful for routers, etc.
-                    (fn [resp-clj]
-                      (warnf "Trying to reply to non-cb event: %s (with reply %s)"
-                          valid-event resp-clj)))
+        ;; ?reply-fn (if (ifn? ?reply-fn) ?reply-fn
+        ;;             ^:dummy-reply-fn ; Useful for routers, etc.
+        ;;             (fn [resp-clj]
+        ;;               (warnf "Trying to reply to non-cb event: %s (with reply %s)"
+        ;;                   valid-event resp-clj)))
         ev-msg* (merge ev-msg {:event     valid-event
                                :?reply-fn ?reply-fn
                                :id        ev-id
@@ -347,9 +347,7 @@
             newly-disconnected?))
 
         send-fn ; server>user (by uid) push
-        (fn [user-id ev
-            ;; Extra arity currently undocumented:
-            & [{:as _opts :keys [flush-send-buffer?]}]]
+        (fn [user-id ev & [{:as opts :keys [flush?]}]]
           (let [uid      user-id
                 uid-name (str (or uid "nil"))
                 _ (tracef "Chsk send: (->uid %s) %s" uid-name ev)
@@ -393,7 +391,7 @@
             (if (= ev [:chsk/close]) ; Currently undocumented
               (do
                 (debugf "Chsk closing (client may reconnect): %s" uid-name)
-                (when flush-send-buffer?
+                (when flush?
                   (doseq [type [:ws :ajax]]
                     (flush-buffer! type)))
 
@@ -418,9 +416,9 @@
                 ;; * We send to _all_ of a uid's connections.
                 ;; * Broadcasting is possible but I'd suggest doing it rarely, and
                 ;;   only to users we know/expect are actually online.
-                (go (when-not flush-send-buffer? (<! (async/timeout send-buf-ms-ws)))
+                (go (when-not flush? (<! (async/timeout send-buf-ms-ws)))
                   (flush-buffer! :ws))
-                (go (when-not flush-send-buffer? (<! (async/timeout send-buf-ms-ajax)))
+                (go (when-not flush? (<! (async/timeout send-buf-ms-ajax)))
                   (flush-buffer! :ajax)))))
 
           ;; Server-side send is async so nothing useful to return (currently
@@ -645,8 +643,17 @@
   (chsk-init!      [chsk] "Implementation detail.")
   (chsk-destroy!   [chsk] "Kills socket, stops auto-reconnects.")
   (chsk-reconnect! [chsk] "Drops connection, allows auto-reconnect. Useful for reauthenticating after login/logout.")
-  (chsk-send!      [chsk ev] [chsk ev ?timeout-ms ?cb]
-    "Sends `[ev-id ev-?data :as event]`, returns true on apparent success."))
+  (chsk-send!*     [chsk ev opts] "Implementation detail."))
+
+#+cljs
+(defn chsk-send!
+  "Sends `[ev-id ev-?data :as event]`, returns true on apparent success."
+  ([chsk ev]                 (chsk-send! chsk ev {}))
+  ([chsk ev ?timeout-ms ?cb] (chsk-send! chsk ev {:timeout-ms ?timeout-ms
+                                                  :cb         ?cb}))
+  ([chsk ev opts]
+     (tracef "Chsk send: (%s) %s" (assoc opts :cb (boolean (:cb opts))) ev)
+     (chsk-send!* chsk ev opts)))
 
 #+cljs
 (defn- assert-send-args [x ?timeout-ms ?cb]
@@ -716,6 +723,10 @@
          :csrf-token csrf-token})
       :handled)))
 
+#+cljs
+(defn set-exp-backoff-timeout! [nullary-f & [nattempt]]
+  (.setTimeout js/window nullary-f (encore/exp-backoff (or nattempt 0))))
+
 #+cljs ;; Handles reconnects, keep-alives, callbacks:
 (defrecord ChWebSocket
     [url chs socket_ kalive-ms kalive-timer_ kalive-due?_ nattempt_
@@ -725,14 +736,14 @@
      ]
 
   IChSocket
-  (chsk-send! [chsk ev] (chsk-send! chsk ev nil nil))
-  (chsk-send! [chsk ev ?timeout-ms ?cb]
-    ;; (debugf "Chsk send: (%s) %s" (if ?cb "cb" "no cb") ev)
+  (chsk-send!* [chsk ev {:as opts ?timeout-ms :timeout-ms ?cb :cb :keys [flush?]}]
     (assert-send-args ev ?timeout-ms ?cb)
     (let [?cb-fn (cb-chan-as-fn ?cb ev)]
       (if-not (:open? @state_) ; Definitely closed
         (do (warnf "Chsk send against closed chsk.")
             (when ?cb-fn (?cb-fn :chsk/closed)))
+
+        ;; TODO Buffer before sending (but honor `:flush?`)
         (let [?cb-uuid (when ?cb-fn
                          (encore/uuid-str 6)) ; Mini uuid (short-lived, per client)
               ppstr    (pack packer (meta ev) ev ?cb-uuid)]
@@ -772,7 +783,7 @@
                    (let [nattempt* (swap! nattempt_ inc)]
                      (.clearInterval js/window @kalive-timer_)
                      (warnf "Chsk is closed: will try reconnect (%s)." nattempt*)
-                     (encore/set-exp-backoff-timeout! connect! nattempt*)))]
+                     (set-exp-backoff-timeout! connect! nattempt*)))]
 
              (if-let [socket (try (WebSocket. url)
                                   (catch js/Error e
@@ -826,14 +837,14 @@
 #+cljs
 (defrecord ChAjaxSocket [url chs timeout-ms ajax-client-uuid curr-xhr_ state_ packer]
   IChSocket
-  (chsk-send! [chsk ev] (chsk-send! chsk ev nil nil))
-  (chsk-send! [chsk ev ?timeout-ms ?cb]
-    ;; (debugf "Chsk send: (%s) %s" (if ?cb "cb" "no cb") ev)
+  (chsk-send!* [chsk ev {:as opts ?timeout-ms :timeout-ms ?cb :cb :keys [flush?]}]
     (assert-send-args ev ?timeout-ms ?cb)
     (let [?cb-fn (cb-chan-as-fn ?cb ev)]
       (if-not (:open? @state_) ; Definitely closed
         (do (warnf "Chsk send against closed chsk.")
             (when ?cb-fn (?cb-fn :chsk/closed)))
+
+        ;; TODO Buffer before sending (but honor `:flush?`)
         (do
           (ajax-call url
            {:method :post :timeout-ms ?timeout-ms
@@ -874,7 +885,7 @@
                (fn []
                  (let [nattempt* (inc nattempt)]
                    (warnf "Chsk is closed: will try reconnect (%s)." nattempt*)
-                   (encore/set-exp-backoff-timeout!
+                   (set-exp-backoff-timeout!
                      (partial async-poll-for-update! nattempt*)
                      nattempt*)))
 
@@ -946,6 +957,7 @@
 (defn make-channel-socket!
   "Returns a map with keys:
     :ch-recv ; core.async channel to receive `event-msg`s (internal or from clients).
+             ; May `put!` (inject) arbitrary `event`s to this channel.
     :send-fn ; (fn [event & [?timeout-ms ?cb-fn]]) for client>server send.
     :state   ; Watchable, read-only (atom {:type _ :open? _ :uid _ :csrf-token _}).
     :chsk    ; IChSocket implementer. You can usu. ignore this.
@@ -986,10 +998,12 @@
                           (do (reset! ever-opened?_ true)
                               (assoc state :first-open? true))))
 
-        public-ch-recv ; Takes `ev`s, returns `ev-msg`s
+        ;;; TODO
+        ;; * map< is deprecated in favour of transducers.
+        ;; * Maybe allow a flag to skip wrapping of :chsk/recv events?.
+        public-ch-recv
         (async/merge
-          ;; TODO map< is deprecated in favour of transformers:
-          [(async/map< (fn [ev]    (as-event ev))             (:internal private-chs))
+          [(:internal private-chs)
            (async/map< (fn [state] [:chsk/state (state* state)]) (:state private-chs))
            (async/map< (fn [ev]    [:chsk/recv  ev])          (:<server  private-chs))]
           ;; recv-buf-or-n ; Seems to be malfunctioning
@@ -1030,19 +1044,21 @@
 
         public-ch-recv
         (async/map<
-          ;; All client-side `event-msg`s go through this:
-          (fn ev->ev-msg [[ev-id ev-?data :as ev]]
-            {:ch-recv  public-ch-recv
-             :send-fn  send-fn
-             :state    (:state_ chsk)
-             :event    ev
-             :id       ev-id
-             :?data    ev-?data})
+          ;; All client-side `event-msg`s go through this (allows client to
+          ;; inject arbitrary synthetic events into router for handling):
+          (fn ev->ev-msg [ev]
+            (let [[ev-id ev-?data :as ev] (as-event ev)]
+              {:ch-recv  public-ch-recv
+               :send-fn  send-fn
+               :state    (:state_ chsk)
+               :event    ev
+               :id       ev-id
+               :?data    ev-?data}))
           public-ch-recv)]
 
     (when chsk
       {:chsk    chsk
-       :ch-recv public-ch-recv
+       :ch-recv public-ch-recv ; `ev`s->`ev-msg`s ch
        :send-fn send-fn
        :state   (:state_ chsk)})))
 
@@ -1052,25 +1068,26 @@
   "Creates a go-loop to call `(event-msg-handler <event-msg>)` and returns a
   `(fn stop! [])`. Catches & logs errors. Advanced users may choose to instead
   write their own loop against `ch-recv`."
-  [ch-recv event-msg-handler]
+  [ch-recv event-msg-handler & [{:as opts :keys [trace-evs?]}]]
   (let [ch-ctrl (chan)]
     (go-loop []
       (when-not
-        (identical? ::stop
+        (encore/kw-identical? ::stop
           (try
             (let [[v p] (async/alts! [ch-recv ch-ctrl])]
-              (if (identical? p ch-ctrl) ::stop
-                (let [event-msg v]
+              (if (encore/kw-identical? p ch-ctrl) ::stop
+                  (let [{:as event-msg :keys [event]} v]
                   (try
-                    (tracef "Pre-handler event-msg: %s" event-msg)
+                    (when trace-evs?
+                      (tracef "Pre-handler event: %s" event))
                     (if-not (event-msg? event-msg)
                       ;; Shouldn't be possible here, but we're being cautious:
-                      (errorf "Bad event-msg: %s" event-msg) ; Log 'n drop
+                      (errorf "Bad event: %s" event) ; Log 'n drop
                       (event-msg-handler event-msg))
                     nil
                     (catch #+clj Throwable #+cljs :default t
                       (errorf #+clj t
-                        "Chsk router handling error: %s" event-msg))))))
+                        "Chsk router handling error: %s" event))))))
             (catch #+clj Throwable #+cljs :default t
               (errorf #+clj t
                 "Chsk router channel error!"))))
