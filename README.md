@@ -259,6 +259,23 @@ You've got two choices:
 
 2. Just use regular HTTP Ajax requests for stuff that needs to modify sessions (like login/logout), since these will automatically go through the usual Ring session middleware and let you modify a session with a simple `{:status 200 :session <new-session>}` response. This is the strategy the reference example takes.
 
+#### Lifecycle management (component management/shutdown, etc.)
+
+Using something like [stuartsierra/component] or [palletops/leaven]?
+
+Most of Sente's state is held internally to each channel socket (the map returned from client/server calls to `make-channel-socket!`). The absence of global state makes things like testing, and running multiple concurrent connections easy. It also makes integration with your component management easy.
+
+The only thing you _may_[1] want to do on component shutdown is stop any router loops that you've created to dispatch events to handlers. The client/server side `start-chsk-router!` fns both return a `(fn stop [])` that you can call to do this.
+
+> [1] The cost of _not_ doing this is actually negligible (a single parked go thread).
+
+There's also a couple lifecycle libraries that include Sente components:
+
+  1. [danielsz/system] for use with [stuartsierra/component].
+  2. [palletops/bakery] for use with [palletops/leaven].
+
+If you do want a lifecycle management lib, I'm personally fond of Leaven since it's simpler (no auto dependencies) and adds ClojureScript support (which is handy for Sente).
+
 #### Any other examples?
 
 Here's some more unofficial/**user-submitted** examples for those interested! (**PRs welcome!**):
@@ -310,3 +327,7 @@ Copyright &copy; 2012-2014 Peter Taoussanis. Distributed under the [Eclipse Publ
 [Socket.IO]: <http://socket.io/>
 [om-mouse]: <https://git.geekli.st/tf0054/om-mouse/tree/master>
 [@tf0054]: https://github.com/tf0054
+[stuartsierra/component]: https://github.com/stuartsierra/component
+[danielsz/system]: https://github.com/danielsz/system
+[palletops/leaven]: https://github.com/palletops/leaven
+[palletops/bakery]: https://github.com/palletops/bakery
