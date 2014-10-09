@@ -164,6 +164,6 @@
   (start-http-server!)
   (start-broadcaster!))
 
-;; #+clj (start!) ; Server-side auto-start disabled for LightTable, etc.
+;; (start!) ; Server-side auto-start disabled for LightTable, etc.
 (comment (start!)
          (test-fast-server>user-pushes))
