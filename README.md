@@ -143,7 +143,8 @@ You're good to go! The client will automatically initiate a WebSocket or repeati
 Term          | Form                                                                  |
 ------------- | --------------------------------------------------------------------- |
 **event**     | `[<ev-id> <?ev-data>]`, e.g. `[:my-app/some-req {:data "data"}]`      |
-**event-msg** | `{:ring-req _ :event _ :?reply-fn _ :push-fn _ <...>}` (server-side)  |
+**event-msg** (server) | `{:event _ :send-fn _ :?reply-fn _ :ring-req _ <...>}`       |
+**event-msg** (client) | `{:event _ :send-fn _ <...>}`                                |
 `<ev-id>`     | A _namespaced_ keyword like `:my-app/some-req`                        |
 `<?ev-data>`  | An optional _arbitrary edn value_ like `{:data "data"}`               |
 `:ring-req`   | Ring map for Ajax request or WebSocket's initial handshake request    |
