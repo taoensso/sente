@@ -247,9 +247,11 @@ Further instructions are provided in the relevant namespace.
 
 #### How can server-side channel socket events modify a user's session?
 
+> **Update**: [@danielsz](https://github.com/danielsz) has kindly provided a detailed example [here](https://github.com/ptaoussanis/sente/issues/62#issuecomment-58790741).
+
 Recall that server-side `event-msg`s are of the form `{:ring-req _ :event _ :?reply-fn _}`, so each server-side event is accompanied by the relevant[*] Ring request.
 
-> * For WebSocket events this is the initial Ring HTTP handshake request, for Ajax events it's just the Ring HTTP Ajax request.
+> For WebSocket events this is the initial Ring HTTP handshake request, for Ajax events it's just the Ring HTTP Ajax request.
 
 The Ring request's `:session` key is an immutable value, so how do you modify a session in response to an event? You won't be doing this often, but it can be handy (e.g. for login/logout forms).
 
