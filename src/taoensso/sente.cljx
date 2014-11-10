@@ -215,7 +215,7 @@
 
 (defn- unpack* "pstr->clj" [packer pstr]
   (try
-    (assert (string? pstr))
+    (have? string? pstr)
     (interfaces/unpack packer pstr)
     (catch #+clj Throwable #+cljs :default t
       (debugf "Bad package: %s (%s)" pstr t)
@@ -243,7 +243,7 @@
 
 (defn- unpack "prefixed-pstr->[clj ?cb-uuid]"
   [packer prefixed-pstr]
-  (assert (string? prefixed-pstr))
+  (have? string? prefixed-pstr)
   (let [prefix   (encore/substr prefixed-pstr 0 1)
         pstr     (encore/substr prefixed-pstr 1)
         clj      (unpack* packer pstr) ; May be un/wrapped
@@ -387,8 +387,8 @@
                                                (get    m uid))
                                (encore/swapped m nil)))))]
                     (let [[buffered-evs ev-uuids] pulled]
-                      (assert (vector? buffered-evs))
-                      (assert (set?    ev-uuids))
+                      (have? vector? buffered-evs)
+                      (have? set?    ev-uuids)
 
                       (let [packer-metas         (map meta buffered-evs)
                             combined-packer-meta (reduce merge {} packer-metas)
@@ -632,7 +632,7 @@
                               (assoc m k [nil udt-last-connected])))
                           m ks-to-pull)
                         (select-keys m ks-to-pull))))))]
-          (assert (or (nil? ?pulled) (map? ?pulled)))
+          (have? [:or nil? map?] ?pulled)
           (let [?newly-satisfied
                 (when ?pulled
                   (reduce-kv
@@ -706,7 +706,7 @@
   [<event-id>.cb <reply>]."
   [?cb ev]
   (if (or (nil? ?cb) (ifn? ?cb)) ?cb
-    (do (assert (chan? ?cb))
+    (do (have? chan? ?cb)
         (assert-event ev)
         (let [[ev-id _] ev
               cb-ch ?cb]
@@ -717,7 +717,7 @@
 #+cljs
 (defn- receive-buffered-evs! [ch-recv clj]
   (tracef "receive-buffered-evs!: %s" clj)
-  (assert (vector? clj))
+  (have? vector? clj)
   (let [buffered-evs clj]
     (doseq [ev buffered-evs]
       (assert-event ev)
