@@ -62,24 +62,28 @@
   {:author "Peter Taoussanis"}
 
   #+clj
-  (:require [clojure.string :as str]
-            [clojure.core.async :as async :refer (<! <!! >! >!! put! chan
-                                                     go go-loop)]
-            ;; [clojure.tools.reader.edn :as edn]
-            [org.httpkit.server        :as http-kit]
-            [taoensso.encore           :as encore]
-            [taoensso.timbre           :as timbre]
-            [taoensso.sente.interfaces :as interfaces])
+  (:require
+   [clojure.string     :as str]
+   [clojure.core.async :as async :refer (<! <!! >! >!! put! chan
+                                         go go-loop)]
+   ;; [clojure.tools.reader.edn :as edn]
+   [org.httpkit.server        :as http-kit]
+   [taoensso.encore           :as encore :refer (have? have have-in)]
+   [taoensso.timbre           :as timbre]
+   [taoensso.sente.interfaces :as interfaces])
 
   #+cljs
-  (:require [clojure.string  :as str]
-            [cljs.core.async :as async :refer (<! >! put! chan)]
-            ;; [cljs.reader  :as edn]
-            [taoensso.encore :as encore :refer (format)]
-            [taoensso.sente.interfaces :as interfaces])
+  (:require
+   [clojure.string  :as str]
+   [cljs.core.async :as async :refer (<! >! put! chan)]
+   ;; [cljs.reader  :as edn]
+   [taoensso.encore :as encore :refer (format)]
+   [taoensso.sente.interfaces :as interfaces])
 
   #+cljs
-  (:require-macros [cljs.core.async.macros :as asyncm :refer (go go-loop)]))
+  (:require-macros
+   [cljs.core.async.macros :as asyncm :refer (go go-loop)]
+   [taoensso.encore        :as encore :refer (have? have have-in)]))
 
 ;;;; Logging
 
