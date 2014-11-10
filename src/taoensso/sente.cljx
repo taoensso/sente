@@ -312,7 +312,7 @@
         send-buffers_   (atom {:ws  {} :ajax  {}}) ; {<uid> [<buffered-evs> <#{ev-uuids}>]}
 
         connect-uid!
-        (fn [type uid]
+        (fn [type uid] {:pre [(have? uid)]}
           (let [newly-connected?
                 (encore/swap-in! connected-uids_ []
                   (fn [{:keys [ws ajax any] :as old-m}]
@@ -329,7 +329,7 @@
             newly-connected?))
 
         upd-connected-uid! ; Useful for atomic disconnects
-        (fn [uid]
+        (fn [uid] {:pre [(have? uid)]}
           (let [newly-disconnected?
                 (encore/swap-in! connected-uids_ []
                   (fn [{:keys [ws ajax any] :as old-m}]
@@ -352,10 +352,21 @@
 
         send-fn ; server>user (by uid) push
         (fn [user-id ev & [{:as opts :keys [flush?]}]]
-          (let [uid      user-id
-                uid-name (str (or uid "nil"))
-                _ (tracef "Chsk send: (->uid %s) %s" uid-name ev)
-                _ (assert-event ev)
+          (let [uid ; TODO Remove for next breaking release
+                (or user-id
+                  (do
+                    (warnf
+                      (str "Support for sending to `nil` user-ids is DEPRECATED. "
+                           "Please send to `:sente/all-users-without-uid` instead."))
+                    :sente/all-users-without-uid))
+
+                uid     (if (encore/kw-identical? uid :sente/all-users-without-uid)
+                          ::nil-uid uid)
+                _       (assert uid
+                          (str "Support for sending to `nil` user-ids has been REMOVED. "
+                               "Please send to `:sente/all-users-without-uid` instead."))
+                _       (tracef "Chsk send: (->uid %s) %s" uid ev)
+                _       (assert-event ev)
                 ev-uuid (encore/uuid-str)
 
                 flush-buffer!
@@ -394,7 +405,7 @@
 
             (if (= ev [:chsk/close]) ; Currently undocumented
               (do
-                (debugf "Chsk closing (client may reconnect): %s" uid-name)
+                (debugf "Chsk closing (client may reconnect): %s" uid)
                 (when flush?
                   (doseq [type [:ws :ajax]]
                     (flush-buffer! type)))
@@ -466,9 +477,8 @@
      :ajax-get-or-ws-handshake-fn ; Ajax handshake/poll, or WebSocket handshake
      (fn [ring-req]
        (http-kit/with-channel ring-req hk-ch
-         (let [uid        (user-id-fn    ring-req)
+         (let [uid        (or (user-id-fn ring-req) ::nil-uid)
                csrf-token (csrf-token-fn ring-req)
-               uid-name   (str (or uid "nil"))
                client-uuid  ; Browser-tab / device identifier
                (str uid "-" ; Security measure (can't be controlled by client)
                  (or (get-in ring-req [:params :ajax-client-uuid])
@@ -494,7 +504,7 @@
            (if (:websocket? ring-req)
              (do ; WebSocket handshake
                (tracef "New WebSocket channel: %s (%s)"
-                 uid-name (str hk-ch)) ; _Must_ call `str` on ch
+                 uid (str hk-ch)) ; _Must_ call `str` on ch
                (encore/swap-in! conns_ [:ws uid] (fn [s] (conj (or s #{}) hk-ch)))
                (when (connect-uid! :ws uid)
                  (receive-event-msg! [:chsk/uidport-open]))
@@ -720,7 +730,7 @@
              (= (first clj) :chsk/handshake))
     (let [[_ [uid csrf-token]] clj]
       (when (str/blank? csrf-token)
-        (warnf "Sente warning: NO CSRF TOKEN AVAILABLE"))
+        (warnf "NO CSRF TOKEN AVAILABLE FOR USE BY SENTE"))
       (merge>chsk-state! chsk
         {:open?      true
          :uid        uid

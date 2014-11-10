@@ -210,7 +210,7 @@ If you want a simple _per-session_ identity, generate a _random uuid_. If you wa
 
 > Note that user-ids are used **only** for server>user push. client>server requests don't take a user-id.
 
-As of Sente v0.13.0+ it's also possible to send events to clients _without_ a user-id (they simply have a `nil` user-id, and you can send to that as you would any other id).
+As of Sente v0.13.0+ it's also possible to send events to `:sente/all-users-without-uid`.
 
 #### How do I integrate Sente with my usual login/auth procedure?
 
