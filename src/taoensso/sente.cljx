@@ -479,9 +479,10 @@
        (http-kit/with-channel ring-req hk-ch
          (let [uid        (or (user-id-fn ring-req) ::nil-uid)
                csrf-token (csrf-token-fn ring-req)
+               ajax-client-uuid (get-in ring-req [:params :ajax-client-uuid])
                client-uuid  ; Browser-tab / device identifier
                (str uid "-" ; Security measure (can't be controlled by client)
-                 (or (get-in ring-req [:params :ajax-client-uuid])
+                 (or ajax-client-uuid
                      (encore/uuid-str 8) ; Reduced len (combined with uid)
                      ))
 
@@ -550,50 +551,52 @@
                (handshake! hk-ch))
 
              ;; Ajax handshake/poll connection:
-             (let [handshake? ; Initial connection for this client?
-                   (encore/swap-in! conns_ [:ajax uid client-uuid]
-                     (fn [v]
-                       (encore/swapped
-                         [hk-ch (encore/now-udt)]
-                         (nil? v))))]
+             (if (str/blank? ajax-client-uuid)
+               (warnf "Client's Ring request doesn't have a client uuid. Does your server have the necessary keyword Ring middleware?: %s" ring-req)
+               (let [handshake? ; Initial connection for this client?
+                     (encore/swap-in! conns_ [:ajax uid client-uuid]
+                       (fn [v]
+                         (encore/swapped
+                           [hk-ch (encore/now-udt)]
+                           (nil? v))))]
 
-               (when (connect-uid! :ajax uid)
-                 (receive-event-msg! [:chsk/uidport-open]))
+                 (when (connect-uid! :ajax uid)
+                   (receive-event-msg! [:chsk/uidport-open]))
 
-               ;; We rely on `on-close` to trigger for _every_ conn:
-               (http-kit/on-close hk-ch
-                 (fn [status]
-                   (encore/swap-in! conns_ [uid :ajax client-uuid]
-                     (fn [[hk-ch udt-last-connected]] [nil udt-last-connected]))
+                 ;; We rely on `on-close` to trigger for _every_ conn:
+                 (http-kit/on-close hk-ch
+                   (fn [status]
+                     (encore/swap-in! conns_ [uid :ajax client-uuid]
+                       (fn [[hk-ch udt-last-connected]] [nil udt-last-connected]))
 
-                   (let [udt-disconnected (encore/now-udt)]
-                     (go
-                       ;; Allow some time for possible poller reconnects:
-                       (<! (async/timeout 5000))
-                       (let [disconnected?
-                             (encore/swap-in! conns_ [:ajax]
-                               (fn [m] ; {<uid> {<client-uuid> [<?hk-ch> _]}
-                                 (let [[_ ?udt-last-connected]
-                                       (get-in m [uid client-uuid])
-                                       disconnected?
-                                       (and ?udt-last-connected ; Not yet gc'd
-                                            (>= udt-disconnected
-                                              ?udt-last-connected))]
-                                   (if-not disconnected?
-                                     (encore/swapped m (not :disconnected))
-                                     (let [new (dissoc (get m uid) client-uuid)]
-                                       (encore/swapped
-                                         (if (empty? new)
-                                           (dissoc m uid) ; Gc
-                                           (assoc  m uid new))
-                                         :disconnected))))))]
-                         (when disconnected?
-                           (when (upd-connected-uid! uid)
-                             (receive-event-msg! [:chsk/uidport-close]))))))))
+                     (let [udt-disconnected (encore/now-udt)]
+                       (go
+                         ;; Allow some time for possible poller reconnects:
+                         (<! (async/timeout 5000))
+                         (let [disconnected?
+                               (encore/swap-in! conns_ [:ajax]
+                                 (fn [m] ; {<uid> {<client-uuid> [<?hk-ch> _]}
+                                   (let [[_ ?udt-last-connected]
+                                         (get-in m [uid client-uuid])
+                                         disconnected?
+                                         (and ?udt-last-connected ; Not yet gc'd
+                                           (>= udt-disconnected
+                                               ?udt-last-connected))]
+                                     (if-not disconnected?
+                                       (encore/swapped m (not :disconnected))
+                                       (let [new (dissoc (get m uid) client-uuid)]
+                                         (encore/swapped
+                                           (if (empty? new)
+                                             (dissoc m uid) ; Gc
+                                             (assoc  m uid new))
+                                           :disconnected))))))]
+                           (when disconnected?
+                             (when (upd-connected-uid! uid)
+                               (receive-event-msg! [:chsk/uidport-close]))))))))
 
-               (when handshake?
-                 (handshake! hk-ch) ; Client will immediately repoll
-                 ))))))}))
+                 (when handshake?
+                   (handshake! hk-ch) ; Client will immediately repoll
+                   )))))))}))
 
 #+clj
 (defn- send-buffered-evs>ws-clients!
