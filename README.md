@@ -126,7 +126,9 @@ You'll setup something similar on the client side:
 
 ### Now what?
 
-You're good to go! The client will automatically initiate a WebSocket or repeating long-polling connection to your server.
+The client will automatically initiate a WebSocket or repeating long-polling connection to your server. Client<->server events are now ready to transmit over the `ch-chsk` channel.
+
+**Last step**: you'll want to **hook your own event handlers up to this channel**. Please see the [reference example project] for one way of doing this.
 
 #### Client-side API
 
