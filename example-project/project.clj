@@ -11,20 +11,18 @@
 
   :dependencies
   [;; [org.clojure/clojure    "1.6.0"]
-   [org.clojure/clojure       "1.7.0-alpha2"] ; May use any v1.5.1+
+   [org.clojure/clojure       "1.7.0-alpha4"] ; May use any v1.5.1+
    ;;
-   [org.clojure/clojurescript "0.0-2356"]
+   [org.clojure/clojurescript "0.0-2371"]
    [org.clojure/core.async    "0.1.346.0-17112a-alpha"]
    ;;
-   [cider/cider-nrepl         "0.7.0"]  ; Optional, for use with Emacs
-   ;;
-   [com.taoensso/sente        "1.2.0"] ; <--- Sente
+   [com.taoensso/sente        "1.3.0-SNAPSHOT"] ; <--- Sente
    [com.taoensso/timbre       "3.3.1"]
    ;;
    [http-kit                  "2.1.19"] ; <--- http-kit (currently required)
    ;;
-   [compojure                 "1.2.0"]  ; Or routing lib of your choice
-   [ring                      "1.3.1"]
+   [compojure                 "1.2.2"]  ; Or routing lib of your choice
+   [ring                      "1.3.2"]
    ;; [ring-anti-forgery      "1.0.0"]
    [ring/ring-defaults        "0.1.2"]  ; Incl. `ring-anti-forgery`, etc.
    [hiccup                    "1.0.5"]  ; Optional, just for HTML
@@ -32,14 +30,16 @@
    ;;; Transit deps optional; may be used to aid perf. of larger data payloads
    ;;; (see reference example for details):
    [com.cognitect/transit-clj  "0.8.259"]
-   [com.cognitect/transit-cljs "0.8.188"]]
+   [com.cognitect/transit-cljs "0.8.192"]]
 
   :plugins
   [[lein-pprint         "1.1.2"]
    [lein-ancient        "0.5.5"]
    [com.cemerick/austin "0.1.4"]
    [com.keminglabs/cljx "0.4.0"]
-   [lein-cljsbuild      "1.0.3"]]
+   [lein-cljsbuild      "1.0.3"]
+   [cider/cider-nrepl   "0.8.1"] ; Optional, for use with Emacs
+   ]
 
   :hooks [cljx.hooks leiningen.cljsbuild]
   :cljx
