@@ -14,7 +14,7 @@
     * hk-ch - Http-kit Channel.
     * uid   - User-id. An application-level user identifier used for async push.
               May have semantic meaning (e.g. username, email address), or not
-              (e.g. client/random uuid) - app's discretion.
+              (e.g. client/random id) - app's discretion.
     * cb    - Callback.
     * tout  - Timeout.
     * ws    - WebSocket/s.
@@ -166,17 +166,17 @@
   (and
     (map? x)
     (enc/keys= x #{:ch-recv :send-fn :connected-uids
-                   :ring-req :client-uuid
+                   :ring-req :client-id
                    :event :id :?data :?reply-fn})
     (let [{:keys [ch-recv send-fn connected-uids
-                  ring-req client-uuid event ?reply-fn]} x]
+                  ring-req client-id event ?reply-fn]} x]
       (and
         (enc/chan?       ch-recv)
         (ifn?            send-fn)
         (enc/atom?       connected-uids)
         ;;
         (map?            ring-req)
-        (enc/nblank-str? client-uuid)
+        (enc/nblank-str? client-id)
         (event?          event)
         (or (nil? ?reply-fn)
             (ifn? ?reply-fn))))))
@@ -293,8 +293,8 @@
 
   (let [packer  (interfaces/coerce-packer packer)
         ch-recv (chan recv-buf-or-n)
-        conns_  (atom {:ws   {} ; {<uid> {<client-uuid> <hk-ch>}}
-                       :ajax {} ; {<uid> {<client-uuid> [<?hk-ch> <udt-last-connected>]}}
+        conns_  (atom {:ws   {} ; {<uid> {<client-id> <hk-ch>}}
+                       :ajax {} ; {<uid> {<client-id> [<?hk-ch> <udt-last-connected>]}}
                        })
         connected-uids_ (atom {:ws #{} :ajax #{} :any #{}})
         send-buffers_   (atom {:ws  {} :ajax  {}}) ; {<uid> [<buffered-evs> <#{ev-uuids}>]}
@@ -441,16 +441,16 @@
      :ajax-post-fn ; Does not participate in `conns_` (has specific req->resp)
      (fn [ring-req]
        (http-kit/with-channel ring-req hk-ch
-         (let [params         (get ring-req :params)
-               ppstr          (get params   :ppstr)
-               ;; client-uuid (get params :client-uuid) ; Unnecessary here
-               [clj has-cb?]  (unpack packer ppstr)]
+         (let [params        (get ring-req :params)
+               ppstr         (get params   :ppstr)
+               ;; client-id  (get params   :client-id) ; Unnecessary here
+               [clj has-cb?] (unpack packer ppstr)]
 
            (put-event-msg>ch-recv! ch-recv
              (merge ev-msg-const
-               {:client-uuid "unnecessary-for-non-lp-POSTs"
-                :ring-req    ring-req
-                :event       clj
+               {:client-id "unnecessary-for-non-lp-POSTs"
+                :ring-req  ring-req
+                :event     clj
                 :?reply-fn
                 (when has-cb?
                   (fn reply-fn [resp-clj] ; Any clj form
@@ -468,23 +468,23 @@
      :ajax-get-or-ws-handshake-fn ; Ajax handshake/poll, or WebSocket handshake
      (fn [ring-req]
        (http-kit/with-channel ring-req hk-ch
-         (let [csrf-token  (csrf-token-fn ring-req)
-               params      (get ring-req :params)
-               client-uuid (get params   :client-uuid)
-               uid         (or (user-id-fn
-                                 ;; Allow uid to depend on client-uuid
-                                 ;; (keep these private if being used for uids!!)
-                                 (assoc ring-req :client-uuid client-uuid))
-                             ::nil-uid)
+         (let [csrf-token (csrf-token-fn ring-req)
+               params     (get ring-req :params)
+               client-id  (get params   :client-id)
+               uid        (or (user-id-fn
+                                ;; Allow uid to depend on client-id
+                                ;; (keep these private if being used for uids!!)
+                                (assoc ring-req :client-id client-id))
+                            ::nil-uid)
 
                receive-event-msg! ; Partial
                (fn [event & [?reply-fn]]
                  (put-event-msg>ch-recv! ch-recv
                    (merge ev-msg-const
-                     {:client-uuid client-uuid
-                      :ring-req    ring-req
-                      :event       event
-                      :?reply-fn   ?reply-fn})))
+                     {:client-id client-id
+                      :ring-req  ring-req
+                      :event     event
+                      :?reply-fn ?reply-fn})))
 
                handshake!
                (fn [hk-ch]
@@ -493,14 +493,14 @@
                    (let [ppstr (pack packer nil [:chsk/handshake [uid csrf-token]])]
                      ppstr)))]
 
-           (if (str/blank? client-uuid)
-             (warnf "Client's Ring request doesn't have a client uuid. Does your server have the necessary keyword Ring middleware?: %s" ring-req)
+           (if (str/blank? client-id)
+             (warnf "Client's Ring request doesn't have a client id. Does your server have the necessary keyword Ring middleware?: %s" ring-req)
 
              (if (:websocket? ring-req)
                (do ; WebSocket handshake
                  (tracef "New WebSocket channel: %s (%s)"
                    uid (str hk-ch)) ; _Must_ call `str` on ch
-                 (reset-in! conns_ [:ws uid client-uuid] hk-ch)
+                 (reset-in! conns_ [:ws uid client-id] hk-ch)
                  (when (connect-uid! :ws uid)
                    (receive-event-msg! [:chsk/uidport-open]))
 
@@ -521,7 +521,7 @@
                    (fn [status]
                      (swap-in! conns_ [:ws uid]
                        (fn [?m]
-                         (let [new-m (dissoc ?m client-uuid)]
+                         (let [new-m (dissoc ?m client-id)]
                            (if (empty? new-m) :swap/dissoc new-m))))
 
                      ;; (when (upd-connected-uid! uid)
@@ -544,7 +544,7 @@
 
                ;; Ajax handshake/poll connection:
                (let [handshake? ; Initial connection for this client?
-                     (swap-in! conns_ [:ajax uid client-uuid]
+                     (swap-in! conns_ [:ajax uid client-id]
                        (fn [?v] (swapped [hk-ch (enc/now-udt)] (nil? ?v))))]
 
                  (when (connect-uid! :ajax uid)
@@ -553,7 +553,7 @@
                  ;; We rely on `on-close` to trigger for _every_ conn:
                  (http-kit/on-close hk-ch
                    (fn [status]
-                     (swap-in! conns_ [uid :ajax client-uuid]
+                     (swap-in! conns_ [uid :ajax client-id]
                        (fn [[hk-ch udt-last-connected]] [nil udt-last-connected]))
 
                      (let [udt-disconnected (enc/now-udt)]
@@ -563,14 +563,14 @@
                          (let [disconnected?
                                (swap-in! conns_ [:ajax uid]
                                  (fn [?m]
-                                   (let [[_ ?udt-last-connected] (get ?m client-uuid)
+                                   (let [[_ ?udt-last-connected] (get ?m client-id)
                                          disconnected?
                                          (and ?udt-last-connected ; Not yet gc'd
                                            (>= udt-disconnected
                                                ?udt-last-connected))]
                                      (if-not disconnected?
                                        (swapped ?m (not :disconnected))
-                                       (let [new-m (dissoc ?m client-uuid)]
+                                       (let [new-m (dissoc ?m client-id)]
                                          (swapped
                                            (if (empty? new-m) :swap/dissoc new-m)
                                            :disconnected))))))]
@@ -601,14 +601,14 @@
                                            ms-rand       90}}]]
   (comment (* 7 (+ 90 (/ 90 2.0))))
   (let [;; All connected/possibly-reconnecting client uuids:
-        client-uuids-unsatisfied (keys (get-in @conns_ [:ajax uid]))]
-    (when-not (empty? client-uuids-unsatisfied)
-      ;; (tracef "client-uuids-unsatisfied: %s" client-uuids-unsatisfied)
-      (go-loop [n 0 client-uuids-satisfied #{}]
-        (let [?pulled ; nil or {<client-uuid> [<?hk-ch> <udt-last-connected>]}
+        client-ids-unsatisfied (keys (get-in @conns_ [:ajax uid]))]
+    (when-not (empty? client-ids-unsatisfied)
+      ;; (tracef "client-ids-unsatisfied: %s" client-ids-unsatisfied)
+      (go-loop [n 0 client-ids-satisfied #{}]
+        (let [?pulled ; nil or {<client-id> [<?hk-ch> <udt-last-connected>]}
               (swap-in! conns_ [:ajax uid]
-                (fn [m] ; {<client-uuid> [<?hk-ch> <udt-last-connected>]}
-                  (let [ks-to-pull (remove client-uuids-satisfied (keys m))]
+                (fn [m] ; {<client-id> [<?hk-ch> <udt-last-connected>]}
+                  (let [ks-to-pull (remove client-ids-satisfied (keys m))]
                     ;; (tracef "ks-to-pull: %s" ks-to-pull)
                     (if (empty? ks-to-pull)
                       (swapped m nil)
@@ -623,16 +623,16 @@
           (let [?newly-satisfied
                 (when ?pulled
                   (reduce-kv
-                   (fn [s client-uuid [?hk-ch _]]
+                   (fn [s client-id [?hk-ch _]]
                      (if (or (nil? ?hk-ch)
                              ;; hk-ch may have closed already (`send!` will noop):
                              (not (http-kit/send! ?hk-ch buffered-evs-pstr)))
                        s
-                       (conj s client-uuid))) #{} ?pulled))
-                now-satisfied (into client-uuids-satisfied ?newly-satisfied)]
+                       (conj s client-id))) #{} ?pulled))
+                now-satisfied (into client-ids-satisfied ?newly-satisfied)]
             ;; (tracef "now-satisfied: %s" now-satisfied)
             (when (and (< n nmax-attempts)
-                       (some (complement now-satisfied) client-uuids-unsatisfied))
+                       (some (complement now-satisfied) client-ids-unsatisfied))
               ;; Allow some time for possible poller reconnects:
               (<! (async/timeout (+ ms-base (rand-int ms-rand))))
               (recur (inc n) now-satisfied))))))))
@@ -727,7 +727,7 @@
 
 #+cljs ;; Handles reconnects, keep-alives, callbacks:
 (defrecord ChWebSocket
-    [client-uuid url chs socket_ kalive-ms kalive-timer_ kalive-due?_ nattempt_
+    [client-id url chs socket_ kalive-ms kalive-timer_ kalive-due?_ nattempt_
      cbs-waiting_ ; {<cb-uuid> <fn> ...}
      state_       ; {:type _ :open? _ :uid _ :csrf-token _ :destroyed? _}
      packer       ; IPacker
@@ -784,7 +784,7 @@
              (if-let [socket
                       (try
                         (WebSocket. (enc/merge-url-with-query-string url
-                                      {:client-uuid client-uuid}))
+                                      {:client-id client-id}))
                         (catch js/Error e
                           (errorf "WebSocket js/Error: %s" e)
                           nil))]
@@ -835,7 +835,7 @@
       chsk)))
 
 #+cljs
-(defrecord ChAjaxSocket [client-uuid url chs timeout-ms curr-xhr_ state_ packer]
+(defrecord ChAjaxSocket [client-id url chs timeout-ms curr-xhr_ state_ packer]
   IChSocket
   (chsk-send!* [chsk ev {:as opts ?timeout-ms :timeout-ms ?cb :cb :keys [flush?]}]
     (assert-send-args ev ?timeout-ms ?cb)
@@ -853,7 +853,7 @@
             (let [ppstr (pack packer (meta ev) ev (when ?cb-fn :ajax-cb))]
               {:_           (enc/now-udt) ; Force uncached resp
                :csrf-token  (:csrf-token @state_)
-               ;; :client-uuid client-uuid ; Unnecessary here
+               ;; :client-id client-id ; Unnecessary here
                :ppstr       ppstr})}
 
            (fn ajax-cb [{:keys [?error ?content]}]
@@ -894,8 +894,8 @@
              (ajax-call url
                {:method :get :timeout-ms timeout-ms
                 :resp-type :text ; Prefer to do our own pstr reading
-                :params {:_           (enc/now-udt) ; Force uncached resp
-                         :client-uuid client-uuid}}
+                :params {:_         (enc/now-udt) ; Force uncached resp
+                         :client-id client-id}}
                (fn ajax-cb [{:keys [?error ?content]}]
                  (if ?error
                    (if (or (= ?error :timeout)
@@ -964,7 +964,7 @@
     :packer       ; :edn (default), or an IPacker implementation (experimental)."
   [path &
    & [{:keys [type recv-buf-or-n ws-kalive-ms lp-timeout-ms chsk-url-fn packer
-              client-uuid]
+              client-id]
        :as   opts
        :or   {type          :auto
               recv-buf-or-n (async/sliding-buffer 2048) ; Mostly for buffered-evs
@@ -972,11 +972,12 @@
               lp-timeout-ms 25000 ; ''
               chsk-url-fn   default-chsk-url-fn
               packer        :edn
-              client-uuid   (enc/uuid-str)}}
+              client-id     (or (:client-uuid opts) ; Backwards compatibility
+                                (enc/uuid-str))}}
       _deprecated-more-opts]]
 
   {:pre [(have? [:in #{:ajax :ws :auto}] type)
-         (have? enc/nblank-str?          client-uuid)]}
+         (have? enc/nblank-str?          client-id)]}
 
   (when (not (nil? _deprecated-more-opts))
     (warnf "`make-channel-socket!` fn signature CHANGED with Sente v0.10.0."))
@@ -1011,7 +1012,7 @@
          (and (not= type :ajax)
               (chsk-init!
                 (map->ChWebSocket
-                  {:client-uuid   client-uuid
+                  {:client-id     client-id
                    :url           (chsk-url-fn path window-location :ws)
                    :chs           private-chs
                    :packer        packer
@@ -1027,14 +1028,14 @@
          (and (not= type :ws)
               (chsk-init!
                 (map->ChAjaxSocket
-                  {:client-uuid      client-uuid
-                   :url              (chsk-url-fn path window-location (not :ws))
-                   :chs              private-chs
-                   :packer           packer
-                   :timeout-ms       lp-timeout-ms
-                   :curr-xhr_        (atom nil)
-                   :state_           (atom {:type :ajax :open? false
-                                            :destroyed? false})}))))
+                  {:client-id  client-id
+                   :url        (chsk-url-fn path window-location (not :ws))
+                   :chs        private-chs
+                   :packer     packer
+                   :timeout-ms lp-timeout-ms
+                   :curr-xhr_  (atom nil)
+                   :state_     (atom {:type :ajax :open? false
+                                      :destroyed? false})}))))
 
         _ (assert chsk "Failed to create channel socket")
         send-fn (partial chsk-send! chsk)
