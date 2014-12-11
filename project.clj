@@ -12,15 +12,15 @@
 
   :dependencies
   [[org.clojure/clojure        "1.5.1"]
-   [org.clojure/clojurescript  "0.0-2371"]
+   [org.clojure/clojurescript  "0.0-2411"]
    [org.clojure/core.async     "0.1.346.0-17112a-alpha"]
-   [org.clojure/tools.reader   "0.8.12"]
-   [com.taoensso/encore        "1.18.0"]
+   [org.clojure/tools.reader   "0.8.13"]
+   [com.taoensso/encore        "1.18.3"]
    [com.taoensso/timbre        "3.3.1"]
    [http-kit                   "2.1.19"]]
 
   ;; :plugins
-  ;; [[com.keminglabs/cljx "0.4.0"]
+  ;; [[com.keminglabs/cljx "0.5.0"]
   ;;  [lein-cljsbuild      "1.0.3"]]
 
   :profiles
@@ -29,9 +29,9 @@
    :1.6  {:dependencies [[org.clojure/clojure     "1.6.0"]]}
    :1.7  {:dependencies [[org.clojure/clojure     "1.7.0-alpha3"]]}
    :test {:dependencies [[com.cognitect/transit-clj  "0.8.259"]
-                         [com.cognitect/transit-cljs "0.8.188"]
-                         [expectations               "2.0.12"]
-                         [org.clojure/test.check     "0.5.9"]
+                         [com.cognitect/transit-cljs "0.8.194"]
+                         [expectations               "2.0.13"]
+                         [org.clojure/test.check     "0.6.1"]
                          ;; [com.cemerick/double-check "0.5.7"]
                          ]
           :plugins [[lein-expectations "0.0.8"]
@@ -41,7 +41,7 @@
    [:1.7 :test
     {:plugins
      [;; These must be in :dev, Ref. https://github.com/lynaghk/cljx/issues/47:
-      [com.keminglabs/cljx             "0.4.0"]
+      [com.keminglabs/cljx             "0.5.0"]
       [lein-cljsbuild                  "1.0.3"]
       ;;
       [lein-pprint                     "1.1.1"]
@@ -68,10 +68,7 @@
                     :pretty-print false}}]}
 
   :test-paths ["test" "src"]
-  ;;:hooks      [cljx.hooks leiningen.cljsbuild]
-  ;;:prep-tasks [["cljx" "once"] "javac" "compile"]
-  :prep-tasks   [["with-profile" "+dev" ; Workaround for :dev cljx
-                  "cljx" "once"] "javac" "compile"]
+  :prep-tasks [["cljx" "once"] "javac" "compile"]
   :codox {:language :clojure ; [:clojure :clojurescript] ; No support?
           :sources  ["target/classes"]
           :src-linenum-anchor-prefix "L"
