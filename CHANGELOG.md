@@ -1,10 +1,20 @@
 > This project uses [Break Versioning](https://github.com/ptaoussanis/encore/blob/master/BREAK-VERSIONING.md) as of **Aug 16, 2014**.
 
+## v1.3.0-RC1 / 2014 Dec 11
+
+ > This is a maintenance release focused on general housekeeping + on adding some user-id flexibility.
+
+ * **DEPRECATED** [#85]: Server->user broadcasts should now use `:sente/all-users-without-uid` instead of `nil` uid when intending to broadcast to users _without_ a user id. The new behaviour is less accident prone.
+ * **CHANGE** [#84]: Warn when necessary Ring middleware is missing.
+ * **NEW** [#82]: Server-side `:user-id-fn`'s Ring request now includes a `:client-id` arg provided by clients.
+ * Various doc+example improvements.
+
+
 ## v1.2.0 / 2014 Oct 6
 
-This is a maintenance update that is **non-breaking UNLESS**:
-1. You are not using the default server-side chsk router.
-2. You are relying on (`?reply-fn <args>)` to log a warning rather than throw an NPE for nil `?reply-fn`s.
+> This is a maintenance release that is **non-breaking UNLESS**:
+> 1. You are not using the default server-side chsk router.
+> 2. You are relying on (`?reply-fn <args>)` to log a warning rather than throw an NPE for nil `?reply-fn`s.
 
  * **FIX**: Broken chsk router shutdown due to http://goo.gl/be8CGP.
  * **BREAKING** [#77]: No longer substitute a dummy (logging) `?reply-fn` for non-callback events.

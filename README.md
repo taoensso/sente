@@ -1,7 +1,8 @@
 **[API docs][]** | **[CHANGELOG][]** | [other Clojure libs][] | [Twitter][] | [contact/contrib](#contact--contributing) | current [Break Version][]:
 
 ```clojure
-[com.taoensso/sente "1.2.0"] ; Please see CHANGELOG for details
+[com.taoensso/sente "1.2.0"]     ; Stable
+[com.taoensso/sente "1.3.0-RC1"] ; Please see CHANGELOG for details
 ```
 
 # Sente, channel sockets for Clojure
@@ -126,7 +127,9 @@ You'll setup something similar on the client side:
 
 ### Now what?
 
-You're good to go! The client will automatically initiate a WebSocket or repeating long-polling connection to your server.
+The client will automatically initiate a WebSocket or repeating long-polling connection to your server. Client<->server events are now ready to transmit over the `ch-chsk` channel.
+
+**Last step**: you'll want to **hook your own event handlers up to this channel**. Please see the [reference example project] for one way of doing this.
 
 #### Client-side API
 
@@ -143,11 +146,12 @@ You're good to go! The client will automatically initiate a WebSocket or repeati
 Term          | Form                                                                  |
 ------------- | --------------------------------------------------------------------- |
 **event**     | `[<ev-id> <?ev-data>]`, e.g. `[:my-app/some-req {:data "data"}]`      |
-**event-msg** | `{:ring-req _ :event _ :?reply-fn _ :push-fn _ <...>}` (server-side)  |
+**event-msg** (server) | `{:event _ :send-fn _ :?reply-fn _ :ring-req _ <...>}`       |
+**event-msg** (client) | `{:event _ :send-fn _ <...>}`                                |
 `<ev-id>`     | A _namespaced_ keyword like `:my-app/some-req`                        |
 `<?ev-data>`  | An optional _arbitrary edn value_ like `{:data "data"}`               |
 `:ring-req`   | Ring map for Ajax request or WebSocket's initial handshake request    |
-`:?reply-fn`  | Present only when client requested a reply (otherwise logs a warning) |
+`:?reply-fn`  | Present only when client requested a reply.                           |
 
 #### Summary
 
@@ -207,7 +211,7 @@ If you want a simple _per-session_ identity, generate a _random uuid_. If you wa
 
 > Note that user-ids are used **only** for server>user push. client>server requests don't take a user-id.
 
-As of Sente v0.13.0+ it's also possible to send events to clients _without_ a user-id (they simply have a `nil` user-id, and you can send to that as you would any other id).
+As of Sente v0.13.0+ it's also possible to send events to `:sente/all-users-without-uid`.
 
 #### How do I integrate Sente with my usual login/auth procedure?
 
@@ -247,9 +251,11 @@ Further instructions are provided in the relevant namespace.
 
 #### How can server-side channel socket events modify a user's session?
 
+> **Update**: [@danielsz](https://github.com/danielsz) has kindly provided a detailed example [here](https://github.com/ptaoussanis/sente/issues/62#issuecomment-58790741).
+
 Recall that server-side `event-msg`s are of the form `{:ring-req _ :event _ :?reply-fn _}`, so each server-side event is accompanied by the relevant[*] Ring request.
 
-> * For WebSocket events this is the initial Ring HTTP handshake request, for Ajax events it's just the Ring HTTP Ajax request.
+> For WebSocket events this is the initial Ring HTTP handshake request, for Ajax events it's just the Ring HTTP Ajax request.
 
 The Ring request's `:session` key is an immutable value, so how do you modify a session in response to an event? You won't be doing this often, but it can be handy (e.g. for login/logout forms).
 
@@ -259,13 +265,30 @@ You've got two choices:
 
 2. Just use regular HTTP Ajax requests for stuff that needs to modify sessions (like login/logout), since these will automatically go through the usual Ring session middleware and let you modify a session with a simple `{:status 200 :session <new-session>}` response. This is the strategy the reference example takes.
 
+#### Lifecycle management (component management/shutdown, etc.)
+
+Using something like [stuartsierra/component] or [palletops/leaven]?
+
+Most of Sente's state is held internally to each channel socket (the map returned from client/server calls to `make-channel-socket!`). The absence of global state makes things like testing, and running multiple concurrent connections easy. It also makes integration with your component management easy.
+
+The only thing you _may_[1] want to do on component shutdown is stop any router loops that you've created to dispatch events to handlers. The client/server side `start-chsk-router!` fns both return a `(fn stop [])` that you can call to do this.
+
+> [1] The cost of _not_ doing this is actually negligible (a single parked go thread).
+
+There's also a couple lifecycle libraries that include Sente components:
+
+  1. [danielsz/system] for use with [stuartsierra/component].
+  2. [palletops/bakery] for use with [palletops/leaven].
+
+If you do want a lifecycle management lib, I'm personally fond of Leaven since it's simpler (no auto dependencies) and adds ClojureScript support (which is handy for Sente).
+
 #### Any other examples?
 
 Here's some more unofficial/**user-submitted** examples for those interested! (**PRs welcome!**):
 
 Example          | Author        | Comments                                         |
 ---------------- | ------------- | ------------------------------------------------ |
-[om-mouse]       | @tf0054       | Basic example: tracks mouse pos using Om.        |
+[om-mouse]       | [@tf0054]     | Basic example: tracks mouse pos using Om.        |
 
 #### Any other questions?
 
@@ -282,7 +305,6 @@ Otherwise reach me (Peter Taoussanis) at [taoensso.com][] or on [Twitter][]. Che
 ## License
 
 Copyright &copy; 2012-2014 Peter Taoussanis. Distributed under the [Eclipse Public License][], the same as Clojure.
-
 
 [API docs]: <http://ptaoussanis.github.io/sente/>
 [CHANGELOG_]: <https://github.com/ptaoussanis/sente/blob/master/CHANGELOG.md>
@@ -310,3 +332,8 @@ Copyright &copy; 2012-2014 Peter Taoussanis. Distributed under the [Eclipse Publ
 [jetty7-websockets-async]: <https://github.com/lynaghk/jetty7-websockets-async>
 [Socket.IO]: <http://socket.io/>
 [om-mouse]: <https://git.geekli.st/tf0054/om-mouse/tree/master>
+[@tf0054]: https://github.com/tf0054
+[stuartsierra/component]: https://github.com/stuartsierra/component
+[danielsz/system]: https://github.com/danielsz/system
+[palletops/leaven]: https://github.com/palletops/leaven
+[palletops/bakery]: https://github.com/palletops/bakery
