@@ -121,7 +121,13 @@
   (let [ring-defaults-config
         (assoc-in ring.middleware.defaults/site-defaults [:security :anti-forgery]
           {:read-token (fn [req] (-> req :params :csrf-token))})]
-   (ring.middleware.defaults/wrap-defaults my-routes ring-defaults-config)))
+
+    ;; NB: Sente requires the Ring `wrap-params` + `wrap-keyword-params`
+    ;; middleware to work. These are included with
+    ;; `ring.middleware.defaults/wrap-defaults` - but you'll need to ensure
+    ;; that they're included yourself if you're not using `wrap-defaults`.
+    ;;
+    (ring.middleware.defaults/wrap-defaults my-routes ring-defaults-config)))
 
 ;;;; Client-side setup
 
