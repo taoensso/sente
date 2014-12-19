@@ -37,15 +37,18 @@
    [lein-ancient        "0.5.5"]
    [com.cemerick/austin "0.1.4"]
    [com.keminglabs/cljx "0.5.0"]
-   [lein-cljsbuild      "1.0.3"]
+   [lein-cljsbuild      "1.0.4-SNAPSHOT"]
    [cider/cider-nrepl   "0.8.1"] ; Optional, for use with Emacs
    ]
 
-  :hooks [cljx.hooks leiningen.cljsbuild]
+  :prep-tasks [["cljx" "once"] ["cljsbuild" "once"] "javac" "compile"]
+
   :cljx
   {:builds
    [{:source-paths ["src"] :rules :clj  :output-path "target/classes"}
     {:source-paths ["src"] :rules :cljs :output-path "target/classes"}]}
+
+  :clean-targets ^{:protect false} ["resources/public/main.js"]
 
   :cljsbuild
   {:builds ; Compiled in parallel
