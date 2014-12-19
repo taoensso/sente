@@ -13,7 +13,7 @@
   [;; [org.clojure/clojure    "1.6.0"]
    [org.clojure/clojure       "1.7.0-alpha4"] ; May use any v1.5.1+
    ;;
-   [org.clojure/clojurescript "0.0-2411"]
+   [org.clojure/clojurescript "0.0-2496"]
    [org.clojure/core.async    "0.1.346.0-17112a-alpha"]
    ;;
    [com.taoensso/sente        "1.3.0-SNAPSHOT"] ; <--- Sente
