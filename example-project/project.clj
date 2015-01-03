@@ -13,7 +13,7 @@
   [;; [org.clojure/clojure    "1.6.0"]
    [org.clojure/clojure       "1.7.0-alpha4"] ; May use any v1.5.1+
    ;;
-   [org.clojure/clojurescript "0.0-2411"]
+   [org.clojure/clojurescript "0.0-2496"]
    [org.clojure/core.async    "0.1.346.0-17112a-alpha"]
    ;;
    [com.taoensso/sente        "1.3.0-RC1"] ; <--- Sente
@@ -37,15 +37,18 @@
    [lein-ancient        "0.5.5"]
    [com.cemerick/austin "0.1.4"]
    [com.keminglabs/cljx "0.5.0"]
-   [lein-cljsbuild      "1.0.3"]
+   [lein-cljsbuild      "1.0.4-SNAPSHOT"]
    [cider/cider-nrepl   "0.8.1"] ; Optional, for use with Emacs
    ]
 
-  :hooks [cljx.hooks leiningen.cljsbuild]
+  :prep-tasks [["cljx" "once"] ["cljsbuild" "once"] "javac" "compile"]
+
   :cljx
   {:builds
    [{:source-paths ["src"] :rules :clj  :output-path "target/classes"}
     {:source-paths ["src"] :rules :cljs :output-path "target/classes"}]}
+
+  :clean-targets ^{:protect false} ["resources/public/main.js"]
 
   :cljsbuild
   {:builds ; Compiled in parallel
