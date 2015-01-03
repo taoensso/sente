@@ -16,11 +16,11 @@
   (pack   [_ x])
   (unpack [_ x]))
 
-(deftype EdnPacker []
+(deftype EdnPacker [opts]
   IPacker
   (pack   [_ x] (pr-str x))
-  (unpack [_ s] (edn/read-string s)))
+  (unpack [_ s] (edn/read-string opts s)))
 
-(def     edn-packer "Default Edn packer." (->EdnPacker))
+(def     edn-packer "Default Edn packer." (->EdnPacker {}))
 (defn coerce-packer [x] (if (= x :edn) edn-packer
                           (do (assert (satisfies? IPacker x)) x)))
