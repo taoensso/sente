@@ -1,5 +1,10 @@
 > This project uses [Break Versioning](https://github.com/ptaoussanis/encore/blob/master/BREAK-VERSIONING.md) as of **Aug 16, 2014**.
 
+## v1.3.0-RC2 / 2015 Jan 13
+
+ * **FIX** [#94]: ClojureScript dependency is now `:provided` to keep it from being unnecessarily pulled into JARs, etc (@zentrope).
+
+
 ## v1.3.0-RC1 / 2014 Dec 11
 
  > This is a maintenance release focused on general housekeeping + on adding some user-id flexibility.

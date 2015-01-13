@@ -1,4 +1,4 @@
-(defproject com.taoensso.examples/sente "1.2.0"
+(defproject com.taoensso.examples/sente "1.3.0-RC2"
   :description "Sente, reference web-app example project"
   :url "https://github.com/ptaoussanis/sente"
   :license {:name "Eclipse Public License"
@@ -16,7 +16,7 @@
    [org.clojure/clojurescript "0.0-2411"]
    [org.clojure/core.async    "0.1.346.0-17112a-alpha"]
    ;;
-   [com.taoensso/sente        "1.3.0-RC1"] ; <--- Sente
+   [com.taoensso/sente        "1.3.0-RC2"] ; <--- Sente
    [com.taoensso/timbre       "3.3.1"]
    ;;
    [http-kit                  "2.1.19"] ; <--- http-kit (currently required)

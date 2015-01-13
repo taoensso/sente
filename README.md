@@ -2,14 +2,14 @@
 
 ```clojure
 [com.taoensso/sente "1.2.0"]     ; Stable
-[com.taoensso/sente "1.3.0-RC1"] ; Please see CHANGELOG for details
+[com.taoensso/sente "1.3.0-RC2"] ; Please see CHANGELOG for details
 ```
 
 # Sente, channel sockets for Clojure
 
 ![Almost sente](https://github.com/ptaoussanis/sente/raw/master/almost-sente.jpg)
 
-> **Sen-te** (先手) is a Japanese [Go][] term used to describe a play with such an overwhelming follow-up that it elicits an immediate response, thus leaving its player with the initiative.
+> **Sen-te** (先手) is a Japanese [Go][] term used to describe a play with such an overwhelming follow-up that it demands an immediate response, leaving its player with the initiative.
 
 **Sente** is a small client+server library that makes it easy to build **reliable, high-performance realtime web applications with Clojure**.
 
