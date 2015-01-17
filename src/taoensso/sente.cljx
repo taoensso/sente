@@ -494,7 +494,9 @@
                      ppstr)))]
 
            (if (str/blank? client-id)
-             (warnf "Client's Ring request doesn't have a client id. Does your server have the necessary keyword Ring middleware?: %s" ring-req)
+             (let [err-msg "Client's Ring request doesn't have a client id. Does your server have the necessary keyword Ring middleware (`wrap-params` & `wrap-keyword-params`)?"]
+               (errorf (str err-msg \n ring-req \n))
+               (throw (ex-info err-msg {:ring-req ring-req})))
 
              (if (:websocket? ring-req)
                (do ; WebSocket handshake
