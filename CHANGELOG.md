@@ -1,16 +1,12 @@
 > This project uses [Break Versioning](https://github.com/ptaoussanis/encore/blob/master/BREAK-VERSIONING.md) as of **Aug 16, 2014**.
 
-## v1.3.0-RC2 / 2015 Jan 13
+## v1.3.0 / 2015 Jan 17
 
- * **FIX** [#94]: ClojureScript dependency is now `:provided` to keep it from being unnecessarily pulled into JARs, etc (@zentrope).
-
-
-## v1.3.0-RC1 / 2014 Dec 11
-
- > This is a maintenance release focused on general housekeeping + on adding some user-id flexibility.
+ > This is a non-breaking maintenance release focused on general housekeeping + on adding some user-id flexibility.
 
  * **DEPRECATED** [#85]: Server->user broadcasts should now use `:sente/all-users-without-uid` instead of `nil` uid when intending to broadcast to users _without_ a user id. The new behaviour is less accident prone.
- * **CHANGE** [#84]: Warn when necessary Ring middleware is missing.
+ * **CHANGE** [#84, #95]: Improve error reporting in the case of missing Ring middleware.
+ * **FIX** [#94]: ClojureScript dependency is now `:provided` to keep it from being unnecessarily pulled into JARs, etc (@zentrope).
  * **NEW** [#82]: Server-side `:user-id-fn`'s Ring request now includes a `:client-id` arg provided by clients.
  * Various doc+example improvements.
 
