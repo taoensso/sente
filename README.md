@@ -12,8 +12,8 @@
 
 **Sente** is a small client+server library that makes it easy to build **reliable, high-performance realtime web applications with Clojure**.
 
-Or: **We don't need no [Socket.IO][]**
-Or: **The missing piece in Clojure's web application story**
+Or: **We don't need no [Socket.IO][]**  
+Or: **The missing piece in Clojure's web application story**  
 Or: **Clojure(Script) + core.async + WebSockets/Ajax = _The Shiz_**
 
 (I'd also recommend checking out James Henderson's [Chord][] and Kevin Lynagh's [jetty7-websockets-async][] as possible alternatives!)
@@ -216,9 +216,11 @@ As of Sente v0.13.0+ it's also possible to send events to `:sente/all-users-with
 
 This is trivially easy as of Sente v0.13.0+. Please see the [reference example project][] which now includes a basic login form.
 
-#### Will Sente work with [React][]/[Reagent][]/[Om][]/etc.?
+#### Will Sente work with Reactjs/Reagent/Om/Pedestel/etc.?
 
-Sure! I use it with Reagent myself. Sente's just a client<->server comms mechanism.
+Sure! Sente's just a client<->server comms mechanism so it'll work with any view/rendering approach you'd like.
+
+I have a strong preference for [Reagent][] myself, so would recommend checking that out first if you're still evaluating options.
 
 #### What if I need to use JSON, XML, raw strings, etc.?
 
@@ -306,31 +308,29 @@ Otherwise reach me (Peter Taoussanis) at [taoensso.com][] or on [Twitter][]. Che
 
 Copyright &copy; 2012-2014 Peter Taoussanis. Distributed under the [Eclipse Public License][], the same as Clojure.
 
-[API docs]: <http://ptaoussanis.github.io/sente/>
-[CHANGELOG_]: <https://github.com/ptaoussanis/sente/blob/master/CHANGELOG.md>
-[CHANGELOG]: <https://github.com/ptaoussanis/sente/releases>
-[other Clojure libs]: <https://www.taoensso.com/clojure-libraries>
-[Twitter]: <https://twitter.com/ptaoussanis>
-[SemVer]: <http://semver.org/>
-[Break Version]: <https://github.com/ptaoussanis/encore/blob/master/BREAK-VERSIONING.md>
-[reference example project]: <https://github.com/ptaoussanis/sente/tree/master/example-project>
-[Leiningen]: <http://leiningen.org/>
-[CDS]: <http://clojure-doc.org/>
-[ClojureWerkz]: <http://clojurewerkz.org/>
-[issues page]: <https://github.com/ptaoussanis/sente/issues>
-[commit history]: <https://github.com/ptaoussanis/sente/commits/master>
-[Cider]: <https://github.com/clojure-emacs/cider>
-[taoensso.com]: <https://www.taoensso.com>
-[Eclipse Public License]: <https://raw2.github.com/ptaoussanis/sente/master/LICENSE>
-[Go]: <http://en.wikipedia.org/wiki/Go_game>
-[edn]: <https://github.com/edn-format/edn>
-[http-kit]: <https://github.com/http-kit/http-kit>
-[React]: <http://facebook.github.io/react/>
-[Reagent]: <https://github.com/holmsand/reagent>
-[Om]: <https://github.com/swannodette/om>
-[Chord]: <https://github.com/james-henderson/chord>
-[jetty7-websockets-async]: <https://github.com/lynaghk/jetty7-websockets-async>
-[Socket.IO]: <http://socket.io/>
+[API docs]: http://ptaoussanis.github.io/sente/
+[CHANGELOG_]: https://github.com/ptaoussanis/sente/blob/master/CHANGELOG.md
+[CHANGELOG]: https://github.com/ptaoussanis/sente/releases
+[other Clojure libs]: https://www.taoensso.com/clojure-libraries
+[Twitter]: https://twitter.com/ptaoussanis
+[SemVer]: http://semver.org/
+[Break Version]: https://github.com/ptaoussanis/encore/blob/master/BREAK-VERSIONING.md
+[reference example project]: https://github.com/ptaoussanis/sente/tree/master/example-project
+[Leiningen]: http://leiningen.org/
+[issues page]: https://github.com/ptaoussanis/sente/issues
+[commit history]: https://github.com/ptaoussanis/sente/commits/master
+[Cider]: https://github.com/clojure-emacs/cider
+[taoensso.com]: https://www.taoensso.com
+[Eclipse Public License]: https://raw2.github.com/ptaoussanis/sente/master/LICENSE
+[Go]: http://en.wikipedia.org/wiki/Go_game
+[edn]: https://github.com/edn-format/edn
+[http-kit]: https://github.com/http-kit/http-kit
+[Reactjs]: http://facebook.github.io/react/
+[Reagent]: http://reagent-project.github.io/
+[Om]: https://github.com/swannodette/om
+[Chord]: https://github.com/james-henderson/chord
+[jetty7-websockets-async]: https://github.com/lynaghk/jetty7-websockets-async
+[Socket.IO]: http://socket.io/
 [om-mouse]: https://git.geekli.st/tf0054/om-mouse/tree/master
 [om-sente]: https://github.com/seancorfield/om-sente
 [@tf0054]: https://github.com/tf0054
