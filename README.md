@@ -285,9 +285,10 @@ If you do want a lifecycle management lib, I'm personally fond of Leaven since i
 
 Here's some more unofficial/**user-submitted** examples for those interested! (**PRs welcome!**):
 
-Example          | Author        | Comments                                         |
----------------- | ------------- | ------------------------------------------------ |
-[om-mouse]       | [@tf0054]     | Basic example: tracks mouse pos using Om.        |
+Example          | Author          | Comments                                         |
+---------------- | --------------- | ------------------------------------------------ |
+[om-mouse]       | [@tf0054]       | Basic example: tracks mouse pos using Om+Sente.  |
+[om-sente]       | [@seancorfield] | ??                                               |
 
 #### Any other questions?
 
@@ -330,8 +331,10 @@ Copyright &copy; 2012-2014 Peter Taoussanis. Distributed under the [Eclipse Publ
 [Chord]: <https://github.com/james-henderson/chord>
 [jetty7-websockets-async]: <https://github.com/lynaghk/jetty7-websockets-async>
 [Socket.IO]: <http://socket.io/>
-[om-mouse]: <https://git.geekli.st/tf0054/om-mouse/tree/master>
+[om-mouse]: https://git.geekli.st/tf0054/om-mouse/tree/master
+[om-sente]: https://github.com/seancorfield/om-sente
 [@tf0054]: https://github.com/tf0054
+[@seancorfield]: https://github.com/seancorfield
 [stuartsierra/component]: https://github.com/stuartsierra/component
 [danielsz/system]: https://github.com/danielsz/system
 [palletops/leaven]: https://github.com/palletops/leaven
