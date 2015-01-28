@@ -19,7 +19,8 @@
    [com.taoensso/sente        "1.3.0-SNAPSHOT"] ; <--- Sente
    [com.taoensso/timbre       "3.3.1"]
    ;;
-   [http-kit                  "2.1.19"] ; <--- http-kit (currently required)
+   [http-kit                  "2.1.19"]              ; <--- comment out to use Immutant
+   ;; [org.immutant/web       "2.x.incremental.448"] ; <--- uncomment to use Immutant (you'll also need to adjust my-app.clj)
    ;;
    [compojure                 "1.3.1"]  ; Or routing lib of your choice
    [ring                      "1.3.2"]
@@ -63,4 +64,6 @@
 
   :repositories
   [["sonatype" {:url "http://oss.sonatype.org/content/repositories/releases"
-                :snapshots false}]])
+                :snapshots false}]
+   ["Immutant incremental builds"
+                  "http://downloads.immutant.org/incremental/"]])

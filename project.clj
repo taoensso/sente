@@ -16,7 +16,8 @@
    [org.clojure/tools.reader "0.8.13"]
    [com.taoensso/encore      "1.20.1"]
    [com.taoensso/timbre      "3.3.1"]
-   [http-kit                 "2.1.19"]]
+   ;;[http-kit                 "2.1.19"]
+   ]
 
   ;; :plugins
   ;; [[com.keminglabs/cljx "0.5.0"]
