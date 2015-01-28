@@ -29,11 +29,14 @@
    [compojure.route    :as route]
    [ring.middleware.defaults]
    [hiccup.core        :as hiccup]
-   [org.httpkit.server :as http-kit-server]
    [clojure.core.async :as async :refer (<! <!! >! >!! put! chan go go-loop)]
    [taoensso.timbre    :as timbre]
    [taoensso.sente     :as sente]
    [ring.middleware.anti-forgery :as ring-anti-forgery]
+   [org.httpkit.server :as httpkit] ; <-- comment out to use Immutant
+   ;; [immutant.web    :as immutant] ; <-- uncomment to use Immutant
+   ;; (you'll also need to adjust project.clj and uncomment
+   ;; start-http-server* below)
 
    ;; Optional, for Transit encoding:
    [taoensso.sente.packers.transit :as sente-transit])
@@ -267,14 +270,29 @@
     (stop-f :timeout 100)))
 
 #+clj
+(defn start-http-server* [handler port]
+    (println "Starting http-kit")
+    (httpkit/run-server handler {:port port}))
+
+;; uncomment to use Immutant, comment out the above defn
+#_(defn start-http-server* [handler port]
+  (println "Starting Immutant")
+  (let [result (immutant/run handler :port port)
+        stop (fn [& _] (immutant/stop result))]
+    (vary-meta stop assoc
+      :local-port (:port result))))
+
+#+clj
 (defn start-http-server! []
   (stop-http-server!)
-  (let [s   (http-kit-server/run-server (var my-ring-handler) {:port 0})
-        uri (format "http://localhost:%s/" (:local-port (meta s)))]
-    (reset! http-server_ s)
-    (logf "Http-kit server is running at `%s`" uri)
-    (.browse (java.awt.Desktop/getDesktop)
-             (java.net.URI. uri))))
+  (let [stop-fn (start-http-server* (var my-ring-handler) 0)
+        uri (format "http://localhost:%s/" (:local-port (meta stop-fn)))]
+    (logf "server is running at `%s`" uri)
+    (try
+      (.browse (java.awt.Desktop/getDesktop)
+        (java.net.URI. uri))
+      (catch java.awt.HeadlessException _))
+    (reset! http-server_ stop-fn)))
 
 #+clj  (defonce router_ (atom nil))
 #+cljs (def     router_ (atom nil))
