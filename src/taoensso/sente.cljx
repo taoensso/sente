@@ -1085,12 +1085,26 @@
                       (errorf "Bad event: %s" event) ; Log 'n drop
                       (event-msg-handler event-msg))
                     nil
-                    (catch #+clj Throwable #+cljs :default t
+                    (catch
+                      #+clj Throwable
+                      #+cljs js/Error ; :default ; Temp workaround for [1]
+                      t
                       (errorf #+clj t
                         "Chsk router handling error: %s" event))))))
-            (catch #+clj Throwable #+cljs :default t
+            (catch
+              #+clj Throwable
+              #+cljs js/Error ; :default [1] Temp workaround for [1]
+              t
               (errorf #+clj t
                 "Chsk router channel error!"))))
+
+        ;; TODO [1]
+        ;; @shaharz reported (https://github.com/ptaoussanis/sente/issues/97)
+        ;; that current releases of core.async have trouble with :default error
+        ;; catching, Ref. http://goo.gl/QFBvfO.
+        ;; The issue's been fixed but we're waiting for a new core.async
+        ;; release.
+
         (recur)))
     (fn stop! [] (async/close! ch-ctrl))))
 
