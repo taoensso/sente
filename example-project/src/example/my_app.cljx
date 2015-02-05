@@ -45,7 +45,7 @@
   (:require
    [clojure.string  :as str]
    [cljs.core.async :as async  :refer (<! >! put! chan)]
-   [taoensso.encore :as encore :refer (logf)]
+   [taoensso.encore :as enc    :refer (logf)]
    [taoensso.sente  :as sente  :refer (cb-success?)]
 
    ;; Optional, for Transit encoding:
@@ -133,12 +133,13 @@
 
 #+cljs (logf "ClojureScript appears to have loaded correctly.")
 #+cljs
-(let [random-chsk-type-for-fun (if (>= (rand) 0.5) :ajax :auto)
+(let [rand-chsk-type (if (>= (rand) 0.5) :ajax :auto)
 
       {:keys [chsk ch-recv send-fn state]}
       (sente/make-channel-socket! "/chsk" ; Note the same URL as before
-        {:type   random-chsk-type-for-fun
+        {:type   rand-chsk-type
          :packer packer})]
+  (logf "Randomly selected chsk type: %s" rand-chsk-type)
   (def chsk       chsk)
   (def ch-chsk    ch-recv) ; ChannelSocket's receive channel
   (def chsk-send! send-fn) ; ChannelSocket's send API fn
