@@ -340,20 +340,11 @@
 
         send-fn ; server>user (by uid) push
         (fn [user-id ev & [{:as opts :keys [flush?]}]]
-          (let [uid ; TODO Remove for next breaking release
-                (or user-id
-                  (do
-                    (warnf
-                      (str "Support for sending to `nil` user-ids is DEPRECATED. "
-                           "Please send to `:sente/all-users-without-uid` instead."))
-                    :sente/all-users-without-uid))
-
-                uid     (if (enc/kw-identical? uid :sente/all-users-without-uid)
-                          ::nil-uid uid)
+          (let [uid     (if (= user-id :sente/all-users-without-uid) ::nil-uid user-id)
+                _       (tracef "Chsk send: (->uid %s) %s" uid ev)
                 _       (assert uid
                           (str "Support for sending to `nil` user-ids has been REMOVED. "
                                "Please send to `:sente/all-users-without-uid` instead."))
-                _       (tracef "Chsk send: (->uid %s) %s" uid ev)
                 _       (assert-event ev)
                 ev-uuid (enc/uuid-str)
 
