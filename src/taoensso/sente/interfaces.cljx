@@ -1,60 +1,35 @@
 (ns taoensso.sente.interfaces
-  "Experimental (pre-alpha): subject to change.
+  "Experimental - subject to change!
   Public interfaces / extension points."
   #+clj  (:require [clojure.tools.reader.edn :as edn])
   #+cljs (:require [cljs.reader              :as edn]))
 
-;;;; Channels
+;;;; Network channels
 
 #+clj
 (defprotocol IAsyncNetworkChannel
-  (send! [ch msg] [ch msg close?]
-    "Sends a message to the channel. `close?` defaults to false.")
-  (open? [ch]
-    "Is the channel currently open?")
-  (close [ch]
-    "Close the channel."))
+  ;; Wraps a web server's own async channel/comms interface to abstract away
+  ;; implementation differences
+  (send!* [net-ch msg close-after-send?] "Sends a message to channel.")
+  (open?  [net-ch] "Returns true iff the channel is currently open.")
+  (close! [net-ch] "Closes the channel."))
+
+#+clj (defn send! [net-ch msg & [close-after-send?]]
+        (send!* net-ch msg close-after-send?))
 
 #+clj
-(defn as-channel
-  "Converts the current ring `request` in to an asynchronous channel.
-
-  The callbacks common to both channel types are:
-
-  * :on-open - `(fn [ch] ...)` - called when the channel is
-    available for sending.
-  * :on-close - `(fn [ch status] ...)` - called for *any* close,
-    including a call to [[close]], but will only be invoked once.
-    `ch` will already be closed by the time this is invoked.
-
-  If the channel is a Websocket, the following callback is also used:
-
-  * :on-receive - `(fn [ch message] ...)` - Called for each message
-    from the client. `message` will be a `String` or `byte[]`"
-  [request & {:keys [on-open on-close on-receive]}]
-  (throw (IllegalStateException. "No implementation of as-channel provided")))
-
-#+clj
-(defn provide-as-channel!
-  "Sets as-channel to f."
-  [f]
-  (alter-var-root #'as-channel (constantly f)))
-
-#+clj
-(defn websocket?
-  "Is the request a websocket request?"
-  [request]
-  (:websocket? request))
-
-#+clj
-(defmacro when-import
-  "Convenience macro to conditionally eval code based on the availability of an import."
-  [spec pre-body & body]
-  `(when (try
-           (import ~spec)
-           (catch ClassNotFoundException _#))
-     ~pre-body
-     (eval '(do ~@body))))
+(defprotocol IAsyncNetworkChannelAdapter
+  ;; Wraps a web server's own Ring-request->async-channel-response interface to
+  ;; abstract away implementation differences
+  (ring-req->net-ch-resp [net-ch-adapter ring-req callbacks-map]
+    "Returns a Ring response map with an async network channel body for the
+    given Ring request. A callbacks map can be provided with keys:
+      :on-open  - (fn [net-ch]) called exactly once after channel is available
+                  for sending.
+      :on-close - (fn [net-ch status]) called exactly once after channel is
+                  closed for ANY cause, incl. a call to `close`.
+      :on-msg   - (fn [net-ch msg]) called for each String or byte[] message
+                  received from client. Currently only used for WebSocket clients."))
 
 ;;;; Packers
 
@@ -71,4 +46,4 @@
 
 (def     edn-packer "Default Edn packer." (->EdnPacker))
 (defn coerce-packer [x] (if (= x :edn) edn-packer
-                            (do (assert (satisfies? IPacker x)) x)))
+                          (do (assert (satisfies? IPacker x)) x)))

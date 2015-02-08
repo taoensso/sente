@@ -1,4 +1,4 @@
-(defproject com.taoensso.examples/sente "1.3.0-SNAPSHOT"
+(defproject com.taoensso.examples/sente "1.4.0-SNAPSHOT"
   :description "Sente, reference web-app example project"
   :url "https://github.com/ptaoussanis/sente"
   :license {:name "Eclipse Public License"
@@ -10,24 +10,26 @@
                 *assert* true}
 
   :dependencies
-  [;; [org.clojure/clojure    "1.6.0"]
-   [org.clojure/clojure       "1.7.0-alpha4"] ; May use any v1.5.1+
-   ;;
+  [[org.clojure/clojure       "1.7.0-alpha4"] ; May use any v1.5.1+
+   ;; [org.clojure/clojure    "1.6.0"]
+
    [org.clojure/clojurescript "0.0-2411"]
    [org.clojure/core.async    "0.1.346.0-17112a-alpha"]
-   ;;
-   [com.taoensso/sente        "1.3.0-SNAPSHOT"] ; <--- Sente
+
+   [com.taoensso/sente        "1.4.0-SNAPSHOT"] ; <--- Sente
    [com.taoensso/timbre       "3.3.1"]
-   ;;
-   [http-kit                  "2.1.19"]              ; <--- comment out to use Immutant
-   ;; [org.immutant/web       "2.x.incremental.448"] ; <--- uncomment to use Immutant (you'll also need to adjust my-app.clj)
-   ;;
-   [compojure                 "1.3.1"]  ; Or routing lib of your choice
+
+   ;;; ---> Choose (uncomment) a supported web server <---
+   [http-kit                  "2.1.19"]
+   ;; [org.immutant/web       "2.x.incremental.448"]
+
    [ring                      "1.3.2"]
+   [ring/ring-defaults        "0.1.3"] ; Includes `ring-anti-forgery`, etc.
    ;; [ring-anti-forgery      "1.0.0"]
-   [ring/ring-defaults        "0.1.3"]  ; Incl. `ring-anti-forgery`, etc.
-   [hiccup                    "1.0.5"]  ; Optional, just for HTML
-   ;;
+
+   [compojure                 "1.3.1"] ; Or routing lib of your choice
+   [hiccup                    "1.0.5"] ; Optional, just for HTML
+
    ;;; Transit deps optional; may be used to aid perf. of larger data payloads
    ;;; (see reference example for details):
    [com.cognitect/transit-clj  "0.8.259"]
@@ -63,7 +65,5 @@
    "start-dev"  ["repl" ":headless"]}
 
   :repositories
-  [["sonatype" {:url "http://oss.sonatype.org/content/repositories/releases"
-                :snapshots false}]
-   ["Immutant incremental builds"
-                  "http://downloads.immutant.org/incremental/"]])
+  {"sonatype-oss-public"         "https://oss.sonatype.org/content/groups/public/"
+   "immutant-incremental-builds" "http://downloads.immutant.org/incremental/"})

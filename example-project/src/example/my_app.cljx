@@ -15,7 +15,7 @@
     3. Evaluate this namespace (M-x `cider-load-current-buffer` for CIDER+Emacs).
     4. Evaluate `(start!)` in this namespace (M-x `cider-eval-last-sexp` for
        CIDER+Emacs).
-    5. Open browser & point to local http server (port will be printed).
+    5. Open browser & point to local web server (port will be printed).
     6. Observe browser's console + nREPL's std-out.
 
   LIGHT TABLE USERS:
@@ -25,18 +25,20 @@
   #+clj
   (:require
    [clojure.string     :as str]
+   [ring.middleware.defaults]
    [compojure.core     :as comp :refer (defroutes GET POST)]
    [compojure.route    :as route]
-   [ring.middleware.defaults]
    [hiccup.core        :as hiccup]
    [clojure.core.async :as async :refer (<! <!! >! >!! put! chan go go-loop)]
    [taoensso.timbre    :as timbre]
    [taoensso.sente     :as sente]
-   [ring.middleware.anti-forgery :as ring-anti-forgery]
-   [org.httpkit.server :as httpkit] ; <-- comment out to use Immutant
-   ;; [immutant.web    :as immutant] ; <-- uncomment to use Immutant
-   ;; (you'll also need to adjust project.clj and uncomment
-   ;; start-http-server* below)
+
+   ;;; ---> Choose (uncomment) a supported web server and adapter <---
+   [org.httpkit.server :as http-kit]
+   [taoensso.sente.server-adapters.http-kit] ; Sente adapter for http-kit
+
+   ;; [immutant.web    :as immutant]
+   ;; [taoensso.sente.server-adapters.immutant] ; Sente adapter for Immutant
 
    ;; Optional, for Transit encoding:
    [taoensso.sente.packers.transit :as sente-transit])
@@ -54,21 +56,44 @@
    ;; Optional, for Transit encoding:
    [taoensso.sente.packers.transit :as sente-transit]))
 
-;; (sente/set-logging-level! :trace)
+;;;; Logging config
+
+;; (sente/set-logging-level! :trace) ; Uncomment for more logging
 #+clj (defn- logf [fmt & xs] (println (apply format fmt xs)))
 
-(def packer
-  "Defines our packing (serialization) format for client<->server comms."
-  ;; :edn ; Default
-  (sente-transit/get-flexi-packer :edn) ; Experimental, needs Transit deps
-  )
+;;;; ---> Choose (uncomment) a supported web server and adapter <---
+
+;;; http-kit
+#+clj (def web-server-adapter taoensso.sente.server-adapters.http-kit/http-kit-adapter)
+#+clj
+(defn start-web-server!* [ring-handler port]
+  (println "Starting http-kit...")
+  (let [http-kit-stop-fn (http-kit/run-server ring-handler {:port port})]
+    {:server  nil ; http-kit doesn't expose this
+     :port    (:local-port (meta http-kit-stop-fn))
+     :stop-fn (fn [] (http-kit-stop-fn :timeout 100))}))
+
+;;; Immutant
+;; #+clj (def web-server--adapter taoensso.sente.server-adapters.immutant/immutant-adapter)
+;; #+clj
+;; (defn start-web-server!* [ring-handler port]
+;;   (println "Starting Immutant...")
+;;   (let [server (immutant/run ring-handler :port port)]
+;;     {:server  server
+;;      :port    (:port server)
+;;      :stop-fn (fn [] (immutant/stop server))}))
+
+;;;; Packer (client<->server serializtion format) config
+
+(def packer (sente-transit/get-flexi-packer :edn)) ; Experimental, needs Transit dep
+;; (def packer :edn) ; Default packer (no need for Transit dep)
 
 ;;;; Server-side setup
 
 #+clj
 (let [{:keys [ch-recv send-fn ajax-post-fn ajax-get-or-ws-handshake-fn
               connected-uids]}
-      (sente/make-channel-socket! {:packer packer})]
+      (sente/make-channel-socket! web-server-adapter {:packer packer})]
   (def ring-ajax-post                ajax-post-fn)
   (def ring-ajax-get-or-ws-handshake ajax-get-or-ws-handshake-fn)
   (def ch-chsk                       ch-recv) ; ChannelSocket's receive channel
@@ -264,36 +289,21 @@
 
 ;;;; Init
 
-#+clj (defonce http-server_ (atom nil))
+#+clj (defonce web-server_ (atom nil)) ; {:server _ :port _ :stop-fn (fn [])}
+#+clj (defn stop-web-server! [] (when-let [m @web-server_] ((:stop-fn m))))
 #+clj
-(defn stop-http-server! []
-  (when-let [stop-f @http-server_]
-    (stop-f :timeout 100)))
-
-#+clj
-(defn start-http-server* [handler port]
-    (println "Starting http-kit")
-    (httpkit/run-server handler {:port port}))
-
-;; uncomment to use Immutant, comment out the above defn
-#_(defn start-http-server* [handler port]
-  (println "Starting Immutant")
-  (let [result (immutant/run handler :port port)
-        stop (fn [& _] (immutant/stop result))]
-    (vary-meta stop assoc
-      :local-port (:port result))))
-
-#+clj
-(defn start-http-server! []
-  (stop-http-server!)
-  (let [stop-fn (start-http-server* (var my-ring-handler) 0)
-        uri (format "http://localhost:%s/" (:local-port (meta stop-fn)))]
-    (logf "server is running at `%s`" uri)
+(defn start-web-server! [& [port]]
+  (stop-web-server!)
+  (let [{:keys [stop-fn port] :as server-map}
+        (start-web-server!* (var my-ring-handler)
+          (or port 0) ; 0 => auto (any available) port
+          )
+        uri (format "http://localhost:%s/" port)]
+    (logf "Web server is running at `%s`" uri)
     (try
-      (.browse (java.awt.Desktop/getDesktop)
-        (java.net.URI. uri))
+      (.browse (java.awt.Desktop/getDesktop) (java.net.URI. uri))
       (catch java.awt.HeadlessException _))
-    (reset! http-server_ stop-fn)))
+    (reset! web-server_ server-map)))
 
 #+clj  (defonce router_ (atom nil))
 #+cljs (def     router_ (atom nil))
@@ -304,7 +314,7 @@
 
 (defn start! []
   (start-router!)
-  #+clj (start-http-server!)
+  #+clj (start-web-server!)
   #+clj (start-broadcaster!))
 
 #+cljs   (start!)

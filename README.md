@@ -1,7 +1,8 @@
 **[API docs][]** | **[CHANGELOG][]** | [other Clojure libs][] | [Twitter][] | [contact/contrib](#contact--contributing) | current [Break Version][]:
 
 ```clojure
-[com.taoensso/sente "1.3.0"] ; Stable (see CHANGELOG for details)
+[com.taoensso/sente "1.3.0"]         ; Stable
+[com.taoensso/sente "1.4.0-SNAPSHOT] ; Dev (see CHANGELOG for details)
 ```
 
 # Sente, channel sockets for Clojure
@@ -30,7 +31,7 @@ Or: **Clojure(Script) + core.async + WebSockets/Ajax = _The Shiz_**
   * Standard **Ring security model**: auth as you like, HTTPS when available, CSRF support, etc.
   * **Fully documented, with examples**.
   * **Small codebase**: ~1k lines for the entire client+server implementation.
-  * **Supported servers**: currently only [http-kit][] but a pluggable interface is planned.
+  * **Supported servers**: [http-kit][], [Immutant v2+][] (with Sente v1.4+).
 
 
 ### Capabilities
@@ -55,9 +56,9 @@ Add the necessary dependency to your [Leiningen][] `project.clj`. This'll provid
 
 ### On the server (Clojure) side
 
-First, make sure you're using [http-kit][] as your Clojure web server. If you're using the standard Ring server (Jetty), http-kit is [almost](http://http-kit.org/migration.html) a drop-in replacement.
+First, make sure you're using a **supported Ring-compatible async web server**. These are currently: [http-kit][] and [Immutant v2+][].
 
-> **Why http-kit**? Besides being a great web server, it currently offers by far the best high-concurrency support which is something Sente needs to lean on for WebSocket and long-polling connections.
+> [Welcoming PRs](https://github.com/ptaoussanis/sente/issues/102) to support additional servers, btw.
 
 Somewhere in your web app's code you'll already have a routing mechanism in place for handling Ring requests by request URL. If you're using [Compojure](https://github.com/weavejester/compojure) for example, you'll have something that looks like this:
 
@@ -173,8 +174,8 @@ Term          | Form                                                            
   :error   (fn [xhr text-status] (error-handler!))})
 
 (chsk-send! ; Using Sente
-  [:some/request-id {:name "Rich Hickey" :type "Awesome"}] ; event
-  8000 ; timeout
+  [:some/request-id {:name "Rich Hickey" :type "Awesome"}] ; Event
+  8000 ; Timeout
   ;; Optional callback:
   (fn [edn-reply]
     (if (sente/cb-success? edn-reply) ; Checks for :chsk/closed, :chsk/timeout, :chsk/error
@@ -325,6 +326,7 @@ Copyright &copy; 2012-2014 Peter Taoussanis. Distributed under the [Eclipse Publ
 [Go]: http://en.wikipedia.org/wiki/Go_game
 [edn]: https://github.com/edn-format/edn
 [http-kit]: https://github.com/http-kit/http-kit
+[Immutant v2+]: http://immutant.org/
 [Reactjs]: http://facebook.github.io/react/
 [Reagent]: http://reagent-project.github.io/
 [Om]: https://github.com/swannodette/om
