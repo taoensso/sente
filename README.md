@@ -1,8 +1,8 @@
 **[API docs][]** | **[CHANGELOG][]** | [other Clojure libs][] | [Twitter][] | [contact/contrib](#contact--contributing) | current [Break Version][]:
 
 ```clojure
-[com.taoensso/sente "1.3.0"]         ; Stable
-[com.taoensso/sente "1.4.0-SNAPSHOT] ; Dev (see CHANGELOG for details)
+[com.taoensso/sente "1.3.0"]        ; Stable
+[com.taoensso/sente "1.4.0-alpha1"] ; Adds Immutant support (see CHANGELOG)
 ```
 
 # Sente, channel sockets for Clojure
