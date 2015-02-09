@@ -1,12 +1,35 @@
 (ns taoensso.sente.interfaces
-  "Experimental (pre-alpha): subject to change.
+  "Experimental - subject to change!
   Public interfaces / extension points."
   #+clj  (:require [clojure.tools.reader.edn :as edn])
   #+cljs (:require [cljs.reader              :as edn]))
 
-;;;; Servers
+;;;; Network channels
 
-#+clj (defprotocol IAsyncHTTPServer "TODO: Extension pt. for HTTP servers.")
+#+clj
+(defprotocol IAsyncNetworkChannel
+  ;; Wraps a web server's own async channel/comms interface to abstract away
+  ;; implementation differences
+  (send!* [net-ch msg close-after-send?] "Sends a message to channel.")
+  (open?  [net-ch] "Returns true iff the channel is currently open.")
+  (close! [net-ch] "Closes the channel."))
+
+#+clj (defn send! [net-ch msg & [close-after-send?]]
+        (send!* net-ch msg close-after-send?))
+
+#+clj
+(defprotocol IAsyncNetworkChannelAdapter
+  ;; Wraps a web server's own Ring-request->async-channel-response interface to
+  ;; abstract away implementation differences
+  (ring-req->net-ch-resp [net-ch-adapter ring-req callbacks-map]
+    "Returns a Ring response map with an async network channel body for the
+    given Ring request. A callbacks map can be provided with keys:
+      :on-open  - (fn [net-ch]) called exactly once after channel is available
+                  for sending.
+      :on-close - (fn [net-ch status]) called exactly once after channel is
+                  closed for ANY cause, incl. a call to `close`.
+      :on-msg   - (fn [net-ch msg]) called for each String or byte[] message
+                  received from client. Currently only used for WebSocket clients."))
 
 ;;;; Packers
 

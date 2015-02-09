@@ -1,4 +1,4 @@
-(defproject com.taoensso/sente "1.3.0"
+(defproject com.taoensso/sente "1.4.0-alpha1"
   :author "Peter Taoussanis <https://www.taoensso.com>"
   :description "Clojure channel sockets library"
   :url "https://github.com/ptaoussanis/sente"
@@ -15,12 +15,7 @@
    [org.clojure/core.async   "0.1.346.0-17112a-alpha"]
    [org.clojure/tools.reader "0.8.13"]
    [com.taoensso/encore      "1.19.1"]
-   [com.taoensso/timbre      "3.3.1"]
-   [http-kit                 "2.1.19"]]
-
-  ;; :plugins
-  ;; [[com.keminglabs/cljx "0.5.0"]
-  ;;  [lein-cljsbuild      "1.0.3"]]
+   [com.taoensso/timbre      "3.3.1"]]
 
   :profiles
   {;; :default [:base :system :user :provided :dev]
@@ -41,10 +36,13 @@
    :dev
    [:1.7 :test
     {:plugins
-     [;; These must be in :dev, Ref. https://github.com/lynaghk/cljx/issues/47:
+     [;;; These must be in :dev, Ref. https://github.com/lynaghk/cljx/issues/47:
       [com.keminglabs/cljx             "0.5.0"]
       [lein-cljsbuild                  "1.0.3"]
-      ;;
+
+      [http-kit                        "2.1.19"]
+      [org.immutant/web                "2.x.incremental.448"]
+
       [lein-pprint                     "1.1.1"]
       [lein-ancient                    "0.5.5"]
       [com.cemerick/austin             "0.1.4"]
@@ -84,5 +82,6 @@
    "deploy-lib" ["do" "build-once," "deploy" "clojars," "install"]
    "start-dev"  ["with-profile" "+server-jvm" "repl" ":headless"]}
 
-  :repositories {"sonatype-oss-public"
-                 "https://oss.sonatype.org/content/groups/public/"})
+  :repositories
+  {"sonatype-oss-public"         "https://oss.sonatype.org/content/groups/public/"
+   "immutant-incremental-builds" "http://downloads.immutant.org/incremental/"})

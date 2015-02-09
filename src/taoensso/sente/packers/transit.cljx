@@ -1,5 +1,5 @@
 (ns taoensso.sente.packers.transit
-  "Experimental (pre-alpha): subject to change.
+  "Experimental - subject to change!
   Optional Transit-format[1] IPacker implementation for use with Sente.
   [1] https://github.com/cognitect/transit-format."
   {:author "Peter Taoussanis, @ckarlsen84"}

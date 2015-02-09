@@ -1,5 +1,40 @@
 > This project uses [Break Versioning](https://github.com/ptaoussanis/encore/blob/master/BREAK-VERSIONING.md) as of **Aug 16, 2014**.
 
+## v1.4.0-alpha1 / 2015 Feb 9
+
+ > This is a **BREAKING** release focused on adding support for other web servers (just _Immutant_ for now). A big thanks to **@tobias** for his assistance with this release!
+
+ * **FIX** [#97]: Temporary workaround for core.async router error catching issues (@shaharz).
+ * **BREAKING** [#85]: Removed support for `nil` user-id broadcasts. This was previously deprecated in v1.3.0.
+ * **BREAKING** [#2]: Added support for web servers other than http-kit (@tobias).
+
+##### MIGRATION INSTRUCTIONS (from any verision < v1.4.0)
+
+ 1. Http-kit is no longer an automatic Sente dependency. To continue using http-kit, add `[http-kit "2.1.19"]` to your project.clj `:dependencies`.
+ 2. Your Clojure-side `make-channel-socket!` call must now take a web server adapter as first argument. To continue using http-kit, add `[taoensso.sente.server-adapters.http-kit]` to your Clojure-side ns form's `:require` entries and pass `taoensso.sente.server-adapters.http-kit/http-kit-adapter` as the first arg to `make-channel-socket!`.
+
+So:
+```clojure
+[http-kit "2.1.19"] ; <--- Add to project.clj :dependencies
+
+(ns my-clj-ns
+  (:require
+    ;; Other stuff
+    [taoensso.sente.server-adapters.http-kit] ; <--- Add this entry
+    ))
+
+;; (sente/make-channel-socket! <opts-map>) ; Old Clojure-side chsk constructor
+(sente/make-channel-socket!
+  taoensso.sente.server-adapters.http-kit/http-kit-adapter ; <--- Add this arg
+  <opts-map) ; NEW Clojure-side chsk constructor
+```
+
+This change is a once-off nuisance that'll allow us the freedom of supporting a wide range of web servers in the future. Interested in a web server besides http-kit or Immutant? Am now [welcoming PRs](https://github.com/ptaoussanis/sente/issues/102) to support additional web servers.
+
+Finally, **please see the updated [reference example project][] for instructions on switching to an alternative web server like Immutant.**
+
+/ Peter Taoussanis
+
 ## v1.3.0 / 2015 Jan 17
 
  > This is a non-breaking maintenance release focused on general housekeeping + on adding some user-id flexibility.
@@ -147,3 +182,5 @@ As always, feedback welcome on any changes here. Have fun, cheers! - Peter
 ## v0.8.0 / 2014 Feb 24
 
  * **NEW**: Initial public release.
+
+[reference example project]: https://github.com/ptaoussanis/sente/tree/master/example-project
