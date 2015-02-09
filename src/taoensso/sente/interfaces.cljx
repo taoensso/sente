@@ -22,12 +22,15 @@
   ;; Wraps a web server's own Ring-request->async-channel-response interface to
   ;; abstract away implementation differences
   (ring-req->net-ch-resp [net-ch-adapter ring-req callbacks-map]
-    "Returns a Ring response map with an async network channel body for the
-    given Ring request. A callbacks map can be provided with keys:
+    "Given a Ring request (WebSocket handshake or Ajax GET/POST), returns a Ring
+    response map with a web-server-specific channel :body that implements
+    Sente's IAsyncNetworkChannel protocol.
+
+    Configures channel callbacks with a callbacks map using keys:
       :on-open  - (fn [net-ch]) called exactly once after channel is available
                   for sending.
       :on-close - (fn [net-ch status]) called exactly once after channel is
-                  closed for ANY cause, incl. a call to `close`.
+                  closed for ANY cause, incl. a call to `close!`.
       :on-msg   - (fn [net-ch msg]) called for each String or byte[] message
                   received from client. Currently only used for WebSocket clients."))
 

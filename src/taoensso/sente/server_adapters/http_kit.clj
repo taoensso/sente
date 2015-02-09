@@ -15,6 +15,7 @@
   i/IAsyncNetworkChannelAdapter
   (ring-req->net-ch-resp [net-ch-adapter ring-req callbacks-map]
     (let [{:keys [on-open on-msg on-close]} callbacks-map]
+      ;; Returns {:body <http-kit-implementation-channel>}:
       (http-kit/with-channel ring-req hk-ch
 
         (when on-close
