@@ -31,7 +31,7 @@ So:
 
 This change is a once-off nuisance that'll allow us the freedom of supporting a wide range of web servers in the future. Interested in a web server besides http-kit or Immutant? Am now [welcoming PRs](https://github.com/ptaoussanis/sente/issues/102) to support additional web servers.
 
-Finally, **please see the updated [reference example project][] for instructions on switching to an alternative web server like Immutant.**
+Finally, **please see the updated [reference example project](https://github.com/ptaoussanis/sente/tree/master/example-project) for instructions on switching to an alternative web server like Immutant.**
 
 / Peter Taoussanis
 
@@ -182,5 +182,3 @@ As always, feedback welcome on any changes here. Have fun, cheers! - Peter
 ## v0.8.0 / 2014 Feb 24
 
  * **NEW**: Initial public release.
-
-[reference example project]: https://github.com/ptaoussanis/sente/tree/master/example-project
