@@ -41,7 +41,7 @@
       [lein-cljsbuild                  "1.0.3"]
 
       [http-kit                        "2.1.19"]
-      [org.immutant/web                "2.x.incremental.448"]
+      [org.immutant/web                "2.0.0-beta2"]
 
       [lein-pprint                     "1.1.1"]
       [lein-ancient                    "0.5.5"]
@@ -83,5 +83,4 @@
    "start-dev"  ["with-profile" "+server-jvm" "repl" ":headless"]}
 
   :repositories
-  {"sonatype-oss-public"         "https://oss.sonatype.org/content/groups/public/"
-   "immutant-incremental-builds" "http://downloads.immutant.org/incremental/"})
+  {"sonatype-oss-public" "https://oss.sonatype.org/content/groups/public/"})
