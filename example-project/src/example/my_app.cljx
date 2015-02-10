@@ -74,7 +74,7 @@
      :stop-fn (fn [] (http-kit-stop-fn :timeout 100))}))
 
 ;;; Immutant
-;; #+clj (def web-server--adapter taoensso.sente.server-adapters.immutant/immutant-adapter)
+;; #+clj (def web-server-adapter taoensso.sente.server-adapters.immutant/immutant-adapter)
 ;; #+clj
 ;; (defn start-web-server!* [ring-handler port]
 ;;   (println "Starting Immutant...")
