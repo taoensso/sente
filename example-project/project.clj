@@ -1,4 +1,4 @@
-(defproject com.taoensso.examples/sente "1.4.0-alpha1"
+(defproject com.taoensso.examples/sente "1.4.0-alpha2"
   :description "Sente, reference web-app example project"
   :url "https://github.com/ptaoussanis/sente"
   :license {:name "Eclipse Public License"
@@ -16,12 +16,12 @@
    [org.clojure/clojurescript "0.0-2411"]
    [org.clojure/core.async    "0.1.346.0-17112a-alpha"]
 
-   [com.taoensso/sente        "1.4.0-alpha1"] ; <--- Sente
+   [com.taoensso/sente        "1.4.0-alpha2"] ; <--- Sente
    [com.taoensso/timbre       "3.3.1"]
 
    ;;; ---> Choose (uncomment) a supported web server <---
    [http-kit                  "2.1.19"]
-   ;; [org.immutant/web       "2.x.incremental.448"]
+   ;; [org.immutant/web       "2.0.0-beta2"]
 
    [ring                      "1.3.2"]
    [ring/ring-defaults        "0.1.3"] ; Includes `ring-anti-forgery`, etc.
@@ -65,5 +65,4 @@
    "start-dev"  ["repl" ":headless"]}
 
   :repositories
-  {"sonatype-oss-public"         "https://oss.sonatype.org/content/groups/public/"
-   "immutant-incremental-builds" "http://downloads.immutant.org/incremental/"})
+  {"sonatype-oss-public" "https://oss.sonatype.org/content/groups/public/"})

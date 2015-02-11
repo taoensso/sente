@@ -9,7 +9,7 @@
   (open?  [im-ch] (immutant/open? im-ch))
   (close! [im-ch] (immutant/close im-ch))
   (send!* [im-ch msg close-after-send?]
-    (immutant/send! im-ch msg :close? close-after-send?)))
+    (immutant/send! im-ch msg {:close? close-after-send?})))
 
 (deftype ImmutantAsyncNetworkChannelAdapter []
   i/IAsyncNetworkChannelAdapter

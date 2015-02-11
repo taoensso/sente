@@ -1,5 +1,10 @@
 > This project uses [Break Versioning](https://github.com/ptaoussanis/encore/blob/master/BREAK-VERSIONING.md) as of **Aug 16, 2014**.
 
+## v1.4.0-alpha2 / 2015 Feb 11
+
+ Minor release which updates Immutant to v2.0.0-beta2 (@tobias).
+
+
 ## v1.4.0-alpha1 / 2015 Feb 9
 
  > This is a **BREAKING** release focused on adding support for other web servers (just _Immutant_ for now). A big thanks to **@tobias** for his assistance with this release!

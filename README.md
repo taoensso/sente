@@ -2,7 +2,7 @@
 
 ```clojure
 [com.taoensso/sente "1.3.0"]        ; Stable
-[com.taoensso/sente "1.4.0-alpha1"] ; Adds Immutant support (see CHANGELOG)
+[com.taoensso/sente "1.4.0-alpha2"] ; Adds Immutant support (see CHANGELOG)
 ```
 
 # Sente, channel sockets for Clojure
