@@ -83,6 +83,19 @@
    [cljs.core.async.macros :as asyncm :refer (go go-loop)]
    [taoensso.encore        :as enc    :refer (have? have have-in)]))
 
+;;;; Encore version check
+
+#+clj
+(let [min-encore-version 1.21] ; v1.21+ required for *log-level*
+  (if-let [assert! (ns-resolve 'taoensso.encore 'assert-min-encore-version)]
+    (assert! min-encore-version)
+    (throw
+      (ex-info
+        (format
+          "Insufficient com.taoensso/encore version (< %s). You may have a Leiningen dependency conflict (see http://goo.gl/qBbLvC for solution)."
+          min-encore-version)
+        {:min-version min-encore-version}))))
+
 ;;;; Logging
 
 #+clj  (refer 'taoensso.timbre :only '(tracef debugf infof warnf errorf))
@@ -93,8 +106,8 @@
            (def errorf enc/errorf))
 
 (defn set-logging-level! [level]
-  #+clj  (timbre/set-level!           level)
-  #+cljs (reset! enc/logging-level level))
+  #+clj  (timbre/set-level!    level)
+  #+cljs (set! enc/*log-level* level))
 
 ;; (set-logging-level! :trace) ; For debugging
 
