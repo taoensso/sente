@@ -13,7 +13,7 @@
  * **BREAKING** [#85]: Removed support for `nil` user-id broadcasts. This was previously deprecated in v1.3.0.
  * **BREAKING** [#2]: Added support for web servers other than http-kit (@tobias).
 
-##### MIGRATION INSTRUCTIONS (from any verision < v1.4.0)
+##### MIGRATION INSTRUCTIONS (from any version < v1.4.0)
 
  1. Http-kit is no longer an automatic Sente dependency. To continue using http-kit, add `[http-kit "2.1.19"]` to your project.clj `:dependencies`.
  2. Your Clojure-side `make-channel-socket!` call must now take a web server adapter as first argument. To continue using http-kit, add `[taoensso.sente.server-adapters.http-kit]` to your Clojure-side ns form's `:require` entries and pass `taoensso.sente.server-adapters.http-kit/http-kit-adapter` as the first arg to `make-channel-socket!`.
