@@ -527,9 +527,12 @@
                     (handshake! net-ch))
 
                   ;; Ajax handshake/poll connection:
-                  (let [handshake? ; Initial connection for this client?
+                  (let [initial-conn-from-client?
                         (swap-in! conns_ [:ajax uid client-id]
-                          (fn [?v] (swapped [net-ch (enc/now-udt)] (nil? ?v))))]
+                          (fn [?v] (swapped [net-ch (enc/now-udt)] (nil? ?v))))
+
+                        handshake? (or initial-conn-from-client?
+                                       (:handshake? params))]
 
                     (when (connect-uid! :ajax uid)
                       (receive-event-msg! [:chsk/uidport-open]))
@@ -698,7 +701,16 @@
   (let [[old-state new-state]
         (swap-in! state_ []
           (fn [old-state]
-            (let [new-state (merge old-state merge-state)]
+            (let [new-state (merge old-state merge-state)
+                  ;; Is this a reasonable way of helping client distinguish
+                  ;; cause of an auto reconnect? Didn't give it much thought...
+                  new-state (if-not (and (:requested-reconnect-pending? old-state)
+                                              (:open? new-state)
+                                         (not (:open? old-state)))
+                              new-state
+                              (-> new-state
+                                  (dissoc :requested-reconnect-pending?)
+                                  (assoc  :requested-reconnect? true)))]
               (swapped new-state [old-state new-state]))))]
     (when (not= old-state new-state)
       ;; (debugf "Chsk state change: %s" new-state)
@@ -785,10 +797,13 @@
                   (cb-fn* :chsk/error)))
               false))))))
 
-  (chsk-reconnect!  [chsk] (when-let [s @socket_] (.close s)))
+  (chsk-reconnect!  [chsk]
+    (merge>chsk-state! chsk {:open? false :requested-reconnect-pending? true})
+    (when-let [s @socket_] (.close s 3000 "SENTE_RECONNECT")))
+
   (chsk-destroy!    [chsk]
-    (merge>chsk-state! chsk {:destroyed? true :open? false})
-    (chsk-reconnect!   chsk))
+    (merge>chsk-state! chsk {:open? false :destroyed? true})
+    (when-let [s @socket_] (.close s 1000 "CLOSE_NORMAL")))
 
   (chsk-init! [chsk]
     (when-let [WebSocket (or (aget js/window "WebSocket")
@@ -843,12 +858,15 @@
                                (chsk-send! chsk [:chsk/ws-ping]))
                              (reset! kalive-due?_ true))
                            kalive-ms))
-                       ;; NO, handshake better!:
+                       ;; NO, better for server to send a handshake!:
                        ;; (merge>chsk-state! chsk {:open? true})
                        ))
 
-                   (aset "onclose" ; Fires repeatedly when server is down
-                     (fn [_ws-ev] (merge>chsk-state! chsk {:open? false})
+                   ;; Fires repeatedly (on each connection attempt) while
+                   ;; server is down:
+                   (aset "onclose"
+                     (fn [_ws-ev]
+                       (merge>chsk-state! chsk {:open? false})
                        (retry!)))))
 
                ;; Couldn't even get a socket:
@@ -894,10 +912,13 @@
 
           :apparent-success))))
 
-  (chsk-reconnect!  [chsk] (when-let [x @curr-xhr_] (.abort x)))
+  (chsk-reconnect!  [chsk]
+    (merge>chsk-state! chsk {:open? false :requested-reconnect-pending? true})
+    (when-let [x @curr-xhr_] (.abort x)))
+
   (chsk-destroy!    [chsk]
-    (merge>chsk-state! chsk {:destroyed? true :open? false})
-    (chsk-reconnect!   chsk))
+    (merge>chsk-state! chsk {:open? false :destroyed? true})
+    (when-let [x @curr-xhr_] (.abort x)))
 
   (chsk-init! [chsk]
     ((fn async-poll-for-update! [nattempt]
@@ -915,19 +936,22 @@
              (ajax-call url
                {:method :get :timeout-ms timeout-ms
                 :resp-type :text ; Prefer to do our own pstr reading
-                :params {:_         (enc/now-udt) ; Force uncached resp
-                         :client-id client-id}}
+                :params (merge
+                          {:_          (enc/now-udt) ; Force uncached resp
+                           :client-id  client-id}
+
+                          ;; A truthy :handshake? param will prompt server to
+                          ;; reply immediately with a handshake response,
+                          ;; letting us confirm that our client<->server comms
+                          ;; are working:
+                          (when-not (:open? @state_) {:handshake? true}))}
+
                (fn ajax-cb [{:keys [?error ?content]}]
                  (if ?error
-                   (if (or (= ?error :timeout)
-                         (= ?error :abort) ; Abort => intentional, not err
-                         ;; It's particularly important that reconnect
-                         ;; aborts don't mark a chsk as closed since
-                         ;; we've no guarantee that a new handshake will
-                         ;; take place to remark as open (e.g. if uid
-                         ;; hasn't changed since last handshake).
-                         )
-                     (async-poll-for-update! 0)
+                   (cond
+                     (= ?error :timeout) (async-poll-for-update! 0)
+                     ;; (= ?error :abort) ; Abort => intentional, not an error
+                     :else
                      (do (merge>chsk-state! chsk {:open? false})
                          (retry!)))
 
@@ -937,6 +961,7 @@
                          [clj _] (unpack packer ppstr)]
                      (or
                        (handle-when-handshake! chsk clj)
+                       ;; Actually poll for an application reply:
                        (let [buffered-evs clj]
                          (receive-buffered-evs! (:<server chs) buffered-evs)
                          (merge>chsk-state! chsk {:open? true})))
