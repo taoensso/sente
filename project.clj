@@ -7,6 +7,7 @@
             :distribution :repo
             :comments "Same as Clojure"}
   :min-lein-version "2.3.3"
+  :jar-exclusions [#"\.cljx|\.DS_Store"]
   :global-vars {*warn-on-reflection* true
                 *assert* true}
 
