@@ -218,6 +218,11 @@
     [{:as ev-msg :keys [?data]}]
     (logf "Push event from server: %s" ?data))
 
+  (defmethod event-msg-handler :chsk/handshake
+    [{:as ev-msg :keys [?data]}]
+    (let [[?uid ?csrf-token ?handshake-data] ?data]
+      (debugf "Handshake: %s" ?data)))
+
   ;; Add your (defmethod handle-event-msg! <event-id> [ev-msg] <body>)s here...
   )
 

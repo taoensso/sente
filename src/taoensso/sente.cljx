@@ -23,20 +23,19 @@
                edn) for client<->server comms.
 
   Special messages:
+    * Callback wrapping: [<clj> <?cb-uuid>] for [1],[2].
     * Callback replies: :chsk/closed, :chsk/timeout, :chsk/error.
     * Client-side events:
-        [:chsk/handshake [<?uid> <?csrf-token>]],
-        [:chsk/ws-ping],
+        [:chsk/handshake [<?uid> <?csrf-token> <?handshake-data>]],
         [:chsk/state <new-state>],
         [:chsk/recv <[buffered-evs]>] ; server>user push
 
     * Server-side events:
+        [:chsk/ws-ping],
         [:chsk/bad-package <packed-str>],
-        [:chsk/bad-event <chsk-event>],
+        [:chsk/bad-event   <chsk-event>],
         [:chsk/uidport-open],
         [:chsk/uidport-close].
-
-    * Callback wrapping: [<clj> <?cb-uuid>] for [1],[2].
 
   Notable implementation details:
     * core.async is used liberally where brute-force core.async allows for
@@ -280,11 +279,12 @@
     :connected-uids ; Watchable, read-only (atom {:ws #{_} :ajax #{_} :any #{_}}).
 
   Common options:
-    :user-id-fn       ; (fn [ring-req]) -> unique user-id for server>user push.
-    :csrf-token-fn    ; (fn [ring-req]) -> CSRF token for Ajax POSTs.
-    :send-buf-ms-ajax ; [2]
-    :send-buf-ms-ws   ; [2]
-    :packer           ; :edn (default), or an IPacker implementation (experimental).
+    :user-id-fn        ; (fn [ring-req]) -> unique user-id for server>user push.
+    :csrf-token-fn     ; (fn [ring-req]) -> CSRF token for Ajax POSTs.
+    :handshake-data-fn ; (fn [ring-req]) -> arb user data to append to handshake evs.
+    :send-buf-ms-ajax  ; [2]
+    :send-buf-ms-ws    ; [2]
+    :packer            ; :edn (default), or an IPacker implementation (experimental).
 
   [1] e.g. `taoensso.sente.server-adapters.http-kit/http-kit-adapter` or
            `taoensso.sente.server-adapters.immutant/immutant-adapter`.
@@ -298,7 +298,7 @@
 
   [web-server-adapter ; Actually a net-ch-adapter, but that may be confusing
    & [{:keys [recv-buf-or-n send-buf-ms-ajax send-buf-ms-ws
-              user-id-fn csrf-token-fn packer]
+              user-id-fn csrf-token-fn handshake-data-fn packer]
        :or   {recv-buf-or-n (async/sliding-buffer 1000)
               send-buf-ms-ajax 100
               send-buf-ms-ws   30
@@ -307,6 +307,7 @@
                               (or (get-in ring-req [:session :csrf-token])
                                   (get-in ring-req [:session :ring.middleware.anti-forgery/anti-forgery-token])
                                   (get-in ring-req [:session "__anti-forgery-token"])))
+              handshake-data-fn (fn [ring-req] nil)
               packer :edn}}]]
 
   {:pre [(have? enc/pos-int? send-buf-ms-ajax send-buf-ms-ws)
@@ -505,9 +506,14 @@
              handshake!
              (fn [net-ch]
                (tracef "Handshake!")
-               (interfaces/send! net-ch
-                 (pack packer nil [:chsk/handshake [uid csrf-token]])
-                 (not websocket?)))]
+               (let [?handshake-data (handshake-data-fn ring-req)
+                     handshake-ev
+                     (if-not (nil? ?handshake-data) ; Micro optimization
+                       [:chsk/handshake [uid csrf-token ?handshake-data]]
+                       [:chsk/handshake [uid csrf-token]])]
+                 (interfaces/send! net-ch
+                   (pack packer nil handshake-ev)
+                   (not websocket?))))]
 
          (if (str/blank? client-id)
            (let [err-msg "Client's Ring request doesn't have a client id. Does your server have the necessary keyword Ring middleware (`wrap-params` & `wrap-keyword-params`)?"]
@@ -733,26 +739,47 @@
                          reply]))))))
 
 #+cljs
-(defn- receive-buffered-evs! [ch-recv clj]
+(defn- receive-buffered-evs! [chs clj]
   (tracef "receive-buffered-evs!: %s" clj)
   (let [buffered-evs (have vector? clj)]
     (doseq [ev buffered-evs]
       (assert-event ev)
-      (put! ch-recv ev))))
+      (put! (:<server chs) ev))))
 
 #+cljs
-(defn- handle-when-handshake! [chsk clj]
-  (tracef "handle-when-handshake!: %s" clj)
-  (when (and (vector? clj) ; Nb clj may be callback reply
-             (= (first clj) :chsk/handshake))
-    (let [[_ [uid csrf-token]] clj]
-      (when (str/blank? csrf-token)
-        (warnf "NO CSRF TOKEN AVAILABLE FOR USE BY SENTE"))
-      (merge>chsk-state! chsk
-        {:open?      true
-         :uid        uid
-         :csrf-token csrf-token})
-      :handled)))
+(defn- handle-when-handshake! [chsk chs clj]
+  (let [handshake? (and (vector? clj) ; Nb clj may be callback reply
+                        (= (first clj) :chsk/handshake))]
+    (tracef "handle-when-handshake (%s): %s"
+      (if handshake? :handshake :non-handshake) clj)
+
+    (when handshake?
+      (let [[_ [?uid ?csrf-token ?handshake-data] :as handshake-ev] clj
+            ;; Another idea? Not fond of how this places restrictions on the
+            ;; form and content of ?handshake-data:
+            ;; handshake-ev [:chsk/handshake
+            ;;               (merge
+            ;;                 (have [:or nil? map?] ?handshake-data)
+            ;;                 {:?uid        ?uid
+            ;;                  :?csrf-token ?csrf-token})]
+            ]
+        (when (str/blank? ?csrf-token)
+          (warnf "SECURITY WARNING: no CSRF token available for use by Sente"))
+
+        (merge>chsk-state! chsk
+          {:open?      true
+           :uid        ?uid
+           :csrf-token ?csrf-token
+
+           ;; Could also just merge ?handshake-data into chsk state here, but
+           ;; it seems preferable (?) to instead register a unique
+           ;; :chsk/handshake event
+           })
+
+        (assert-event handshake-ev)
+        (put! (:internal chs) handshake-ev)
+
+        :handled))))
 
 #+cljs
 (defn set-exp-backoff-timeout! [nullary-f & [nattempt]]
@@ -838,7 +865,7 @@
                              [clj ?cb-uuid] (unpack packer ppstr)]
                          ;; (assert-event clj) ;; NO!
                          (or
-                           (and (handle-when-handshake! chsk clj)
+                           (and (handle-when-handshake! chsk chs clj)
                                 (reset! nattempt_ 0))
                            (if-let [cb-uuid ?cb-uuid]
                              (if-let [cb-fn (pull-unused-cb-fn! cbs-waiting_
@@ -846,8 +873,7 @@
                                (cb-fn clj)
                                (warnf "Cb reply w/o local cb-fn: %s" clj))
                              (let [buffered-evs clj]
-                               (receive-buffered-evs! (:<server chs)
-                                 buffered-evs)))))))
+                               (receive-buffered-evs! chs buffered-evs)))))))
 
                    (aset "onopen"
                      (fn [_ws-ev]
@@ -960,10 +986,10 @@
                          ppstr   content
                          [clj _] (unpack packer ppstr)]
                      (or
-                       (handle-when-handshake! chsk clj)
+                       (handle-when-handshake! chsk chs clj)
                        ;; Actually poll for an application reply:
                        (let [buffered-evs clj]
-                         (receive-buffered-evs! (:<server chs) buffered-evs)
+                         (receive-buffered-evs! chs buffered-evs)
                          (merge>chsk-state! chsk {:open? true})))
                      (async-poll-for-update! 0)))))))))
      0)
@@ -1032,7 +1058,7 @@
 
   (let [packer (interfaces/coerce-packer packer)
         window-location (enc/get-window-location)
-        private-chs {:state    (chan (async/sliding-buffer 1))
+        private-chs {:state    (chan (async/sliding-buffer 10))
                      :internal (chan (async/sliding-buffer 10))
                      :<server  (chan recv-buf-or-n)}
 
