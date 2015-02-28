@@ -752,13 +752,14 @@
   (tracef "handle-when-handshake!: %s" clj)
   (when (and (vector? clj) ; Nb clj may be callback reply
              (= (first clj) :chsk/handshake))
-    (let [[_ [uid csrf-token]] clj]
+    (let [[_ [uid csrf-token ?handshake-user-data]] clj]
       (when (str/blank? csrf-token)
         (warnf "NO CSRF TOKEN AVAILABLE FOR USE BY SENTE"))
       (merge>chsk-state! chsk
-        {:open?      true
-         :uid        uid
-         :csrf-token csrf-token})
+        {:open?                true
+         :uid                  uid
+         :csrf-token           csrf-token
+         :?handshake-user-data ?handshake-user-data})
       :handled)))
 
 #+cljs
