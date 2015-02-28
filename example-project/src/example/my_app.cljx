@@ -262,9 +262,15 @@
               {:method :post
                :params {:user-id    (str user-id)
                         :csrf-token (:csrf-token @chsk-state)}}
-              (fn [ajax-resp] (logf "Ajax login response: %s" ajax-resp)))
-
-            (sente/chsk-reconnect! chsk)))))))
+              (fn [ajax-resp]
+                (logf "Ajax login response: %s" ajax-resp)
+                (let [login-successful? true ; Your logic here
+                      ]
+                  (if-not login-successful?
+                    (debug "Login failed")
+                    (do
+                      (debugf "Login successful")
+                      (sente/chsk-reconnect! chsk))))))))))))
 
 ;;;; Example: broadcast server>user
 
