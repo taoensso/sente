@@ -29,8 +29,8 @@
    [compojure.core     :as comp :refer (defroutes GET POST)]
    [compojure.route    :as route]
    [hiccup.core        :as hiccup]
-   [clojure.core.async :as async :refer (<! <!! >! >!! put! chan go go-loop)]
-   [taoensso.timbre    :as timbre]
+   [clojure.core.async :as async  :refer (<! <!! >! >!! put! chan go go-loop)]
+   [taoensso.timbre    :as timbre :refer (tracef debugf infof warnf errorf)]
    [taoensso.sente     :as sente]
 
    ;;; ---> Choose (uncomment) a supported web server and adapter <---
@@ -50,7 +50,7 @@
   (:require
    [clojure.string  :as str]
    [cljs.core.async :as async  :refer (<! >! put! chan)]
-   [taoensso.encore :as enc    :refer (logf)]
+   [taoensso.encore :as enc    :refer (tracef debugf infof warnf errorf)]
    [taoensso.sente  :as sente  :refer (cb-success?)]
 
    ;; Optional, for Transit encoding:
@@ -59,7 +59,6 @@
 ;;;; Logging config
 
 ;; (sente/set-logging-level! :trace) ; Uncomment for more logging
-#+clj (defn- logf [fmt & xs] (println (apply format fmt xs)))
 
 ;;;; ---> Choose (uncomment) a supported web server and adapter <---
 
@@ -130,7 +129,7 @@
   [ring-request]
   (let [{:keys [session params]} ring-request
         {:keys [user-id]} params]
-    (logf "Login request: %s" params)
+    (debugf "Login request: %s" params)
     {:status 200 :session (assoc session :uid user-id)}))
 
 #+clj
@@ -159,7 +158,7 @@
 
 ;;;; Client-side setup
 
-#+cljs (logf "ClojureScript appears to have loaded correctly.")
+#+cljs (debugf "ClojureScript appears to have loaded correctly.")
 #+cljs
 (let [rand-chsk-type (if (>= (rand) 0.5) :ajax :auto)
 
@@ -167,7 +166,7 @@
       (sente/make-channel-socket! "/chsk" ; Note the same URL as before
         {:type   rand-chsk-type
          :packer packer})]
-  (logf "Randomly selected chsk type: %s" rand-chsk-type)
+  (debugf "Randomly selected chsk type: %s" rand-chsk-type)
   (def chsk       chsk)
   (def ch-chsk    ch-recv) ; ChannelSocket's receive channel
   (def chsk-send! send-fn) ; ChannelSocket's send API fn
@@ -186,7 +185,7 @@
 (defmulti event-msg-handler :id) ; Dispatch on event-id
 ;; Wrap for logging, catching, etc.:
 (defn     event-msg-handler* [{:as ev-msg :keys [id ?data event]}]
-  (logf "Event: %s" event)
+  (debugf "Event: %s" event)
   (event-msg-handler ev-msg))
 
 #+clj
@@ -195,7 +194,7 @@
     [{:as ev-msg :keys [event id ?data ring-req ?reply-fn send-fn]}]
     (let [session (:session ring-req)
           uid     (:uid     session)]
-      (logf "Unhandled event: %s" event)
+      (debugf "Unhandled event: %s" event)
       (when ?reply-fn
         (?reply-fn {:umatched-event-as-echoed-from-from-server event}))))
 
@@ -206,17 +205,22 @@
 (do ; Client-side methods
   (defmethod event-msg-handler :default ; Fallback
     [{:as ev-msg :keys [event]}]
-    (logf "Unhandled event: %s" event))
+    (debugf "Unhandled event: %s" event))
 
   (defmethod event-msg-handler :chsk/state
     [{:as ev-msg :keys [?data]}]
     (if (= ?data {:first-open? true})
-      (logf "Channel socket successfully established!")
-      (logf "Channel socket state change: %s" ?data)))
+      (debugf "Channel socket successfully established!")
+      (debugf "Channel socket state change: %s" ?data)))
 
   (defmethod event-msg-handler :chsk/recv
     [{:as ev-msg :keys [?data]}]
-    (logf "Push event from server: %s" ?data))
+    (debugf "Push event from server: %s" ?data))
+
+  (defmethod event-msg-handler :chsk/handshake
+    [{:as ev-msg :keys [?data]}]
+    (let [[?uid ?csrf-token ?handshake-data] ?data]
+      (debugf "Handshake: %s" ?data)))
 
   ;; Add your (defmethod handle-event-msg! <event-id> [ev-msg] <body>)s here...
   )
@@ -227,16 +231,16 @@
 (when-let [target-el (.getElementById js/document "btn1")]
   (.addEventListener target-el "click"
     (fn [ev]
-      (logf "Button 1 was clicked (won't receive any reply from server)")
+      (debugf "Button 1 was clicked (won't receive any reply from server)")
       (chsk-send! [:example/button1 {:had-a-callback? "nope"}]))))
 
 #+cljs
 (when-let [target-el (.getElementById js/document "btn2")]
   (.addEventListener target-el "click"
     (fn [ev]
-      (logf "Button 2 was clicked (will receive reply from server)")
+      (debugf "Button 2 was clicked (will receive reply from server)")
       (chsk-send! [:example/button2 {:had-a-callback? "indeed"}] 5000
-        (fn [cb-reply] (logf "Callback reply: %s" cb-reply))))))
+        (fn [cb-reply] (debugf "Callback reply: %s" cb-reply))))))
 
 #+cljs
 (when-let [target-el (.getElementById js/document "btn-login")]
@@ -246,7 +250,7 @@
         (if (str/blank? user-id)
           (js/alert "Please enter a user-id first")
           (do
-            (logf "Logging in with user-id %s" user-id)
+            (debugf "Logging in with user-id %s" user-id)
 
             ;;; Use any login procedure you'd like. Here we'll trigger an Ajax
             ;;; POST request that resets our server-side session. Then we ask
@@ -257,9 +261,15 @@
               {:method :post
                :params {:user-id    (str user-id)
                         :csrf-token (:csrf-token @chsk-state)}}
-              (fn [ajax-resp] (logf "Ajax login response: %s" ajax-resp)))
-
-            (sente/chsk-reconnect! chsk)))))))
+              (fn [ajax-resp]
+                (debugf "Ajax login response: %s" ajax-resp)
+                (let [login-successful? true ; Your logic here
+                      ]
+                  (if-not login-successful?
+                    (debugf "Login failed")
+                    (do
+                      (debugf "Login successful")
+                      (sente/chsk-reconnect! chsk))))))))))))
 
 ;;;; Example: broadcast server>user
 
@@ -299,7 +309,7 @@
           (or port 0) ; 0 => auto (any available) port
           )
         uri (format "http://localhost:%s/" port)]
-    (logf "Web server is running at `%s`" uri)
+    (debugf "Web server is running at `%s`" uri)
     (try
       (.browse (java.awt.Desktop/getDesktop) (java.net.URI. uri))
       (catch java.awt.HeadlessException _))
