@@ -66,7 +66,7 @@
    [taoensso.encore           :as enc :refer (have? have have-in
                                               swap-in! reset-in!
                                               swapped)]
-   [taoensso.timbre           :as timbre]
+   [taoensso.timbre           :as timbre :refer (tracef debugf infof warnf errorf)]
    [taoensso.sente.interfaces :as interfaces])
 
   #+cljs
@@ -74,7 +74,8 @@
    [clojure.string  :as str]
    [cljs.core.async :as async :refer (<! >! put! chan)]
    ;; [cljs.reader  :as edn]
-   [taoensso.encore :as enc :refer (format swap-in! reset-in! swapped)]
+   [taoensso.encore :as enc :refer (format swap-in! reset-in! swapped
+                                    tracef debugf infof warnf errorf)]
    [taoensso.sente.interfaces :as interfaces])
 
   #+cljs
@@ -96,13 +97,6 @@
         {:min-version min-encore-version}))))
 
 ;;;; Logging
-
-#+clj  (refer 'taoensso.timbre :only '(tracef debugf infof warnf errorf))
-#+cljs (do (def tracef enc/tracef)
-           (def debugf enc/debugf)
-           (def infof  enc/infof)
-           (def warnf  enc/warnf)
-           (def errorf enc/errorf))
 
 (defn set-logging-level! [level]
   #+clj  (timbre/set-level!    level)
