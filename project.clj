@@ -1,4 +1,4 @@
-(defproject com.taoensso/sente "1.4.0-alpha2"
+(defproject com.taoensso/sente "1.4.0-beta1"
   :author "Peter Taoussanis <https://www.taoensso.com>"
   :description "Clojure channel sockets library"
   :url "https://github.com/ptaoussanis/sente"
@@ -13,25 +13,26 @@
   :dependencies
   [[org.clojure/clojure      "1.5.1"]
    [org.clojure/core.async   "0.1.346.0-17112a-alpha"]
-   [org.clojure/tools.reader "0.8.13"]
-   [com.taoensso/encore      "1.19.1"]
-   [com.taoensso/timbre      "3.3.1"]]
+   [org.clojure/tools.reader "0.8.15"]
+   [com.taoensso/encore      "1.21.0"]
+   [com.taoensso/timbre      "3.4.0"]]
 
   :profiles
   {;; :default [:base :system :user :provided :dev]
    :server-jvm {:jvm-opts ^:replace ["-server"]}
    :1.6  {:dependencies [[org.clojure/clojure     "1.6.0"]]}
    :1.7  {:dependencies [[org.clojure/clojure     "1.7.0-alpha3"]]}
-   :test {:dependencies [[com.cognitect/transit-clj  "0.8.259"]
-                         [com.cognitect/transit-cljs "0.8.199"]
-                         [expectations               "2.0.13"]
-                         [org.clojure/test.check     "0.6.2"]
+   :test {:dependencies [[com.cognitect/transit-clj  "0.8.269"]
+                         [com.cognitect/transit-cljs "0.8.205"]
+                         [expectations               "2.0.16"]
+                         [org.clojure/test.check     "0.7.0"]
                          ;; [com.cemerick/double-check "0.5.7"]
                          ]
           :plugins [[lein-expectations "0.0.8"]
                     [lein-autoexpect   "1.4.2"]]}
 
-   :provided {:dependencies [[org.clojure/clojurescript "0.0-2411"]]}
+   :provided {:dependencies [;; TODO 0.0-2850:
+                             [org.clojure/clojurescript "0.0-2411"]]}
 
    :dev
    [:1.7 :test

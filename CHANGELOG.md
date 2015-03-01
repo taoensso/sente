@@ -1,24 +1,33 @@
 > This project uses [Break Versioning](https://github.com/ptaoussanis/encore/blob/master/BREAK-VERSIONING.md) as of **Aug 16, 2014**.
 
-## v1.4.0-alpha2 / 2015 Feb 11
+## v1.4.0-beta1 - 2015 Mar 1
 
- Minor release which updates Immutant to v2.0.0-beta2 (@tobias).
+> This is a major **BREAKING** release. Biggest change is added support for web servers besides http-kit (only _Immutant_ for now). A big thanks to @tobias for his assistance with the Immutant support.
+
+* **BREAK**: added support for web servers besides http-kit (**see migration instructions**) [@tobias #2]
+* **BREAK**: removed support for `nil` user-id broadcasts (previously deprecated in v1.3.0) [#85] **[1]**
+* **Fix**: temporary workaround for core.async router error-catching issues [@shaharz #97]
+* **New**: throw clear compile-time exception on encore dependency issues
+* **New**: enable clients to distinguish between auto/manual reconnects [@sritchie #105] **[2]**
+* **New**: allow arbitrary user-provided handshake data with :chsk/handshake events [@whodidthis #110 #111] **[3]**
+* **Ref example**: some clarifications re: how to authenticate users
+
+#### Notes
+
+**[1]**: Server-side `(chsk-send! <user-id> <event>)` calls used to broadcast to all nil-uid users when `<user-id>` was `nil`. Now you must use the special `:sente/all-users-without-uid` keyword for these cases. The new behaviour helps prevent unintentional broadcasting.
+
+**[2]**: `:chsk/state` event data now contains `:requested-reconnect?` val.
+
+**[3]**: Server-side `make-channel-socket!` fn now takes an optional `:handshake-data-fn (fn [ring-req])` opt and client-side's `ch-recv` now receives `[:chsk/handshake [<?uid> <?csrf-token> <?handshake-data>]]` events.
 
 
-## v1.4.0-alpha1 / 2015 Feb 9
-
- > This is a **BREAKING** release focused on adding support for other web servers (just _Immutant_ for now). A big thanks to **@tobias** for his assistance with this release!
-
- * **FIX** [#97]: Temporary workaround for core.async router error catching issues (@shaharz).
- * **BREAKING** [#85]: Removed support for `nil` user-id broadcasts. This was previously deprecated in v1.3.0.
- * **BREAKING** [#2]: Added support for web servers other than http-kit (@tobias).
-
-##### MIGRATION INSTRUCTIONS (from any version < v1.4.0)
+#### MIGRATION INSTRUCTIONS (from any version < v1.4.0)
 
  1. Http-kit is no longer an automatic Sente dependency. To continue using http-kit, add `[http-kit "2.1.19"]` to your project.clj `:dependencies`.
  2. Your Clojure-side `make-channel-socket!` call must now take a web server adapter as first argument. To continue using http-kit, add `[taoensso.sente.server-adapters.http-kit]` to your Clojure-side ns form's `:require` entries and pass `taoensso.sente.server-adapters.http-kit/http-kit-adapter` as the first arg to `make-channel-socket!`.
 
 So:
+
 ```clojure
 [http-kit "2.1.19"] ; <--- Add to project.clj :dependencies
 
@@ -39,6 +48,8 @@ This change is a once-off nuisance that'll allow us the freedom of supporting a 
 Finally, **please see the updated [reference example project](https://github.com/ptaoussanis/sente/tree/master/example-project) for instructions on switching to an alternative web server like Immutant.**
 
 / Peter Taoussanis
+
+----
 
 ## v1.3.0 / 2015 Jan 17
 
