@@ -1,8 +1,24 @@
 > This project uses [Break Versioning](https://github.com/ptaoussanis/encore/blob/master/BREAK-VERSIONING.md) as of **Aug 16, 2014**.
 
+## v1.4.0-SNAPSHOT / work in progress
+
+> Unstable/dev build. Use with caution.
+
+* **New**: throw clear compile-time exception on encore dependency issues
+* **New**: enable clients to distinguish between auto/manual reconnects [@sritchie #105] **[1]**
+* **New**: allow arbitrary user-provided handshake data with :chsk/handshake events [@whodidthis #110 #111] **[2]**
+* **Ref example**: some clarifications re: how to authenticate users
+
+#### Notes
+
+**[1]:** `:chsk/state` event data now contains `:requested-reconnect?` val.
+
+**[2]:** Server-side `make-channel-socket!` fn now takes an optional `:handshake-data-fn (fn [ring-req])` opt and client-side's `ch-recv` now receives `[:chsk/handshake [<?uid> <?csrf-token> <?handshake-data>]]` events.
+
+
 ## v1.4.0-alpha2 / 2015 Feb 11
 
- Minor release which updates Immutant to v2.0.0-beta2 (@tobias).
+ > Minor release which updates Immutant to v2.0.0-beta2 (@tobias).
 
 
 ## v1.4.0-alpha1 / 2015 Feb 9
