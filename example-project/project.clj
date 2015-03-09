@@ -1,4 +1,4 @@
-(defproject com.taoensso.examples/sente "1.4.0-beta1"
+(defproject com.taoensso.examples/sente "1.4.0"
   :description "Sente, reference web-app example project"
   :url "https://github.com/ptaoussanis/sente"
   :license {:name "Eclipse Public License"
@@ -13,10 +13,12 @@
   [[org.clojure/clojure       "1.7.0-alpha4"] ; May use any v1.5.1+
    ;; [org.clojure/clojure    "1.6.0"]
 
+   ;; NB Haven't gotten around to testing newer versions of Cljs yet:
    [org.clojure/clojurescript "0.0-2411"]
+
    [org.clojure/core.async    "0.1.346.0-17112a-alpha"]
 
-   [com.taoensso/sente        "1.4.0-beta1"] ; <--- Sente
+   [com.taoensso/sente        "1.4.0"] ; <--- Sente
    [com.taoensso/timbre       "3.3.1"]
 
    ;;; ---> Choose (uncomment) a supported web server <---

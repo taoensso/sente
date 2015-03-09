@@ -1,6 +1,6 @@
 > This project uses [Break Versioning](https://github.com/ptaoussanis/encore/blob/master/BREAK-VERSIONING.md) as of **Aug 16, 2014**.
 
-## v1.4.0-beta1 - 2015 Mar 1
+## v1.4.0 - 2015 Mar 9
 
 > This is a major **BREAKING** release. Biggest change is added support for web servers besides http-kit (only _Immutant_ for now). A big thanks to @tobias for his assistance with the Immutant support.
 
@@ -11,6 +11,10 @@
 * **New**: enable clients to distinguish between auto/manual reconnects [@sritchie #105] **[2]**
 * **New**: allow arbitrary user-provided handshake data with :chsk/handshake events [@whodidthis #110 #111] **[3]**
 * **Ref example**: some clarifications re: how to authenticate users
+
+```clojure
+[com.taoensso/sente "1.4.0"]
+```
 
 #### Notes
 
