@@ -75,21 +75,14 @@ For Sente, we're going to add 2 new URLs and setup their handlers:
     ;; <other stuff>
     [taoensso.sente :as sente] ; <--- Add this
 
-    ;; Add a web-server adapter --->
-    [taoensso.sente.server-adapters.http-kit]    ; http-kit, or
-    ;; [taoensso.sente.server-adapters.immutant] ; Immutant
-   ))
-
-;;; Add this: --->
-(def web-server-adapter
-  taoensso.sente.server-adapters.http-kit/http-kit-adapter    ; http-kit, or
-  ;; taoensso.sente.server-adapters.immutant/immutant-adapter ; Immutant
-  )
+    ;; Uncomment a web-server adapter --->
+    ;; [taoensso.sente.server-adapters.http-kit :refer (sente-web-server-adapter)]
+    ;; [taoensso.sente.server-adapters.immutant :refer (sente-web-server-adapter)]))
 
 ;;; Add this: --->
 (let [{:keys [ch-recv send-fn ajax-post-fn ajax-get-or-ws-handshake-fn
               connected-uids]}
-      (sente/make-channel-socket! web-server-adapter {})]
+      (sente/make-channel-socket! sente-web-server-adapter {})]
   (def ring-ajax-post                ajax-post-fn)
   (def ring-ajax-get-or-ws-handshake ajax-get-or-ws-handshake-fn)
   (def ch-chsk                       ch-recv) ; ChannelSocket's receive channel

@@ -25,3 +25,4 @@
         :on-message  (when on-msg (fn [im-ch message] (on-msg im-ch message)))))))
 
 (def immutant-adapter (ImmutantAsyncNetworkChannelAdapter.))
+(def sente-web-server-adapter immutant-adapter) ; Alias for ns import convenience
