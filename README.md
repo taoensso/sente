@@ -74,12 +74,19 @@ For Sente, we're going to add 2 new URLs and setup their handlers:
   (:require
     ;; <other stuff>
     [taoensso.sente :as sente] ; <--- Add this
+    [taoensso.sente.server-adapters.http-kit] ; <--- Add a Sente adapter
+    ;; [taoensso.sente.server-adapters.immutant] ; If you are using Immutant
    ))
+
+;;; Add this: --->
+(def web-server-adapter taoensso.sente.server-adapters.http-kit/http-kit-adapter)
+
+; (def web-server-adapter taoensso.sente.server-adapters.immutant/immutant-adapter) ; or this
 
 ;;; Add this: --->
 (let [{:keys [ch-recv send-fn ajax-post-fn ajax-get-or-ws-handshake-fn
               connected-uids]}
-      (sente/make-channel-socket! {})]
+      (sente/make-channel-socket! web-server-adapter {})]
   (def ring-ajax-post                ajax-post-fn)
   (def ring-ajax-get-or-ws-handshake ajax-get-or-ws-handshake-fn)
   (def ch-chsk                       ch-recv) ; ChannelSocket's receive channel
