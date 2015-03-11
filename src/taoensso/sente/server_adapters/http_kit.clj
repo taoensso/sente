@@ -31,3 +31,4 @@
         ))))
 
 (def http-kit-adapter (HttpKitAsyncNetworkChannelAdapter.))
+(def sente-web-server-adapter http-kit-adapter) ; Alias for ns import convenience

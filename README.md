@@ -1,7 +1,7 @@
 **[API docs][]** | **[CHANGELOG][]** | [other Clojure libs][] | [Twitter][] | [contact/contrib](#contact--contributing) | current [Break Version][]:
 
 ```clojure
-[com.taoensso/sente "1.4.0"] ; BREAKS from v1.3.x, see CHANGELOG for details
+[com.taoensso/sente "1.4.1"] ; BREAKS from v1.3.x, see CHANGELOG for details
 ```
 
 # Sente, channel sockets for Clojure
@@ -50,7 +50,7 @@ So you can ignore the underlying protocol and deal directly with Sente's unified
 Add the necessary dependency to your [Leiningen][] `project.clj`. This'll provide your project with both the client (ClojureScript) + server (Clojure) side library code:
 
 ```clojure
-[com.taoensso/sente "1.4.0"]
+[com.taoensso/sente "1.4.1"]
 ```
 
 ### On the server (Clojure) side
@@ -75,21 +75,14 @@ For Sente, we're going to add 2 new URLs and setup their handlers:
     ;; <other stuff>
     [taoensso.sente :as sente] ; <--- Add this
 
-    ;; Add a web-server adapter --->
-    [taoensso.sente.server-adapters.http-kit]    ; http-kit, or
-    ;; [taoensso.sente.server-adapters.immutant] ; Immutant
-   ))
-
-;;; Add this: --->
-(def web-server-adapter
-  taoensso.sente.server-adapters.http-kit/http-kit-adapter    ; http-kit, or
-  ;; taoensso.sente.server-adapters.immutant/immutant-adapter ; Immutant
-  )
+    ;; Uncomment a web-server adapter --->
+    ;; [taoensso.sente.server-adapters.http-kit :refer (sente-web-server-adapter)]
+    ;; [taoensso.sente.server-adapters.immutant :refer (sente-web-server-adapter)]))
 
 ;;; Add this: --->
 (let [{:keys [ch-recv send-fn ajax-post-fn ajax-get-or-ws-handshake-fn
               connected-uids]}
-      (sente/make-channel-socket! web-server-adapter {})]
+      (sente/make-channel-socket! sente-web-server-adapter {})]
   (def ring-ajax-post                ajax-post-fn)
   (def ring-ajax-get-or-ws-handshake ajax-get-or-ws-handshake-fn)
   (def ch-chsk                       ch-recv) ; ChannelSocket's receive channel

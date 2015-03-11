@@ -1,5 +1,14 @@
 > This project uses [Break Versioning](https://github.com/ptaoussanis/encore/blob/master/BREAK-VERSIONING.md) as of **Aug 16, 2014**.
 
+## v1.4.1 - 2015 Mar 11
+
+> Trivial, non-breaking release that adds a pair of optional web-adapter aliases to help make examples a little simpler.
+
+```clojure
+[com.taoensso/sente "1.4.1"]
+```
+
+
 ## v1.4.0 - 2015 Mar 9
 
 > This is a major **BREAKING** release. Biggest change is added support for web servers besides http-kit (only _Immutant_ for now). A big thanks to @tobias for his assistance with the Immutant support.
