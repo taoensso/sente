@@ -77,7 +77,8 @@ For Sente, we're going to add 2 new URLs and setup their handlers:
 
     ;; Uncomment a web-server adapter --->
     ;; [taoensso.sente.server-adapters.http-kit :refer (sente-web-server-adapter)]
-    ;; [taoensso.sente.server-adapters.immutant :refer (sente-web-server-adapter)]))
+    ;; [taoensso.sente.server-adapters.immutant :refer (sente-web-server-adapter)]
+  ))
 
 ;;; Add this: --->
 (let [{:keys [ch-recv send-fn ajax-post-fn ajax-get-or-ws-handshake-fn
