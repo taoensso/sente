@@ -34,11 +34,14 @@
    [taoensso.sente     :as sente]
 
    ;;; ---> Choose (uncomment) a supported web server and adapter <---
+
    [org.httpkit.server :as http-kit]
-   [taoensso.sente.server-adapters.http-kit] ; Sente adapter for http-kit
+   [taoensso.sente.server-adapters.http-kit :refer (sente-web-server-adapter)]
+
+   ;; or
 
    ;; [immutant.web    :as immutant]
-   ;; [taoensso.sente.server-adapters.immutant] ; Sente adapter for Immutant
+   ;; [taoensso.sente.server-adapters.immutant :refer (sente-web-server-adapter)]
 
    ;; Optional, for Transit encoding:
    [taoensso.sente.packers.transit :as sente-transit])
@@ -63,7 +66,6 @@
 ;;;; ---> Choose (uncomment) a supported web server and adapter <---
 
 ;;; http-kit
-#+clj (def web-server-adapter taoensso.sente.server-adapters.http-kit/http-kit-adapter)
 #+clj
 (defn start-web-server!* [ring-handler port]
   (println "Starting http-kit...")
@@ -73,7 +75,6 @@
      :stop-fn (fn [] (http-kit-stop-fn :timeout 100))}))
 
 ;;; Immutant
-;; #+clj (def web-server-adapter taoensso.sente.server-adapters.immutant/immutant-adapter)
 ;; #+clj
 ;; (defn start-web-server!* [ring-handler port]
 ;;   (println "Starting Immutant...")
@@ -92,7 +93,7 @@
 #+clj
 (let [{:keys [ch-recv send-fn ajax-post-fn ajax-get-or-ws-handshake-fn
               connected-uids]}
-      (sente/make-channel-socket! web-server-adapter {:packer packer})]
+      (sente/make-channel-socket! sente-web-server-adapter {:packer packer})]
   (def ring-ajax-post                ajax-post-fn)
   (def ring-ajax-get-or-ws-handshake ajax-get-or-ws-handshake-fn)
   (def ch-chsk                       ch-recv) ; ChannelSocket's receive channel
