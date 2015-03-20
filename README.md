@@ -318,20 +318,22 @@ Otherwise reach me (Peter Taoussanis) at [taoensso.com][] or on [Twitter][]. Che
 
 Copyright &copy; 2012-2014 Peter Taoussanis. Distributed under the [Eclipse Public License][], the same as Clojure.
 
+
 [API docs]: http://ptaoussanis.github.io/sente/
-[CHANGELOG_]: https://github.com/ptaoussanis/sente/blob/master/CHANGELOG.md
 [CHANGELOG]: https://github.com/ptaoussanis/sente/releases
-[other Clojure libs]: https://www.taoensso.com/clojure-libraries
+[other Clojure libs]: https://www.taoensso.com/clojure
+[taoensso.com]: https://www.taoensso.com
 [Twitter]: https://twitter.com/ptaoussanis
-[SemVer]: http://semver.org/
-[Break Version]: https://github.com/ptaoussanis/encore/blob/master/BREAK-VERSIONING.md
-[reference example project]: https://github.com/ptaoussanis/sente/tree/master/example-project
-[Leiningen]: http://leiningen.org/
 [issues page]: https://github.com/ptaoussanis/sente/issues
 [commit history]: https://github.com/ptaoussanis/sente/commits/master
+[Break Version]: https://github.com/ptaoussanis/encore/blob/master/BREAK-VERSIONING.md
+[Leiningen]: http://leiningen.org/
 [Cider]: https://github.com/clojure-emacs/cider
-[taoensso.com]: https://www.taoensso.com
+[CDS]: http://clojure-doc.org/
+[ClojureWerkz]: http://clojurewerkz.org/
 [Eclipse Public License]: https://raw2.github.com/ptaoussanis/sente/master/LICENSE
+
+[reference example project]: https://github.com/ptaoussanis/sente/tree/master/example-project
 [Go]: http://en.wikipedia.org/wiki/Go_game
 [edn]: https://github.com/edn-format/edn
 [http-kit]: https://github.com/http-kit/http-kit
