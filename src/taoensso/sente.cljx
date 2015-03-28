@@ -63,9 +63,8 @@
    [clojure.core.async :as async :refer (<! <!! >! >!! put! chan
                                          go go-loop)]
    ;; [clojure.tools.reader.edn :as edn]
-   [taoensso.encore           :as enc :refer (have? have have-in
-                                              swap-in! reset-in!
-                                              swapped)]
+   [taoensso.encore           :as enc :refer (swap-in! reset-in! swapped
+                                              have? have)]
    [taoensso.timbre           :as timbre :refer (tracef debugf infof warnf errorf)]
    [taoensso.sente.interfaces :as interfaces])
 
@@ -81,12 +80,12 @@
   #+cljs
   (:require-macros
    [cljs.core.async.macros :as asyncm :refer (go go-loop)]
-   [taoensso.encore        :as enc    :refer (have? have have-in)]))
+   [taoensso.encore        :as enc    :refer (have? have)]))
 
 ;;;; Encore version check
 
 #+clj
-(let [min-encore-version 1.21] ; v1.21+ required for *log-level*
+(let [min-encore-version 1.23]
   (if-let [assert! (ns-resolve 'taoensso.encore 'assert-min-encore-version)]
     (assert! min-encore-version)
     (throw
@@ -112,7 +111,7 @@
   Simple+lightweight Ajax via Google Closure. Returns nil, or the xhr instance.
   Ref. https://developers.google.com/closure/library/docs/xhrio.
 
-  (ajax-call \"/my-post-route\"
+  (ajax-lite \"/my-post-route\"
     {:method     :post
      :params     {:username \"Rich Hickey\"
                   :type     \"Awesome\"}
@@ -120,10 +119,10 @@
      :resp-type  :text
      :timeout-ms 7000}
     (fn async-callback [resp-map]
-      (let [{:keys [?status ?error ?content ?content-type]} resp-map]
-        ;; ?status - 200, 404, ..., or nil on no response
-        ;; ?error  - e/o #{:xhr-pool-depleted :exception :http-error :abort
-        ;;                 :timeout <http-error-status> nil}
+      (let [{:keys [success? ?status ?error ?content ?content-type]} resp-map]
+        ;; ?status  - 200, 404, ..., or nil on no response
+        ;; ?error   - e/o #{:xhr-pool-depleted :exception :http-error :abort
+        ;;                  :timeout :no-content <http-error-status> nil}
         (js/alert (str \"Ajax response: \" resp-map)))))"
   enc/ajax-lite)
 
