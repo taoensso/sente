@@ -98,6 +98,12 @@ For Sente, we're going to add 2 new URLs and setup their handlers:
   (GET  "/chsk" req (ring-ajax-get-or-ws-handshake req))
   (POST "/chsk" req (ring-ajax-post                req))
   )
+
+(def handler
+    (-> my-app
+        wrap-keyword-params
+        wrap-params))        ;; Add necessary ring middleware to your handler
+    
 ```
 
 > The `ring-ajax-post` and `ring-ajax-get-or-ws-handshake` fns will automatically handle Ring GET and POST requests to our channel socket URL (`"/chsk"`). Together these take care of the messy details of establishing + maintaining WebSocket or long-polling requests.
