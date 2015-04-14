@@ -91,7 +91,7 @@ For Sente, we're going to add 2 new URLs and setup their handlers:
   (def connected-uids                connected-uids) ; Watchable, read-only atom
   )
 
-(defroutes my-app
+(defroutes my-app-routes
   ;; <other stuff>
 
   ;;; Add these 2 entries: --->
@@ -99,11 +99,11 @@ For Sente, we're going to add 2 new URLs and setup their handlers:
   (POST "/chsk" req (ring-ajax-post                req))
   )
 
-(def handler
-    (-> my-app
-        wrap-keyword-params
-        wrap-params))        ;; Add necessary ring middleware to your handler
-    
+(def my-app
+  (-> my-app-routes
+      ;; Add necessary Ring middleware:
+      ring.middleware.keyword-params/wrap-keyword-params
+      ring.middleware.params/wrap-params))
 ```
 
 > The `ring-ajax-post` and `ring-ajax-get-or-ws-handshake` fns will automatically handle Ring GET and POST requests to our channel socket URL (`"/chsk"`). Together these take care of the messy details of establishing + maintaining WebSocket or long-polling requests.
