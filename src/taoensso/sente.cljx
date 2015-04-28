@@ -111,7 +111,7 @@
   Simple+lightweight Ajax via Google Closure. Returns nil, or the xhr instance.
   Ref. https://developers.google.com/closure/library/docs/xhrio.
 
-  (ajax-lite \"/my-post-route\"
+  (ajax-call \"/my-post-route\"
     {:method     :post
      :params     {:username \"Rich Hickey\"
                   :type     \"Awesome\"}
