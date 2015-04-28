@@ -1152,14 +1152,15 @@
                       #+clj Throwable
                       #+cljs js/Error ; :default ; Temp workaround for [1]
                       t
-                      (errorf #+clj t
-                        "Chsk router handling error: %s" event))))))
+                      #+clj  (errorf t "Chsk router handling error: %s" event)
+                      #+cljs (errorf   "Chsk router handling error (%s): %s"
+                               event t))))))
             (catch
               #+clj Throwable
               #+cljs js/Error ; :default [1] Temp workaround for [1]
               t
-              (errorf #+clj t
-                "Chsk router channel error!"))))
+              #+clj  (errorf t "Chsk router channel error!")
+              #+cljs (errorf   "Chsk router channel error (%s)!" t))))
 
         ;; TODO [1]
         ;; @shaharz reported (https://github.com/ptaoussanis/sente/issues/97)
