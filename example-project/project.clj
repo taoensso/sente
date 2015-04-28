@@ -10,14 +10,10 @@
                 *assert* true}
 
   :dependencies
-  [[org.clojure/clojure       "1.7.0-beta1"] ; May use any v1.5.1+
+  [[org.clojure/clojure       "1.7.0-beta2"] ; May use any v1.5.1+
    ;; [org.clojure/clojure    "1.6.0"]
 
-   ;; NB Have seen a number of cases of newer versions of Cljs causing issues
-   ;; with incompatible dependencies, etc. Haven't gotten around to testing
-   ;; specific newer versions of Cljs yet:
-   ;; [org.clojure/clojurescript "0.0-3196"] ; TODO
-   [org.clojure/clojurescript    "0.0-2411"]
+   [org.clojure/clojurescript "0.0-3211"]
 
    [org.clojure/core.async    "0.1.346.0-17112a-alpha"]
 
@@ -42,7 +38,7 @@
 
   :plugins
   [[lein-pprint         "1.1.2"]
-   [lein-ancient        "0.6.4"] ; Seem to be having issues with 0.6.5+
+   [lein-ancient        "0.6.7"]
    [com.cemerick/austin "0.1.6"]
    [com.keminglabs/cljx "0.6.0"]
    [lein-cljsbuild      "1.0.5"]

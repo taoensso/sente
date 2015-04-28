@@ -13,15 +13,15 @@
   :dependencies
   [[org.clojure/clojure      "1.5.1"]
    [org.clojure/core.async   "0.1.346.0-17112a-alpha"]
-   [org.clojure/tools.reader "0.9.1"]
-   [com.taoensso/encore      "1.23.1"]
+   [org.clojure/tools.reader "0.9.2"]
+   [com.taoensso/encore      "1.27.0-RC2"]
    [com.taoensso/timbre      "3.4.0"]]
 
   :profiles
   {;; :default [:base :system :user :provided :dev]
    :server-jvm {:jvm-opts ^:replace ["-server"]}
    :1.6  {:dependencies [[org.clojure/clojure     "1.6.0"]]}
-   :1.7  {:dependencies [[org.clojure/clojure     "1.7.0-beta1"]]}
+   :1.7  {:dependencies [[org.clojure/clojure     "1.7.0-beta2"]]}
    :test {:dependencies [[com.cognitect/transit-clj  "0.8.271"]
                          [com.cognitect/transit-cljs "0.8.207"]
                          [expectations               "2.1.0"]
@@ -31,12 +31,7 @@
           :plugins [[lein-expectations "0.0.8"]
                     [lein-autoexpect   "1.4.2"]]}
 
-   :provided {:dependencies [[org.clojure/clojurescript    "0.0-2411"]
-                             ;; Have been experiencing various technical issues
-                             ;; with newer versions of ClojureScript, so
-                             ;; holding back on bumping here for now:
-                             ;; [org.clojure/clojurescript "0.0-3196"] ; TODO
-                             ]}
+   :provided {:dependencies [[org.clojure/clojurescript "0.0-3211"]]}
 
    :dev
    [:1.7 :test
@@ -49,7 +44,7 @@
       [org.immutant/web                "2.0.0"]
       ;;
       [lein-pprint                     "1.1.1"]
-      [lein-ancient                    "0.6.4"]
+      [lein-ancient                    "0.6.7"]
       ;; [com.cemerick/austin          "0.1.4"]
       [lein-expectations               "0.0.8"]
       [lein-autoexpect                 "1.4.2"]
