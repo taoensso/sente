@@ -14,24 +14,24 @@
   [[org.clojure/clojure      "1.5.1"]
    [org.clojure/core.async   "0.1.346.0-17112a-alpha"]
    [org.clojure/tools.reader "0.9.2"]
-   [com.taoensso/encore      "1.27.0-RC2"]
+   [com.taoensso/encore      "1.31.0"]
    [com.taoensso/timbre      "3.4.0"]]
 
   :profiles
   {;; :default [:base :system :user :provided :dev]
    :server-jvm {:jvm-opts ^:replace ["-server"]}
    :1.6  {:dependencies [[org.clojure/clojure     "1.6.0"]]}
-   :1.7  {:dependencies [[org.clojure/clojure     "1.7.0-beta2"]]}
+   :1.7  {:dependencies [[org.clojure/clojure     "1.7.0-RC1"]]}
    :test {:dependencies [[com.cognitect/transit-clj  "0.8.271"]
-                         [com.cognitect/transit-cljs "0.8.207"]
+                         [com.cognitect/transit-cljs "0.8.215"]
                          [expectations               "2.1.0"]
                          [org.clojure/test.check     "0.7.0"]
                          ;; [com.cemerick/double-check "0.6.1"]
                          ]
           :plugins [[lein-expectations "0.0.8"]
-                    [lein-autoexpect   "1.4.2"]]}
+                    [lein-autoexpect   "1.4.3"]]}
 
-   :provided {:dependencies [[org.clojure/clojurescript "0.0-3211"]]}
+   :provided {:dependencies [[org.clojure/clojurescript "0.0-3297"]]}
 
    :dev
    [:1.7 :test
