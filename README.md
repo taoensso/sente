@@ -297,10 +297,12 @@ If you do want a lifecycle management lib, I'm personally fond of Leaven since i
 
 Here's some more unofficial/**user-submitted** examples for those interested! (**PRs welcome!**):
 
-Example          | Author          | Comments                                         |
----------------- | --------------- | ------------------------------------------------ |
-[om-mouse]       | [@tf0054]       | Basic example: tracks mouse pos using Om+Sente.  |
-[om-sente]       | [@seancorfield] | ??                                               |
+Example          | Author           | Comments                                         |
+---------------- | ---------------- | ------------------------------------------------ |
+[om-mouse]       | [@tf0054]        | Basic example: tracks mouse pos using Om+Sente.  |
+[om-sente]       | [@seancorfield]  | ??                                               |
+[sente-boot]     | [@danielsz]      | Same example app, different toolchain ([boot])   |
+[sente-system]   | [@danielsz]      | Same example app, adapted for [danielsz/system]  |
 
 #### Any other questions?
 
@@ -346,9 +348,13 @@ Copyright &copy; 2012-2014 Peter Taoussanis. Distributed under the [Eclipse Publ
 [Socket.IO]: http://socket.io/
 [om-mouse]: https://git.geekli.st/tf0054/om-mouse/tree/master
 [om-sente]: https://github.com/seancorfield/om-sente
+[sente-boot]: https://github.com/danielsz/sente-boot
+[sente-system]: https://github.com/danielsz/sente-system
 [@tf0054]: https://github.com/tf0054
 [@seancorfield]: https://github.com/seancorfield
+[@danielsz]: https://github.com/danielsz
 [stuartsierra/component]: https://github.com/stuartsierra/component
 [danielsz/system]: https://github.com/danielsz/system
 [palletops/leaven]: https://github.com/palletops/leaven
 [palletops/bakery]: https://github.com/palletops/bakery
+[boot]: http://boot-clj.com/
