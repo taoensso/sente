@@ -117,7 +117,9 @@
                   :type     \"Awesome\"}
      :headers    {\"Foo\" \"Bar\"}
      :resp-type  :text
-     :timeout-ms 7000}
+     :timeout-ms 7000
+     :with-credentials? false ; Enable if using CORS (requires xhr v2+)
+    }
     (fn async-callback [resp-map]
       (let [{:keys [success? ?status ?error ?content ?content-type]} resp-map]
         ;; ?status  - 200, 404, ..., or nil on no response
@@ -893,7 +895,8 @@
       chsk)))
 
 #+cljs
-(defrecord ChAjaxSocket [client-id url chs timeout-ms curr-xhr_ state_ packer]
+(defrecord ChAjaxSocket
+    [client-id url chs timeout-ms ajax-opts curr-xhr_ state_ packer]
   IChSocket
   (chsk-send!* [chsk ev {:as opts ?timeout-ms :timeout-ms ?cb :cb :keys [flush?]}]
     (assert-send-args ev ?timeout-ms ?cb)
@@ -905,14 +908,15 @@
         ;; TODO Buffer before sending (but honor `:flush?`)
         (do
           (ajax-call url
-           {:method :post :timeout-ms ?timeout-ms
-            :resp-type :text ; We'll do our own pstr decoding
-            :params
-            (let [ppstr (pack packer (meta ev) ev (when ?cb-fn :ajax-cb))]
-              {:_           (enc/now-udt) ; Force uncached resp
-               :csrf-token  (:csrf-token @state_)
-               ;; :client-id client-id ; Unnecessary here
-               :ppstr       ppstr})}
+            (merge ajax-opts
+              {:method :post :timeout-ms ?timeout-ms
+               :resp-type :text ; We'll do our own pstr decoding
+               :params
+               (let [ppstr (pack packer (meta ev) ev (when ?cb-fn :ajax-cb))]
+                 {:_           (enc/now-udt) ; Force uncached resp
+                  :csrf-token  (:csrf-token @state_)
+                  ;; :client-id client-id ; Unnecessary here
+                  :ppstr       ppstr})})
 
            (fn ajax-cb [{:keys [?error ?content]}]
              (if ?error
@@ -953,17 +957,19 @@
 
            (reset! curr-xhr_
              (ajax-call url
-               {:method :get :timeout-ms timeout-ms
-                :resp-type :text ; Prefer to do our own pstr reading
-                :params (merge
-                          {:_          (enc/now-udt) ; Force uncached resp
-                           :client-id  client-id}
+               (merge ajax-opts
+                 {:method :get :timeout-ms timeout-ms
+                  :resp-type :text ; Prefer to do our own pstr reading
+                  :params
+                  (merge
+                    {:_          (enc/now-udt) ; Force uncached resp
+                     :client-id  client-id}
 
-                          ;; A truthy :handshake? param will prompt server to
-                          ;; reply immediately with a handshake response,
-                          ;; letting us confirm that our client<->server comms
-                          ;; are working:
-                          (when-not (:open? @state_) {:handshake? true}))}
+                    ;; A truthy :handshake? param will prompt server to
+                    ;; reply immediately with a handshake response,
+                    ;; letting us confirm that our client<->server comms
+                    ;; are working:
+                    (when-not (:open? @state_) {:handshake? true}))})
 
                (fn ajax-cb [{:keys [?error ?content]}]
                  (if ?error
@@ -1021,15 +1027,16 @@
     :chsk    ; IChSocket implementer. You can usu. ignore this.
 
   Common options:
-    :type         ; e/o #{:auto :ws :ajax}. You'll usually want the default (:auto).
+    :type         ; e/o #{:auto :ws :ajax}. You'll usually want the default (:auto)
     :ws-kalive-ms ; Ping to keep a WebSocket conn alive if no activity w/in given
-                  ; number of milliseconds.
-    :lp-kalive-ms ; Ping to keep a long-polling (Ajax) conn alive ''.
-    :chsk-url-fn  ; Please see `default-chsk-url-fn` for details.
-    :packer       ; :edn (default), or an IPacker implementation (experimental)."
+                  ; number of milliseconds
+    :lp-kalive-ms ; Ping to keep a long-polling (Ajax) conn alive ''
+    :chsk-url-fn  ; Please see `default-chsk-url-fn` for details
+    :packer       ; :edn (default), or an IPacker implementation (experimental)
+    :ajax-opts    ; Base opts map provided to `ajax-call`"
   [path &
    & [{:keys [type recv-buf-or-n ws-kalive-ms lp-timeout-ms chsk-url-fn packer
-              client-id]
+              client-id ajax-opts]
        :as   opts
        :or   {type          :auto
               recv-buf-or-n (async/sliding-buffer 2048) ; Mostly for buffered-evs
@@ -1098,6 +1105,7 @@
                    :chs        private-chs
                    :packer     packer
                    :timeout-ms lp-timeout-ms
+                   :ajax-opts  ajax-opts
                    :curr-xhr_  (atom nil)
                    :state_     (atom {:type :ajax :open? false
                                       :destroyed? false})}))))
