@@ -45,7 +45,7 @@ So you can ignore the underlying protocol and deal directly with Sente's unified
 
 ## Getting started
 
-> Note that there's also a full **[reference example project][]** in this repo.
+> Note that there's also a variety of full **[example projects][]** available
 
 Add the necessary dependency to your [Leiningen][] `project.clj`. This'll provide your project with both the client (ClojureScript) + server (Clojure) side library code:
 
@@ -138,7 +138,7 @@ You'll setup something similar on the client side:
 
 The client will automatically initiate a WebSocket or repeating long-polling connection to your server. Client<->server events are now ready to transmit over the `ch-chsk` channel.
 
-**Last step**: you'll want to **hook your own event handlers up to this channel**. Please see the [reference example project] for one way of doing this.
+**Last step**: you'll want to **hook your own event handlers up to this channel**. Please see one of the [example projects] for details.
 
 #### Client-side API
 
@@ -202,10 +202,25 @@ Some important differences to note:
   * Ajax would require clumsy long-polling setup, and wouldn't easily support users connected with multiple clients simultaneously.
   * Sente: `(chsk-send! "destination-user-id" [:some/alert-id <edn-payload>])`.
 
+### Example projects
+
+There's a full [reference example project][] in the repo. Call `lein start-dev` in that dir to get a (headless) development repl that you can connect to with [Cider][] (emacs) or your IDE.
+
+There's also some **user-submitted** examples which may be handy:
+> PRs welcome for additional examples!
+
+| Author/link              | Description                                      |
+-------------------------- | ------------------------------------------------ |
+[@danielsz]/[sente-boot]   | Same example app, different toolchain ([boot])   |
+[@danielsz]/[sente-system] | Same example app, adapted for [danielsz/system]  |
+[@tf0054]/[om-mouse]       | Basic example: tracks mouse pos using Om+Sente   |
+[@seancorfield]/[om-sente] | ??                                               |
 
 ### FAQ
 
 #### What is the `user-id` provided to the server>user push fn?
+
+> There's now also a full `user-id`, `client-id` summary up [here](https://github.com/ptaoussanis/sente/issues/118#issuecomment-87378277)
 
 For the server to push events, we need a destination. Traditionally we might push to a _client_ (e.g. browser tab). But with modern rich web applications and the increasing use of multiple simultaneous devices (tablets, mobiles, etc.) - the value of a _client_ push is diminishing. You'll often see applications (even by Google) struggling to deal with these cases.
 
@@ -224,7 +239,7 @@ As of Sente v0.13.0+ it's also possible to send events to `:sente/all-users-with
 
 #### How do I integrate Sente with my usual login/auth procedure?
 
-This is trivially easy as of Sente v0.13.0+. Please see the [reference example project][] which now includes a basic login form.
+This is trivially easy as of Sente v0.13.0+. Please see one of the [example projects][] for details.
 
 #### Will Sente work with Reactjs/Reagent/Om/Pedestel/etc.?
 
@@ -238,7 +253,7 @@ As of v1, Sente uses an extensible client<->server serialization mechanism. It u
 
 #### How do I route client/server events?
 
-However you like! If you don't have many events, a simple `cond` will probably do. Otherwise a multimethod dispatching against event ids works well (this is the approach taken in the [reference example project][].
+However you like! If you don't have many events, a simple `cond` will probably do. Otherwise a multimethod dispatching against event ids works well (this is the approach taken in the [reference example project][]).
 
 #### Security: is there HTTPS support?
 
@@ -248,17 +263,11 @@ Yup, it's automatic for both Ajax and WebSockets. If the page serving your JavaS
 
 **This is important**. Sente has support, but you'll need to use middleware like `ring-anti-forgery` to generate and check CSRF codes. The `ring-ajax-post` handler should be covered (i.e. protected).
 
-The [reference example project][] has a fully-baked example.
+Please see one of the [example projects][] for a fully-baked example.
 
 #### Pageload: How do I know when Sente is ready client-side?
 
 You'll want to listen on the receive channel for a `[:chsk/state {:first-open? true}]` event. That's the signal that the socket's been established.
-
-#### Examples: wherefore art thou?
-
-There's a full [reference example project][] in the repo. Call `lein start-dev` in that dir to get a (headless) development repl that you can connect to with [Cider][] (emacs) or your IDE.
-
-Further instructions are provided in the relevant namespace.
 
 #### How can server-side channel socket events modify a user's session?
 
@@ -293,17 +302,6 @@ There's also a couple lifecycle libraries that include Sente components:
 
 If you do want a lifecycle management lib, I'm personally fond of Leaven since it's simpler (no auto dependencies) and adds ClojureScript support (which is handy for Sente).
 
-#### Any other examples?
-
-Here's some more unofficial/**user-submitted** examples for those interested! (**PRs welcome!**):
-
-Example          | Author           | Comments                                         |
----------------- | ---------------- | ------------------------------------------------ |
-[om-mouse]       | [@tf0054]        | Basic example: tracks mouse pos using Om+Sente.  |
-[om-sente]       | [@seancorfield]  | ??                                               |
-[sente-boot]     | [@danielsz]      | Same example app, different toolchain ([boot])   |
-[sente-system]   | [@danielsz]      | Same example app, adapted for [danielsz/system]  |
-
 #### Any other questions?
 
 If I've missed something here, feel free to open a GitHub issue or pop me an email!
@@ -335,6 +333,7 @@ Copyright &copy; 2012-2014 Peter Taoussanis. Distributed under the [Eclipse Publ
 [ClojureWerkz]: http://clojurewerkz.org/
 [Eclipse Public License]: https://raw2.github.com/ptaoussanis/sente/master/LICENSE
 
+[example projects]: #example-projects
 [reference example project]: https://github.com/ptaoussanis/sente/tree/master/example-project
 [Go]: http://en.wikipedia.org/wiki/Go_game
 [edn]: https://github.com/edn-format/edn
