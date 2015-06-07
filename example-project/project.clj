@@ -13,7 +13,7 @@
   [[org.clojure/clojure       "1.7.0-RC1"] ; May use any v1.5.1+
    ;; [org.clojure/clojure    "1.6.0"]
 
-   [org.clojure/clojurescript "0.0-3297"]
+   [org.clojure/clojurescript "0.0-3308"]
 
    [org.clojure/core.async    "0.1.346.0-17112a-alpha"]
 
@@ -22,7 +22,7 @@
 
    ;;; ---> Choose (uncomment) a supported web server <---
    [http-kit                  "2.1.19"]
-   ;; [org.immutant/web       "2.0.0"]
+   ;; [org.immutant/web       "2.0.1"]
 
    [ring                      "1.3.2"]
    [ring/ring-defaults        "0.1.5"] ; Includes `ring-anti-forgery`, etc.
@@ -33,8 +33,8 @@
 
    ;;; Transit deps optional; may be used to aid perf. of larger data payloads
    ;;; (see reference example for details):
-   [com.cognitect/transit-clj  "0.8.271"]
-   [com.cognitect/transit-cljs "0.8.215"]]
+   [com.cognitect/transit-clj  "0.8.275"]
+   [com.cognitect/transit-cljs "0.8.220"]]
 
   :plugins
   [[lein-pprint         "1.1.2"]
