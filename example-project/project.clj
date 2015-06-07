@@ -1,4 +1,4 @@
-(defproject com.taoensso.examples/sente "1.4.1"
+(defproject com.taoensso.examples/sente "1.5.0-RC1"
   :description "Sente, reference web-app example project"
   :url "https://github.com/ptaoussanis/sente"
   :license {:name "Eclipse Public License"
@@ -10,39 +10,38 @@
                 *assert* true}
 
   :dependencies
-  [[org.clojure/clojure       "1.7.0-alpha4"] ; May use any v1.5.1+
+  [[org.clojure/clojure       "1.7.0-RC1"] ; May use any v1.5.1+
    ;; [org.clojure/clojure    "1.6.0"]
 
-   ;; NB Haven't gotten around to testing newer versions of Cljs yet:
-   [org.clojure/clojurescript "0.0-2411"]
+   [org.clojure/clojurescript "0.0-3308"]
 
    [org.clojure/core.async    "0.1.346.0-17112a-alpha"]
 
-   [com.taoensso/sente        "1.4.1"] ; <--- Sente
-   [com.taoensso/timbre       "3.3.1"]
+   [com.taoensso/sente        "1.5.0-RC1"] ; <--- Sente
+   [com.taoensso/timbre       "3.4.0"]
 
    ;;; ---> Choose (uncomment) a supported web server <---
    [http-kit                  "2.1.19"]
-   ;; [org.immutant/web       "2.0.0-beta2"]
+   ;; [org.immutant/web       "2.0.1"]
 
    [ring                      "1.3.2"]
-   [ring/ring-defaults        "0.1.3"] ; Includes `ring-anti-forgery`, etc.
+   [ring/ring-defaults        "0.1.5"] ; Includes `ring-anti-forgery`, etc.
    ;; [ring-anti-forgery      "1.0.0"]
 
-   [compojure                 "1.3.1"] ; Or routing lib of your choice
+   [compojure                 "1.3.4"] ; Or routing lib of your choice
    [hiccup                    "1.0.5"] ; Optional, just for HTML
 
    ;;; Transit deps optional; may be used to aid perf. of larger data payloads
    ;;; (see reference example for details):
-   [com.cognitect/transit-clj  "0.8.259"]
-   [com.cognitect/transit-cljs "0.8.199"]]
+   [com.cognitect/transit-clj  "0.8.275"]
+   [com.cognitect/transit-cljs "0.8.220"]]
 
   :plugins
   [[lein-pprint         "1.1.2"]
-   [lein-ancient        "0.5.5"]
-   [com.cemerick/austin "0.1.4"]
-   [com.keminglabs/cljx "0.5.0"]
-   [lein-cljsbuild      "1.0.4"]
+   [lein-ancient        "0.6.7"]
+   [com.cemerick/austin "0.1.6"]
+   [com.keminglabs/cljx "0.6.0"]
+   [lein-cljsbuild      "1.0.6"]
    [cider/cider-nrepl   "0.8.2"] ; Optional, for use with Emacs
    ]
 

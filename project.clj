@@ -1,4 +1,4 @@
-(defproject com.taoensso/sente "1.4.1"
+(defproject com.taoensso/sente "1.5.0-RC1"
   :author "Peter Taoussanis <https://www.taoensso.com>"
   :description "Clojure channel sockets library"
   :url "https://github.com/ptaoussanis/sente"
@@ -13,44 +13,43 @@
   :dependencies
   [[org.clojure/clojure      "1.5.1"]
    [org.clojure/core.async   "0.1.346.0-17112a-alpha"]
-   [org.clojure/tools.reader "0.8.16"]
-   [com.taoensso/encore      "1.22.0"]
+   [org.clojure/tools.reader "0.9.2"]
+   [com.taoensso/encore      "1.35.1"]
    [com.taoensso/timbre      "3.4.0"]]
 
   :profiles
   {;; :default [:base :system :user :provided :dev]
    :server-jvm {:jvm-opts ^:replace ["-server"]}
    :1.6  {:dependencies [[org.clojure/clojure     "1.6.0"]]}
-   :1.7  {:dependencies [[org.clojure/clojure     "1.7.0-alpha3"]]}
-   :test {:dependencies [[com.cognitect/transit-clj  "0.8.269"]
-                         [com.cognitect/transit-cljs "0.8.205"]
-                         [expectations               "2.0.16"]
+   :1.7  {:dependencies [[org.clojure/clojure     "1.7.0-RC1"]]}
+   :test {:dependencies [[com.cognitect/transit-clj  "0.8.275"]
+                         [com.cognitect/transit-cljs "0.8.220"]
+                         [expectations               "2.1.0"]
                          [org.clojure/test.check     "0.7.0"]
-                         ;; [com.cemerick/double-check "0.5.7"]
+                         ;; [com.cemerick/double-check "0.6.1"]
                          ]
           :plugins [[lein-expectations "0.0.8"]
-                    [lein-autoexpect   "1.4.2"]]}
+                    [lein-autoexpect   "1.5.0"]]}
 
-   :provided {:dependencies [;; TODO 0.0-2850:
-                             [org.clojure/clojurescript "0.0-2411"]]}
+   :provided {:dependencies [[org.clojure/clojurescript "0.0-3308"]]}
 
    :dev
    [:1.7 :test
     {:plugins
      [;;; These must be in :dev, Ref. https://github.com/lynaghk/cljx/issues/47:
       [com.keminglabs/cljx             "0.5.0"]
-      [lein-cljsbuild                  "1.0.3"]
-
+      [lein-cljsbuild                  "1.0.5"]
+      ;;
       [http-kit                        "2.1.19"]
-      [org.immutant/web                "2.0.0-beta2"]
-
+      [org.immutant/web                "2.0.0"]
+      ;;
       [lein-pprint                     "1.1.1"]
-      [lein-ancient                    "0.5.5"]
-      [com.cemerick/austin             "0.1.4"]
+      [lein-ancient                    "0.6.7"]
+      ;; [com.cemerick/austin          "0.1.4"]
       [lein-expectations               "0.0.8"]
-      [lein-autoexpect                 "1.2.2"]
-      [com.cemerick/clojurescript.test "0.3.1"]
-      [codox                           "0.8.10"]]}]}
+      [lein-autoexpect                 "1.4.2"]
+      [com.cemerick/clojurescript.test "0.3.3"]
+      [codox                           "0.8.11"]]}]}
 
   :cljx
   {:builds

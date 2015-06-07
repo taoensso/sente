@@ -63,9 +63,8 @@
    [clojure.core.async :as async :refer (<! <!! >! >!! put! chan
                                          go go-loop)]
    ;; [clojure.tools.reader.edn :as edn]
-   [taoensso.encore           :as enc :refer (have? have have-in
-                                              swap-in! reset-in!
-                                              swapped)]
+   [taoensso.encore           :as enc :refer (swap-in! reset-in! swapped
+                                              have? have)]
    [taoensso.timbre           :as timbre :refer (tracef debugf infof warnf errorf)]
    [taoensso.sente.interfaces :as interfaces])
 
@@ -81,12 +80,12 @@
   #+cljs
   (:require-macros
    [cljs.core.async.macros :as asyncm :refer (go go-loop)]
-   [taoensso.encore        :as enc    :refer (have? have have-in)]))
+   [taoensso.encore        :as enc    :refer (have? have)]))
 
 ;;;; Encore version check
 
 #+clj
-(let [min-encore-version 1.21] ; v1.21+ required for *log-level*
+(let [min-encore-version 1.23]
   (if-let [assert! (ns-resolve 'taoensso.encore 'assert-min-encore-version)]
     (assert! min-encore-version)
     (throw
@@ -118,12 +117,14 @@
                   :type     \"Awesome\"}
      :headers    {\"Foo\" \"Bar\"}
      :resp-type  :text
-     :timeout-ms 7000}
+     :timeout-ms 7000
+     :with-credentials? false ; Enable if using CORS (requires xhr v2+)
+    }
     (fn async-callback [resp-map]
-      (let [{:keys [?status ?error ?content ?content-type]} resp-map]
-        ;; ?status - 200, 404, ..., or nil on no response
-        ;; ?error  - e/o #{:xhr-pool-depleted :exception :http-error :abort
-        ;;                 :timeout <http-error-status> nil}
+      (let [{:keys [success? ?status ?error ?content ?content-type]} resp-map]
+        ;; ?status  - 200, 404, ..., or nil on no response
+        ;; ?error   - e/o #{:xhr-pool-depleted :exception :http-error :abort
+        ;;                  :timeout :no-content <http-error-status> nil}
         (js/alert (str \"Ajax response: \" resp-map)))))"
   enc/ajax-lite)
 
@@ -894,7 +895,8 @@
       chsk)))
 
 #+cljs
-(defrecord ChAjaxSocket [client-id url chs timeout-ms curr-xhr_ state_ packer]
+(defrecord ChAjaxSocket
+    [client-id url chs timeout-ms ajax-opts curr-xhr_ state_ packer]
   IChSocket
   (chsk-send!* [chsk ev {:as opts ?timeout-ms :timeout-ms ?cb :cb :keys [flush?]}]
     (assert-send-args ev ?timeout-ms ?cb)
@@ -906,14 +908,15 @@
         ;; TODO Buffer before sending (but honor `:flush?`)
         (do
           (ajax-call url
-           {:method :post :timeout-ms ?timeout-ms
-            :resp-type :text ; We'll do our own pstr decoding
-            :params
-            (let [ppstr (pack packer (meta ev) ev (when ?cb-fn :ajax-cb))]
-              {:_           (enc/now-udt) ; Force uncached resp
-               :csrf-token  (:csrf-token @state_)
-               ;; :client-id client-id ; Unnecessary here
-               :ppstr       ppstr})}
+            (merge ajax-opts
+              {:method :post :timeout-ms ?timeout-ms
+               :resp-type :text ; We'll do our own pstr decoding
+               :params
+               (let [ppstr (pack packer (meta ev) ev (when ?cb-fn :ajax-cb))]
+                 {:_           (enc/now-udt) ; Force uncached resp
+                  :csrf-token  (:csrf-token @state_)
+                  ;; :client-id client-id ; Unnecessary here
+                  :ppstr       ppstr})})
 
            (fn ajax-cb [{:keys [?error ?content]}]
              (if ?error
@@ -954,17 +957,19 @@
 
            (reset! curr-xhr_
              (ajax-call url
-               {:method :get :timeout-ms timeout-ms
-                :resp-type :text ; Prefer to do our own pstr reading
-                :params (merge
-                          {:_          (enc/now-udt) ; Force uncached resp
-                           :client-id  client-id}
+               (merge ajax-opts
+                 {:method :get :timeout-ms timeout-ms
+                  :resp-type :text ; Prefer to do our own pstr reading
+                  :params
+                  (merge
+                    {:_          (enc/now-udt) ; Force uncached resp
+                     :client-id  client-id}
 
-                          ;; A truthy :handshake? param will prompt server to
-                          ;; reply immediately with a handshake response,
-                          ;; letting us confirm that our client<->server comms
-                          ;; are working:
-                          (when-not (:open? @state_) {:handshake? true}))}
+                    ;; A truthy :handshake? param will prompt server to
+                    ;; reply immediately with a handshake response,
+                    ;; letting us confirm that our client<->server comms
+                    ;; are working:
+                    (when-not (:open? @state_) {:handshake? true}))})
 
                (fn ajax-cb [{:keys [?error ?content]}]
                  (if ?error
@@ -1022,15 +1027,16 @@
     :chsk    ; IChSocket implementer. You can usu. ignore this.
 
   Common options:
-    :type         ; e/o #{:auto :ws :ajax}. You'll usually want the default (:auto).
+    :type         ; e/o #{:auto :ws :ajax}. You'll usually want the default (:auto)
     :ws-kalive-ms ; Ping to keep a WebSocket conn alive if no activity w/in given
-                  ; number of milliseconds.
-    :lp-kalive-ms ; Ping to keep a long-polling (Ajax) conn alive ''.
-    :chsk-url-fn  ; Please see `default-chsk-url-fn` for details.
-    :packer       ; :edn (default), or an IPacker implementation (experimental)."
+                  ; number of milliseconds
+    :lp-kalive-ms ; Ping to keep a long-polling (Ajax) conn alive ''
+    :chsk-url-fn  ; Please see `default-chsk-url-fn` for details
+    :packer       ; :edn (default), or an IPacker implementation (experimental)
+    :ajax-opts    ; Base opts map provided to `ajax-call`"
   [path &
    & [{:keys [type recv-buf-or-n ws-kalive-ms lp-timeout-ms chsk-url-fn packer
-              client-id]
+              client-id ajax-opts]
        :as   opts
        :or   {type          :auto
               recv-buf-or-n (async/sliding-buffer 2048) ; Mostly for buffered-evs
@@ -1099,6 +1105,7 @@
                    :chs        private-chs
                    :packer     packer
                    :timeout-ms lp-timeout-ms
+                   :ajax-opts  ajax-opts
                    :curr-xhr_  (atom nil)
                    :state_     (atom {:type :ajax :open? false
                                       :destroyed? false})}))))
@@ -1153,14 +1160,15 @@
                       #+clj Throwable
                       #+cljs js/Error ; :default ; Temp workaround for [1]
                       t
-                      (errorf #+clj t
-                        "Chsk router handling error: %s" event))))))
+                      #+clj  (errorf t "Chsk router handling error: %s" event)
+                      #+cljs (errorf   "Chsk router handling error (%s): %s"
+                               event t))))))
             (catch
               #+clj Throwable
               #+cljs js/Error ; :default [1] Temp workaround for [1]
               t
-              (errorf #+clj t
-                "Chsk router channel error!"))))
+              #+clj  (errorf t "Chsk router channel error!")
+              #+cljs (errorf   "Chsk router channel error (%s)!" t))))
 
         ;; TODO [1]
         ;; @shaharz reported (https://github.com/ptaoussanis/sente/issues/97)
