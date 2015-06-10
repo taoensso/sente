@@ -512,7 +512,7 @@
 
          (if (str/blank? client-id)
            (let [err-msg "Client's Ring request doesn't have a client id. Does your server have the necessary keyword Ring middleware (`wrap-params` & `wrap-keyword-params`)?"]
-             (errorf (str err-msg \n ring-req \n))
+             (errorf (str err-msg ": %s") ring-req)
              (throw (ex-info err-msg {:ring-req ring-req})))
 
            (interfaces/ring-req->net-ch-resp web-server-adapter ring-req
