@@ -30,6 +30,7 @@
    [compojure.route    :as route]
    [hiccup.core        :as hiccup]
    [clojure.core.async :as async  :refer (<! <!! >! >!! put! chan go go-loop)]
+   [taoensso.encore    :as encore :refer ()]
    [taoensso.timbre    :as timbre :refer (tracef debugf infof warnf errorf)]
    [taoensso.sente     :as sente]
 
@@ -47,17 +48,19 @@
    [taoensso.sente.packers.transit :as sente-transit])
 
   #+cljs
-  (:require-macros
-   [cljs.core.async.macros :as asyncm :refer (go go-loop)])
-  #+cljs
   (:require
    [clojure.string  :as str]
    [cljs.core.async :as async  :refer (<! >! put! chan)]
-   [taoensso.encore :as enc    :refer (tracef debugf infof warnf errorf)]
+   [taoensso.encore :as encore :refer ()]
+   [taoensso.timbre :as timbre :refer-macros (tracef debugf infof warnf errorf)]
    [taoensso.sente  :as sente  :refer (cb-success?)]
 
    ;; Optional, for Transit encoding:
-   [taoensso.sente.packers.transit :as sente-transit]))
+   [taoensso.sente.packers.transit :as sente-transit])
+
+  #+cljs
+  (:require-macros
+   [cljs.core.async.macros :as asyncm :refer (go go-loop)]))
 
 ;;;; Logging config
 
