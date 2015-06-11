@@ -1,5 +1,19 @@
 > This project uses [Break Versioning](https://github.com/ptaoussanis/encore/blob/master/BREAK-VERSIONING.md) as of **Aug 16, 2014**.
 
+## v1.5.0 - 2015 Jun 11
+
+> This is a non-breaking maintenance release
+
+* **New**: support Ajax CORS via new `:with-credentials?` opt [#130 @bplatz]
+* **Fix**: bad missing-middleware error logging call format
+* **Implementation**: update dependencies
+
+
+```clojure
+[com.taoensso/sente "1.5.0"]
+```
+
+
 ## v1.4.1 - 2015 Mar 11
 
 > Trivial, non-breaking release that adds a pair of optional web-adapter aliases to help make examples a little simpler.
