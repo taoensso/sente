@@ -777,8 +777,8 @@
         :handled))))
 
 #+cljs
-(defn set-exp-backoff-timeout! [nullary-f nattempt & [opts]]
-  (let [timeout-ms (enc/exp-backoff (or nattempt 0) opts)]
+(defn set-exp-backoff-timeout! [nullary-f nattempt & [backoff-ms-fn]]
+  (let [timeout-ms (backoff-ms-fn (or nattempt 0))]
     (.setTimeout js/window nullary-f timeout-ms)))
 
 #+cljs ;; Handles reconnects, keep-alives, callbacks:
@@ -787,7 +787,7 @@
      cbs-waiting_ ; {<cb-uuid> <fn> ...}
      state_       ; {:type _ :open? _ :uid _ :csrf-token _ :destroyed? _}
      packer       ; IPacker
-     backoff-opts]
+     backoff-ms-fn]
 
   IChSocket
   (chsk-send!* [chsk ev {:as opts ?timeout-ms :timeout-ms ?cb :cb :keys [flush?]}]
@@ -838,7 +838,8 @@
                    (let [nattempt* (swap! nattempt_ inc)]
                      (.clearInterval js/window @kalive-timer_)
                      (warnf "Chsk is closed: will try reconnect (%s)." nattempt*)
-                     (set-exp-backoff-timeout! connect! nattempt* backoff-opts)))]
+                     (set-exp-backoff-timeout! connect! nattempt*
+                       backoff-ms-fn)))]
 
              (if-let [socket
                       (try
@@ -898,7 +899,7 @@
 #+cljs
 (defrecord ChAjaxSocket
     [client-id url chs timeout-ms ajax-opts curr-xhr_ state_ packer
-     backoff-opts]
+     backoff-ms-fn]
   IChSocket
   (chsk-send!* [chsk ev {:as opts ?timeout-ms :timeout-ms ?cb :cb :keys [flush?]}]
     (assert-send-args ev ?timeout-ms ?cb)
@@ -956,7 +957,7 @@
                    (set-exp-backoff-timeout!
                      (partial async-poll-for-update! nattempt*)
                      nattempt*
-                     backoff-opts)))]
+                     backoff-ms-fn)))]
 
            (reset! curr-xhr_
              (ajax-call url
@@ -1039,7 +1040,7 @@
     :ajax-opts    ; Base opts map provided to `ajax-call`"
   [path &
    & [{:keys [type recv-buf-or-n ws-kalive-ms lp-timeout-ms chsk-url-fn packer
-              client-id ajax-opts backoff-opts]
+              client-id ajax-opts backoff-ms-fn]
        :as   opts
        :or   {type          :auto
               recv-buf-or-n (async/sliding-buffer 2048) ; Mostly for buffered-evs
@@ -1048,7 +1049,8 @@
               chsk-url-fn   default-chsk-url-fn
               packer        :edn
               client-id     (or (:client-uuid opts) ; Backwards compatibility
-                                (enc/uuid-str))}}
+                                (enc/uuid-str))
+              backoff-ms-fn enc/exp-backoff}}
       _deprecated-more-opts]]
 
   {:pre [(have? [:in #{:ajax :ws :auto}] type)
@@ -1099,21 +1101,21 @@
                    :cbs-waiting_  (atom {})
                    :state_        (atom {:type :ws :open? false
                                          :destroyed? false})
-                   :backoff-opts  backoff-opts})))
+                   :backoff-ms-fn backoff-ms-fn})))
 
          (and (not= type :ws)
               (chsk-init!
                 (map->ChAjaxSocket
-                  {:client-id    client-id
-                   :url          (chsk-url-fn path window-location (not :ws))
-                   :chs          private-chs
-                   :packer       packer
-                   :timeout-ms   lp-timeout-ms
-                   :curr-xhr_    (atom nil)
-                   :state_       (atom {:type :ajax :open? false
-                                        :destroyed? false})
-                   :ajax-opts    ajax-opts
-                   :backoff-opts backoff-opts}))))
+                  {:client-id     client-id
+                   :url           (chsk-url-fn path window-location (not :ws))
+                   :chs           private-chs
+                   :packer        packer
+                   :timeout-ms    lp-timeout-ms
+                   :curr-xhr_     (atom nil)
+                   :state_        (atom {:type :ajax :open? false
+                                         :destroyed? false})
+                   :ajax-opts     ajax-opts
+                   :backoff-ms-fn backoff-ms-fn}))))
 
         _ (assert chsk "Failed to create channel socket")
         send-fn (partial chsk-send! chsk)
