@@ -1112,39 +1112,23 @@
   [ch-recv event-msg-handler & [{:as opts :keys [trace-evs?]}]]
   (let [ch-ctrl (chan)]
     (go-loop []
-      (when-not
-        (enc/kw-identical? ::stop
-          (try
-            (let [[v p] (async/alts! [ch-recv ch-ctrl])]
-              (if (enc/kw-identical? p ch-ctrl) ::stop
-                  (let [{:as event-msg :keys [event]} v]
-                  (try
-                    (when trace-evs?
-                      (tracef "Pre-handler event: %s" event))
-                    (if-not (event-msg? event-msg)
-                      ;; Shouldn't be possible here, but we're being cautious:
-                      (errorf "Bad event: %s" event) ; Log 'n drop
-                      (event-msg-handler event-msg))
-                    nil
-                    (catch
-                      #+clj Throwable
-                      #+cljs js/Error ; :default ; Temp workaround for [1]
-                      t
-                      (errorf t "Chsk router handling error: %s" event))))))
-            (catch
-              #+clj Throwable
-              #+cljs js/Error ; :default [1] Temp workaround for [1]
-              t
-              (errorf t "Chsk router channel error!"))))
+      (let [[v p] (async/alts! [ch-recv ch-ctrl])
+            stop? (enc/kw-identical? p  ch-ctrl)]
 
-        ;; TODO [1]
-        ;; @shaharz reported (https://github.com/ptaoussanis/sente/issues/97)
-        ;; that current releases of core.async have trouble with :default error
-        ;; catching, Ref. http://goo.gl/QFBvfO.
-        ;; The issue's been fixed but we're waiting for a new core.async
-        ;; release.
+        (when-not stop?
+          (let [{:as event-msg :keys [event]} v
+                [_ ?error]
+                (enc/catch-errors
+                  (when trace-evs? (tracef "Pre-handler event: %s" event))
 
-        (recur)))
+                  (if-not (event-msg? event-msg)
+                    ;; Shouldn't be possible here, but we're being cautious:
+                    (errorf "Bad event: %s" event) ; Log 'n drop
+                    (event-msg-handler event-msg)))]
+
+            (when-let [e ?error] (errorf e "Chsk router handling error: %s" event))
+            (recur)))))
+
     (fn stop! [] (async/close! ch-ctrl))))
 
 ;;;; Deprecated
