@@ -18,7 +18,7 @@
    [org.clojure/core.async    "0.1.346.0-17112a-alpha"]
 
    [com.taoensso/sente        "1.5.0"] ; <--- Sente
-   [com.taoensso/timbre       "3.4.0"]
+   [com.taoensso/timbre       "4.0.0"]
 
    ;;; ---> Choose (uncomment) a supported web server <---
    [http-kit                  "2.1.19"]

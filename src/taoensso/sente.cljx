@@ -60,27 +60,23 @@
   #+clj
   (:require
    [clojure.string     :as str]
-   [clojure.core.async :as async :refer (<! <!! >! >!! put! chan
-                                         go go-loop)]
-   ;; [clojure.tools.reader.edn :as edn]
-   [taoensso.encore           :as enc :refer (swap-in! reset-in! swapped
-                                              have? have)]
-   [taoensso.timbre           :as timbre :refer (tracef debugf infof warnf errorf)]
+   [clojure.core.async :as async  :refer (<! <!! >! >!! put! chan go go-loop)]
+   [taoensso.encore    :as enc    :refer (swap-in! reset-in! swapped have? have)]
+   [taoensso.timbre    :as timbre :refer (tracef debugf infof warnf errorf)]
    [taoensso.sente.interfaces :as interfaces])
 
   #+cljs
   (:require
    [clojure.string  :as str]
-   [cljs.core.async :as async :refer (<! >! put! chan)]
-   ;; [cljs.reader  :as edn]
-   [taoensso.encore :as enc :refer (format swap-in! reset-in! swapped
-                                    tracef debugf infof warnf errorf)]
+   [cljs.core.async :as async  :refer (<! >! put! chan)]
+   [taoensso.encore :as enc    :refer (format swap-in! reset-in! swapped)
+                               :refer-macros (have? have)]
+   [taoensso.timbre :as timbre :refer-macros (tracef debugf infof warnf errorf)]
    [taoensso.sente.interfaces :as interfaces])
 
   #+cljs
   (:require-macros
-   [cljs.core.async.macros :as asyncm :refer (go go-loop)]
-   [taoensso.encore        :as enc    :refer (have? have)]))
+   [cljs.core.async.macros :as asyncm :refer (go go-loop)]))
 
 ;;;; Encore version check
 
@@ -94,39 +90,6 @@
           "Insufficient com.taoensso/encore version (< %s). You may have a Leiningen dependency conflict (see http://goo.gl/qBbLvC for solution)."
           min-encore-version)
         {:min-version min-encore-version}))))
-
-;;;; Logging
-
-(defn set-logging-level! [level]
-  #+clj  (timbre/set-level!    level)
-  #+cljs (set! enc/*log-level* level))
-
-;; (set-logging-level! :trace) ; For debugging
-
-;;;; Ajax
-
-#+cljs
-(def ajax-call
-  "Alpha - subject to change.
-  Simple+lightweight Ajax via Google Closure. Returns nil, or the xhr instance.
-  Ref. https://developers.google.com/closure/library/docs/xhrio.
-
-  (ajax-call \"/my-post-route\"
-    {:method     :post
-     :params     {:username \"Rich Hickey\"
-                  :type     \"Awesome\"}
-     :headers    {\"Foo\" \"Bar\"}
-     :resp-type  :text
-     :timeout-ms 7000
-     :with-credentials? false ; Enable if using CORS (requires xhr v2+)
-    }
-    (fn async-callback [resp-map]
-      (let [{:keys [success? ?status ?error ?content ?content-type]} resp-map]
-        ;; ?status  - 200, 404, ..., or nil on no response
-        ;; ?error   - e/o #{:xhr-pool-depleted :exception :http-error :abort
-        ;;                  :timeout :no-content <http-error-status> nil}
-        (js/alert (str \"Ajax response: \" resp-map)))))"
-  enc/ajax-lite)
 
 ;;;; Events
 ;; * Clients & server both send `event`s and receive (i.e. route) `event-msg`s.
@@ -813,7 +776,7 @@
             (reset! kalive-due?_ false)
             :apparent-success
             (catch js/Error e
-              (errorf "Chsk send error: %s" e)
+              (errorf e "Chsk send error")
               (when-let [cb-uuid ?cb-uuid]
                 (let [cb-fn* (or (pull-unused-cb-fn! cbs-waiting_ cb-uuid)
                                  (have ?cb-fn))]
@@ -846,7 +809,7 @@
                         (WebSocket. (enc/merge-url-with-query-string url
                                       {:client-id client-id}))
                         (catch js/Error e
-                          (errorf "WebSocket js/Error: %s" e)
+                          (errorf e "WebSocket js/Error")
                           nil))]
 
                (reset! socket_
@@ -910,7 +873,7 @@
 
         ;; TODO Buffer before sending (but honor `:flush?`)
         (do
-          (ajax-call url
+          (enc/ajax-lite url
             (merge ajax-opts
               {:method :post :timeout-ms ?timeout-ms
                :resp-type :text ; We'll do our own pstr decoding
@@ -960,7 +923,7 @@
                      backoff-ms-fn)))]
 
            (reset! curr-xhr_
-             (ajax-call url
+             (enc/ajax-lite url
                (merge ajax-opts
                  {:method :get :timeout-ms timeout-ms
                   :resp-type :text ; Prefer to do our own pstr reading
@@ -1037,7 +1000,7 @@
     :lp-kalive-ms ; Ping to keep a long-polling (Ajax) conn alive ''
     :chsk-url-fn  ; Please see `default-chsk-url-fn` for details
     :packer       ; :edn (default), or an IPacker implementation (experimental)
-    :ajax-opts    ; Base opts map provided to `ajax-call`"
+    :ajax-opts    ; Base opts map provided to `taoensso.encore/ajax-lite`"
   [path &
    & [{:keys [type recv-buf-or-n ws-kalive-ms lp-timeout-ms chsk-url-fn packer
               client-id ajax-opts backoff-ms-fn]
@@ -1167,15 +1130,12 @@
                       #+clj Throwable
                       #+cljs js/Error ; :default ; Temp workaround for [1]
                       t
-                      #+clj  (errorf t "Chsk router handling error: %s" event)
-                      #+cljs (errorf   "Chsk router handling error (%s): %s"
-                               event t))))))
+                      (errorf t "Chsk router handling error: %s" event))))))
             (catch
               #+clj Throwable
               #+cljs js/Error ; :default [1] Temp workaround for [1]
               t
-              #+clj  (errorf t "Chsk router channel error!")
-              #+cljs (errorf   "Chsk router channel error (%s)!" t))))
+              (errorf t "Chsk router channel error!"))))
 
         ;; TODO [1]
         ;; @shaharz reported (https://github.com/ptaoussanis/sente/issues/97)
@@ -1204,3 +1164,13 @@
   (start-chsk-router! ch-recv
     ;; Old handler form: (fn [ev ch-recv])
     (fn [ev-msg] (event-handler (:event ev-msg) (:ch-recv ev-msg)))))
+
+(defn set-logging-level! "DEPRECATED. Please use `timbre/set-level!` instead."
+  [level] (timbre/set-level! level))
+
+;; (set-logging-level! :trace) ; For debugging
+
+#+cljs
+(def ajax-call
+  "DEPRECATED. Please use `taoensso.encore/ajax-lite` instead."
+  enc/ajax-lite)
