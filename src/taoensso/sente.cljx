@@ -503,9 +503,9 @@
                (tracef "Handshake!")
                (let [?handshake-data (handshake-data-fn ring-req)
                      handshake-ev
-                     (if-not (nil? ?handshake-data) ; Micro optimization
-                       [:chsk/handshake [uid csrf-token ?handshake-data]]
-                       [:chsk/handshake [uid csrf-token]])]
+                     (if (nil? ?handshake-data) ; Micro optimization
+                       [:chsk/handshake [uid csrf-token]]
+                       [:chsk/handshake [uid csrf-token ?handshake-data]])]
                  (interfaces/send! net-ch
                    (pack packer nil handshake-ev)
                    (not websocket?))))]
@@ -685,7 +685,7 @@
 (defn- assert-send-args [x ?timeout-ms ?cb]
   (assert-event x)
   (assert (or (and (nil? ?timeout-ms) (nil? ?cb))
-              (and (enc/nneg-int? ?timeout-ms)))
+              (enc/nneg-int? ?timeout-ms))
           (format "cb requires a timeout; timeout-ms should be a +ive integer: %s"
            ?timeout-ms))
   (assert (or (nil? ?cb) (ifn? ?cb) (enc/chan? ?cb))
@@ -705,13 +705,13 @@
             (let [new-state (merge old-state merge-state)
                   ;; Is this a reasonable way of helping client distinguish
                   ;; cause of an auto reconnect? Didn't give it much thought...
-                  new-state (if-not (and (:requested-reconnect-pending? old-state)
-                                              (:open? new-state)
-                                         (not (:open? old-state)))
-                              new-state
+                  new-state (if (and (:requested-reconnect-pending? old-state)
+                                     (:open? new-state)
+                                     (not (:open? old-state)))
                               (-> new-state
                                   (dissoc :requested-reconnect-pending?)
-                                  (assoc  :requested-reconnect? true)))]
+                                  (assoc  :requested-reconnect? true))
+                              new-state)]
               (swapped new-state [old-state new-state]))))]
     (when (not= old-state new-state)
       ;; (debugf "Chsk state change: %s" new-state)
@@ -1064,7 +1064,8 @@
 
         ever-opened?_ (atom false)
         state*        (fn [state]
-                        (if (or (not (:open? state)) @ever-opened?_) state
+                        (if (or (not (:open? state)) @ever-opened?_)
+                          state
                           (do (reset! ever-opened?_ true)
                               (assoc state :first-open? true))))
 
@@ -1146,8 +1147,9 @@
         (enc/kw-identical? ::stop
           (try
             (let [[v p] (async/alts! [ch-recv ch-ctrl])]
-              (if (enc/kw-identical? p ch-ctrl) ::stop
-                  (let [{:as event-msg :keys [event]} v]
+              (if (enc/kw-identical? p ch-ctrl)
+                ::stop
+                (let [{:as event-msg :keys [event]} v]
                   (try
                     (when trace-evs?
                       (tracef "Pre-handler event: %s" event))
@@ -1161,8 +1163,7 @@
                       #+cljs js/Error ; :default ; Temp workaround for [1]
                       t
                       #+clj  (errorf t "Chsk router handling error: %s" event)
-                      #+cljs (errorf   "Chsk router handling error (%s): %s"
-                               event t))))))
+                      #+cljs (errorf "Chsk router handling error (%s): %s" event t))))))
             (catch
               #+clj Throwable
               #+cljs js/Error ; :default [1] Temp workaround for [1]
