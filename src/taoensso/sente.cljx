@@ -1018,6 +1018,14 @@
        "//" host (or path pathname)))
 
 #+cljs
+(defn host-chsk-url-fn
+  "The same as default-chsk-url-fn but connects to the specified host instead of the
+  current web page host. Useful for cross domain channel sockets."
+  [host]
+  (fn my-chsk-url-fn [path loc ws?]
+    (default-chsk-url-fn path (assoc loc :host host) ws?)))
+
+#+cljs
 (defn make-channel-socket!
   "Returns a map with keys:
     :ch-recv ; core.async channel to receive `event-msg`s (internal or from clients).
