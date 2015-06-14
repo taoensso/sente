@@ -995,7 +995,7 @@
     chsk))
 
 #+cljs
-(def default-chsk-url-fn
+(defn default-chsk-url-fn
   "(ƒ [path window-location websocket?]) -> server-side chsk route URL string.
 
     * path       - As provided to client-side `make-channel-socket!` fn
@@ -1013,9 +1013,9 @@
 
   Note that the *same* URL is used for: WebSockets, POSTs, GETs. Server-side
   routes should be configured accordingly."
-  (fn [path {:as window-location :keys [protocol host pathname]} websocket?]
-    (str (if-not websocket? protocol (if (= protocol "https:") "wss:" "ws:"))
-         "//" host (or path pathname))))
+  [path {:as window-location :keys [protocol host pathname]} websocket?]
+  (str (if-not websocket? protocol (if (= protocol "https:") "wss:" "ws:"))
+       "//" host (or path pathname)))
 
 #+cljs
 (defn make-channel-socket!
