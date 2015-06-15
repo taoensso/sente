@@ -213,7 +213,6 @@ There's also some **user-submitted** examples which may be handy:
 -------------------------- | ------------------------------------------------ |
 [@danielsz]/[sente-boot]   | Same example app, different toolchain ([boot])   |
 [@danielsz]/[sente-system] | Same example app, adapted for [danielsz/system]  |
-[@tf0054]/[om-mouse]       | Basic example: tracks mouse pos using Om+Sente   |
 [@seancorfield]/[om-sente] | ??                                               |
 
 ### FAQ
