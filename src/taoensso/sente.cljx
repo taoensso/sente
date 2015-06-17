@@ -137,9 +137,9 @@
     (map? x)
     (enc/keys= x #{:ch-recv :send-fn :connected-uids
                    :ring-req :client-id
-                   :event :id :?data :?reply-fn})
+                   :event :id :?data :?reply-fn :uid})
     (let [{:keys [ch-recv send-fn connected-uids
-                  ring-req client-id event ?reply-fn]} x]
+                  ring-req client-id event ?reply-fn uid]} x]
       (and
         (enc/chan?       ch-recv)
         (ifn?            send-fn)
@@ -149,7 +149,9 @@
         (enc/nblank-str? client-id)
         (event?          event)
         (or (nil? ?reply-fn)
-            (ifn? ?reply-fn))))))
+            (ifn? ?reply-fn))
+        ;; uid could be any value returned by user-id-fn
+        ))))
 
 #+clj
 (defn- put-event-msg>ch-recv!
@@ -417,7 +419,7 @@
           (fn [net-ch]
             (let [params        (get ring-req :params)
                   ppstr         (get params   :ppstr)
-                  ;; client-id  (get params   :client-id) ; Unnecessary here
+                  client-id     (get params   :client-id)
                   [clj has-cb?] (unpack packer ppstr)]
 
               (put-event-msg>ch-recv! ch-recv
@@ -425,6 +427,7 @@
                   {:client-id "unnecessary-for-non-lp-POSTs"
                    :ring-req  ring-req
                    :event     clj
+                   :uid (or (user-id-fn (assoc ring-req :client-id client-id)) ::nil-uid)
                    :?reply-fn
                    (when has-cb?
                      (fn reply-fn [resp-clj] ; Any clj form
@@ -459,7 +462,8 @@
                    {:client-id client-id
                     :ring-req  ring-req
                     :event     event
-                    :?reply-fn ?reply-fn})))
+                    :?reply-fn ?reply-fn
+                    :uid   uid})))
 
              handshake!
              (fn [net-ch]
