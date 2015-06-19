@@ -71,7 +71,7 @@
   :codox {:language :clojure ; [:clojure :clojurescript] ; No support?
           :sources  ["target/classes"]
           :src-linenum-anchor-prefix "L"
-          :src-dir-uri "http://github.com/ptaoussanis/encore/blob/master/src/"
+          :src-dir-uri "http://github.com/ptaoussanis/sente/blob/master/src/"
           :src-uri-mapping {#"target/classes"
                             #(.replaceFirst (str %) "(.cljs$|.clj$)" ".cljx")}}
 
