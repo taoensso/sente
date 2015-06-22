@@ -328,6 +328,8 @@
   #+clj (start-web-server!)
   #+clj (start-broadcaster!))
 
+#+clj (defn -main [] (start!)) ; For `lein run`, etc.
+
 #+cljs   (start!)
 ;; #+clj (start!) ; Server-side auto-start disabled for LightTable, etc.
 (comment (start!)
