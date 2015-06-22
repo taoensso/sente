@@ -264,6 +264,17 @@ Yup, it's automatic for both Ajax and WebSockets. If the page serving your JavaS
 
 Please see one of the [example projects][] for a fully-baked example.
 
+#### Cross Domain: How can I use Sente for cross domain connections?
+
+When you're making your connection in ClojureScript, use `host-chsk-url-fn` to specify the host to connect to, and provide it to `make-channel-socket`.
+
+```clj
+(sente/make-channel-socket! "/chsk"                   ; Note the same URL as before
+                                  {:type        chsk-type
+                                   :packer      packer
+                                   :chsk-url-fn (host-chsk-url-fn "myhost:1928")}) ;; Port is optional if connecting to standard ports
+```
+
 #### Pageload: How do I know when Sente is ready client-side?
 
 You'll want to listen on the receive channel for a `[:chsk/state {:first-open? true}]` event. That's the signal that the socket's been established.
