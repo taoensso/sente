@@ -85,9 +85,9 @@
 
 ;;;; Packer (client<->server serializtion format) config
 
-(def packer (sente-transit/get-flexi-packer :edn)) ; Experimental, needs Transit dep
+;; (def packer (sente-transit/get-flexi-packer :edn)) ; Experimental, needs Transit dep
 ;; (def packer :edn) ; Default packer (no need for Transit dep)
-
+(def packer (sente-transit/->TransitPacker :json {} {}))
 ;;;; Server-side setup
 
 #+clj

@@ -30,24 +30,26 @@
   ;; string-encoded, all other (non-binary) formats can get UTF-8:
   (if (= transit-fmt :msgpack) "ISO-8859-1" "UTF-8"))
 
-(deftype TransitPacker [transit-fmt]
+; TransitPacker takes a set of opts to mirror the interface of
+; transit/reader and transit/writer. 
+(deftype TransitPacker [transit-fmt writer-opts reader-opts]
   taoensso.sente.interfaces/IPacker
   (pack [_ x]
-    #+cljs (transit/write (transit/writer transit-fmt) x)
+    #+cljs (transit/write (transit/writer transit-fmt writer-opts) x)
     #+clj  (let [charset (get-charset transit-fmt)
                  ^ByteArrayOutputStream baos (ByteArrayOutputStream. 512)]
-             (transit/write (transit/writer baos transit-fmt) x)
+             (transit/write (transit/writer baos transit-fmt writer-opts) x)
              (.toString baos ^String charset)))
 
   (unpack [_ s]
-    #+cljs (transit/read (transit/reader transit-fmt) s)
+    #+cljs (transit/read (transit/reader transit-fmt reader-opts) s)
     #+clj  (let [charset (get-charset transit-fmt)
                  ba (.getBytes ^String s ^String charset)
                  ^ByteArrayInputStream bais (ByteArrayInputStream. ba)]
-             (transit/read (transit/reader bais transit-fmt)))))
+             (transit/read (transit/reader bais transit-fmt reader-opts)))))
 
 (def ^:private edn-packer     interfaces/edn-packer) ; Alias
-(def ^:private json-packer    (->TransitPacker :json))
+(def ^:private json-packer    (->TransitPacker :json {} {}))
 ;; (def ^:private msgpack-packer (->TransitPacker :msgpack))
 
 ;;;; FlexiPacker
