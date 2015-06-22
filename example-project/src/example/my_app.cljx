@@ -21,7 +21,6 @@
   LIGHT TABLE USERS:
     To configure Cljx support please see Ref. http://goo.gl/fKL5Z4."
   {:author "Peter Taoussanis"}
-
   #+clj
   (:require
    [clojure.string     :as str]
@@ -327,6 +326,10 @@
   (start-router!)
   #+clj (start-web-server!)
   #+clj (start-broadcaster!))
+
+
+(defn -main []
+  (start!))
 
 #+cljs   (start!)
 ;; #+clj (start!) ; Server-side auto-start disabled for LightTable, etc.
