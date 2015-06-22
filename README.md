@@ -344,7 +344,6 @@ Copyright &copy; 2012-2014 Peter Taoussanis. Distributed under the [Eclipse Publ
 [Chord]: https://github.com/james-henderson/chord
 [jetty7-websockets-async]: https://github.com/lynaghk/jetty7-websockets-async
 [Socket.IO]: http://socket.io/
-[om-mouse]: https://git.geekli.st/tf0054/om-mouse/tree/master
 [om-sente]: https://github.com/seancorfield/om-sente
 [sente-boot]: https://github.com/danielsz/sente-boot
 [sente-system]: https://github.com/danielsz/sente-system
