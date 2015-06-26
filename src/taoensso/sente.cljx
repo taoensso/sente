@@ -139,7 +139,7 @@
                    :ring-req :client-id
                    :event :id :?data :?reply-fn :uid})
     (let [{:keys [ch-recv send-fn connected-uids
-                  ring-req client-id event ?reply-fn uid]} x]
+                  ring-req client-id event ?reply-fn]} x]
       (and
         (enc/chan?       ch-recv)
         (ifn?            send-fn)
@@ -149,9 +149,7 @@
         (enc/nblank-str? client-id)
         (event?          event)
         (or (nil? ?reply-fn)
-            (ifn? ?reply-fn))
-        ;; uid could be any value returned by user-id-fn
-        ))))
+            (ifn? ?reply-fn))))))
 
 #+clj
 (defn- put-event-msg>ch-recv!
@@ -281,6 +279,12 @@
                        })
         connected-uids_ (atom {:ws #{} :ajax #{} :any #{}})
         send-buffers_   (atom {:ws  {} :ajax  {}}) ; {<uid> [<buffered-evs> <#{ev-uuids}>]}
+
+        user-id-fn
+        (fn [ring-req client-id]
+          ;; Allow uid to depend (in part or whole) on client-id. Be cautious
+          ;; of security implications.
+          (or (user-id-fn (assoc ring-req :client-id client-id)) ::nil-uid))
 
         connect-uid!
         (fn [type uid] {:pre [(have? uid)]}
@@ -427,7 +431,7 @@
                   {:client-id "unnecessary-for-non-lp-POSTs"
                    :ring-req  ring-req
                    :event     clj
-                   :uid (or (user-id-fn (assoc ring-req :client-id client-id)) ::nil-uid)
+                   :uid       (user-id-fn ring-req client-id)
                    :?reply-fn
                    (when has-cb?
                      (fn reply-fn [resp-clj] ; Any clj form
@@ -448,11 +452,7 @@
        (let [csrf-token (csrf-token-fn ring-req)
              params     (get ring-req :params)
              client-id  (get params   :client-id)
-             uid        (or (user-id-fn
-                              ;; Allow uid to depend on client-id
-                              ;; (keep these private if being used for uids!!)
-                              (assoc ring-req :client-id client-id))
-                          ::nil-uid)
+             uid        (user-id-fn ring-req client-id)
              websocket? (:websocket? ring-req)
 
              receive-event-msg! ; Partial
@@ -463,7 +463,7 @@
                     :ring-req  ring-req
                     :event     event
                     :?reply-fn ?reply-fn
-                    :uid   uid})))
+                    :uid       uid})))
 
              handshake!
              (fn [net-ch]
