@@ -10,7 +10,7 @@
                 *assert* true}
 
   :dependencies
-  [[org.clojure/clojure       "1.7.0-RC1"] ; May use any v1.5.1+
+  [[org.clojure/clojure       "1.7.0-RC2"] ; May use any v1.5.1+
    ;; [org.clojure/clojure    "1.6.0"]
 
    [org.clojure/clojurescript "0.0-3308"]
@@ -18,11 +18,11 @@
    [org.clojure/core.async    "0.1.346.0-17112a-alpha"]
 
    [com.taoensso/sente        "1.6.0-alpha1"] ; <--- Sente
-   [com.taoensso/timbre       "4.0.0"]
+   [com.taoensso/timbre       "4.0.2"]
 
    ;;; ---> Choose (uncomment) a supported web server <---
    [http-kit                  "2.1.19"]
-   ;; [org.immutant/web       "2.0.1"]
+   ;; [org.immutant/web       "2.0.2"]
 
    [ring                      "1.3.2"]
    [ring/ring-defaults        "0.1.5"] ; Includes `ring-anti-forgery`, etc.

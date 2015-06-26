@@ -15,13 +15,13 @@
    [org.clojure/core.async   "0.1.346.0-17112a-alpha"]
    [org.clojure/tools.reader "0.9.2"]
    [com.taoensso/encore      "1.37.0"]
-   [com.taoensso/timbre      "4.0.0"]]
+   [com.taoensso/timbre      "4.0.2"]]
 
   :profiles
   {;; :default [:base :system :user :provided :dev]
    :server-jvm {:jvm-opts ^:replace ["-server"]}
    :1.6  {:dependencies [[org.clojure/clojure     "1.6.0"]]}
-   :1.7  {:dependencies [[org.clojure/clojure     "1.7.0-RC1"]]}
+   :1.7  {:dependencies [[org.clojure/clojure     "1.7.0-RC2"]]}
    :test {:dependencies [[com.cognitect/transit-clj  "0.8.275"]
                          [com.cognitect/transit-cljs "0.8.220"]
                          [expectations               "2.1.0"]
