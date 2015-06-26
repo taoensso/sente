@@ -46,11 +46,11 @@
                  ^ByteArrayInputStream bais (ByteArrayInputStream. ba)]
              (transit/read (transit/reader bais transit-fmt reader-opts)))))
 
-(def ^:private edn-packer        interfaces/edn-packer) ; Alias
-(def ^:private json-packer       (->TransitPacker :json    {} {}))
-;; (def ^:private msgpack-packer (->TransitPacker :msgpack {} {}))
+(def ^:private    default-edn-packer     interfaces/edn-packer) ; Alias
+(def ^:private    default-json-packer    (->TransitPacker :json    {} {}))
+;; (def ^:private default-msgpack-packer (->TransitPacker :msgpack {} {}))
 
-;;;; FlexiPacker
+;;;; FlexiPacker ; EXPERIMENTAL
 
 (defn- max-flexi-format? [fmt] (= fmt :json #_:msgpack))
 (def ^:private max-flexi-format
@@ -76,7 +76,7 @@
 
 (comment (auto-flexi-format (take 100 (range))))
 
-(deftype FlexiPacker [default-fmt]
+(deftype FlexiPacker [default-fmt edn-packer json-packer]
   taoensso.sente.interfaces/IPacker
   (pack [_ x]
     (let [?meta-format (when-let [m (meta x)]
@@ -87,16 +87,16 @@
           fmt (max-flexi-format [?auto-format ?meta-format default-fmt])]
       (case fmt
         ;; :msgpack (str "m" (pack msgpack-packer x))
-        :json    (str "j" (pack json-packer    x))
-        :edn     (str "e" (pack edn-packer     x)))))
+        :json       (str "j" (pack json-packer    x))
+        :edn        (str "e" (pack edn-packer     x)))))
 
   (unpack [_ s]
     (let [prefix (encore/substr s 0 1)
           s*     (encore/substr s 1)]
       (case prefix
         ;; "m" (unpack msgpack-packer s*)
-        "j" (unpack json-packer    s*)
-        "e" (unpack edn-packer     s*)
+        "j"    (unpack json-packer    s*)
+        "e"    (unpack edn-packer     s*)
         (throw (ex-info (str "Malformed FlexiPacker data: " s)
                  {:s s}))))))
 
@@ -111,12 +111,14 @@
   (fpack ^:json    {:a :A :b :B}) => \"j[\"^ \",\"~:a\",\"~:A\",\"~:b\",\"~:B\"]\"
   (fpack ^:msgpack {:a :A :b :B}  => \"m\202£~:a£~:A£~:b£~:B\""
 
-  [& [?default-fmt]]
-  (let [default-fmt (or ?default-fmt :edn)]
+  [& [default-fmt edn-packer json-packer]]
+  (let [default-fmt (or default-fmt :edn)
+        edn-packer  (or edn-packer  default-edn-packer)
+        json-packer (or json-packer default-json-packer)]
     (assert (#{:edn ; Not a transit format
                ;; Transit formats:
                :json :json-verbose #_:msgpack} default-fmt))
-    (->FlexiPacker default-fmt)))
+    (->FlexiPacker default-fmt edn-packer json-packer)))
 
 (def default-flexi-packer (get-flexi-packer :edn))
 
@@ -145,7 +147,10 @@
         data    (:lg data) ; <-- Tweak input data size here
         size    (fn [packer] (count (pack packer data)))
         bench   (fn [packer] (encore/round (encore/qbench 10000
-                                            (unpack packer (pack packer data)))))]
+                                            (unpack packer (pack packer data)))))
+
+        edn-packer  default-edn-packer
+        json-packer default-json-packer]
 
     {:size {:edn     (size edn-packer)
             :json    (size json-packer)
