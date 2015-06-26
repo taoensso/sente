@@ -966,27 +966,10 @@
     chsk))
 
 #+cljs
-(def default-chsk-url-fn
-  "(ƒ [path window-location websocket?]) -> server-side chsk route URL string.
-
-    * path       - As provided to client-side `make-channel-socket!` fn
-                   (usu. \"/chsk\").
-    * websocket? - True for WebSocket connections, false for Ajax (long-polling)
-                   connections.
-    * window-location - Map with keys:
-      :href     ; \"http://www.example.org:80/foo/bar?q=baz#bang\"
-      :protocol ; \"http:\" ; Note the :
-      :hostname ; \"example.org\"
-      :host     ; \"example.org:80\"
-      :pathname ; \"/foo/bar\"
-      :search   ; \"?q=baz\"
-      :hash     ; \"#bang\"
-
-  Note that the *same* URL is used for: WebSockets, POSTs, GETs. Server-side
-  routes should be configured accordingly."
-  (fn [path {:as window-location :keys [protocol host pathname]} websocket?]
-    (str (if-not websocket? protocol (if (= protocol "https:") "wss:" "ws:"))
-         "//" host (or path pathname))))
+(defn- get-chsk-url [protocol chsk-host chsk-path type]
+  (let [protocol (case type :ajax protocol
+                            :ws   (if (= protocol "https:") "wss:" "ws:"))]
+    (str protocol "//" (enc/path chsk-host chsk-path))))
 
 #+cljs
 (defn make-channel-socket!
@@ -999,21 +982,20 @@
 
   Common options:
     :type         ; e/o #{:auto :ws :ajax}. You'll usually want the default (:auto)
+    :host         ; Server host (defaults to current page's host)
     :ws-kalive-ms ; Ping to keep a WebSocket conn alive if no activity w/in given
                   ; number of milliseconds
     :lp-kalive-ms ; Ping to keep a long-polling (Ajax) conn alive ''
-    :chsk-url-fn  ; Please see `default-chsk-url-fn` for details
     :packer       ; :edn (default), or an IPacker implementation (experimental)
     :ajax-opts    ; Base opts map provided to `taoensso.encore/ajax-lite`"
   [path &
-   & [{:keys [type recv-buf-or-n ws-kalive-ms lp-timeout-ms chsk-url-fn packer
+   & [{:keys [type host recv-buf-or-n ws-kalive-ms lp-timeout-ms packer
               client-id ajax-opts backoff-ms-fn]
        :as   opts
        :or   {type          :auto
               recv-buf-or-n (async/sliding-buffer 2048) ; Mostly for buffered-evs
               ws-kalive-ms  25000 ; < Heroku 30s conn timeout
               lp-timeout-ms 25000 ; ''
-              chsk-url-fn   default-chsk-url-fn
               packer        :edn
               client-id     (or (:client-uuid opts) ; Backwards compatibility
                                 (enc/uuid-str))
@@ -1029,7 +1011,12 @@
     (warnf ":lp-timeout opt has CHANGED; please use :lp-timout-ms."))
 
   (let [packer (interfaces/coerce-packer packer)
-        window-location (enc/get-window-location)
+
+        win-location (enc/get-window-location)
+        win-protocol      (:protocol win-location)
+        host     (or host (:host     win-location))
+        path     (or path (:pathname win-location))
+
         private-chs {:state    (chan (async/sliding-buffer 10))
                      :internal (chan (async/sliding-buffer 10))
                      :<server  (chan recv-buf-or-n)}
@@ -1057,7 +1044,9 @@
               (chsk-init!
                 (map->ChWebSocket
                   {:client-id     client-id
-                   :url           (chsk-url-fn path window-location :ws)
+                   :url           (if-let [f (:chsk-url-fn opts)]
+                                    (f path win-location :ws) ; Deprecated
+                                    (get-chsk-url win-protocol host path :ws))
                    :chs           private-chs
                    :packer        packer
                    :socket_       (atom nil)
@@ -1074,7 +1063,9 @@
               (chsk-init!
                 (map->ChAjaxSocket
                   {:client-id     client-id
-                   :url           (chsk-url-fn path window-location (not :ws))
+                   :url           (if-let [f (:chsk-url-fn opts)]
+                                    (f path win-location :ajax) ; Deprecated
+                                    (get-chsk-url win-protocol host path :ajax))
                    :chs           private-chs
                    :packer        packer
                    :timeout-ms    lp-timeout-ms
@@ -1162,3 +1153,8 @@
 (def ajax-call
   "DEPRECATED. Please use `taoensso.encore/ajax-lite` instead."
   enc/ajax-lite)
+
+#+cljs
+(def default-chsk-url-fn "DEPRECATED."
+  (fn [path {:as location :keys [adjusted-protocol host pathname]} websocket?]
+    (str adjusted-protocol "//" host (or path pathname))))
