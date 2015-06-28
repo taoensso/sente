@@ -81,7 +81,7 @@
 ;;;; Encore version check
 
 #+clj
-(let [min-encore-version 1.23]
+(let [min-encore-version 1.38]
   (if-let [assert! (ns-resolve 'taoensso.encore 'assert-min-encore-version)]
     (assert! min-encore-version)
     (throw

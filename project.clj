@@ -14,7 +14,7 @@
   [[org.clojure/clojure      "1.5.1"]
    [org.clojure/core.async   "0.1.346.0-17112a-alpha"]
    [org.clojure/tools.reader "0.9.2"]
-   [com.taoensso/encore      "1.37.0"]
+   [com.taoensso/encore      "1.38.0"]
    [com.taoensso/timbre      "4.0.2"]]
 
   :profiles

@@ -1,8 +1,8 @@
 (ns taoensso.sente.interfaces
   "Experimental - subject to change!
   Public interfaces / extension points."
-  #+clj  (:require [clojure.tools.reader.edn :as edn])
-  #+cljs (:require [cljs.reader              :as edn]))
+  #+clj  (:require [taoensso.encore :as enc])
+  #+cljs (:require [taoensso.encore :as enc]))
 
 ;;;; Network channels
 
@@ -44,8 +44,8 @@
 
 (deftype EdnPacker []
   IPacker
-  (pack   [_ x] (pr-str x))
-  (unpack [_ s] (edn/read-string s)))
+  (pack   [_ x] (enc/pr-edn   x))
+  (unpack [_ s] (enc/read-edn s)))
 
 (def     edn-packer "Default Edn packer." (->EdnPacker))
 (defn coerce-packer [x] (if (= x :edn) edn-packer
