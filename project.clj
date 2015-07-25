@@ -1,4 +1,4 @@
-(defproject com.taoensso/sente "1.6.0-beta1"
+(defproject com.taoensso/sente "1.6.0-RC1"
   :author "Peter Taoussanis <https://www.taoensso.com>"
   :description "Clojure channel sockets library"
   :url "https://github.com/ptaoussanis/sente"
@@ -21,7 +21,7 @@
   {;; :default [:base :system :user :provided :dev]
    :server-jvm {:jvm-opts ^:replace ["-server"]}
    :1.6  {:dependencies [[org.clojure/clojure "1.6.0"]]}
-   :1.7  {:dependencies [[org.clojure/clojure "1.7.0-RC2"]]}
+   :1.7  {:dependencies [[org.clojure/clojure "1.7.0"]]}
    :1.8  {:dependencies [[org.clojure/clojure "1.8.0-alpha2"]]}
    :test {:dependencies [[com.cognitect/transit-clj  "0.8.275"]
                          [com.cognitect/transit-cljs "0.8.220"]
