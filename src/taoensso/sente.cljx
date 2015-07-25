@@ -988,8 +988,7 @@
     :lp-kalive-ms   ; Ping to keep a long-polling (Ajax) conn alive ''
     :packer         ; :edn (default), or an IPacker implementation (experimental)
     :ajax-opts      ; Base opts map provided to `taoensso.encore/ajax-lite`
-    :wrap-recv-evs? ; Should user events be wrapped in [:chsk/recv _] envelope?
-                    ; Defaults to true (DEPRECATED)"
+    :wrap-recv-evs? ; Should events from server be wrapped in [:chsk/recv _]?"
   [path &
    & [{:keys [type host recv-buf-or-n ws-kalive-ms lp-timeout-ms packer
               client-id ajax-opts wrap-recv-evs? backoff-ms-fn]
