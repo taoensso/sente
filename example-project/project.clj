@@ -10,7 +10,7 @@
                 *assert* true}
 
   :dependencies
-  [[org.clojure/clojure       "1.7.0-RC2"] ; May use any v1.5.1+
+  [[org.clojure/clojure       "1.7.0"] ; May use any v1.5.1+
    ;; [org.clojure/clojure    "1.6.0"]
 
    [org.clojure/clojurescript "0.0-3308"]
@@ -24,11 +24,11 @@
    [http-kit                  "2.1.19"]
    ;; [org.immutant/web       "2.0.2"]
 
-   [ring                      "1.3.2"]
+   [ring                      "1.4.0"]
    [ring/ring-defaults        "0.1.5"] ; Includes `ring-anti-forgery`, etc.
    ;; [ring-anti-forgery      "1.0.0"]
 
-   [compojure                 "1.3.4"] ; Or routing lib of your choice
+   [compojure                 "1.4.0"] ; Or routing lib of your choice
    [hiccup                    "1.0.5"] ; Optional, just for HTML
 
    ;;; Transit deps optional; may be used to aid perf. of larger data payloads
