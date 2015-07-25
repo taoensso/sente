@@ -981,16 +981,18 @@
     :chsk    ; IChSocket implementer. You can usu. ignore this.
 
   Common options:
-    :type         ; e/o #{:auto :ws :ajax}. You'll usually want the default (:auto)
-    :host         ; Server host (defaults to current page's host)
-    :ws-kalive-ms ; Ping to keep a WebSocket conn alive if no activity w/in given
-                  ; number of milliseconds
-    :lp-kalive-ms ; Ping to keep a long-polling (Ajax) conn alive ''
-    :packer       ; :edn (default), or an IPacker implementation (experimental)
-    :ajax-opts    ; Base opts map provided to `taoensso.encore/ajax-lite`"
+    :type           ; e/o #{:auto :ws :ajax}. You'll usually want the default (:auto)
+    :host           ; Server host (defaults to current page's host)
+    :ws-kalive-ms   ; Ping to keep a WebSocket conn alive if no activity w/in given
+                    ; number of milliseconds
+    :lp-kalive-ms   ; Ping to keep a long-polling (Ajax) conn alive ''
+    :packer         ; :edn (default), or an IPacker implementation (experimental)
+    :ajax-opts      ; Base opts map provided to `taoensso.encore/ajax-lite`
+    :wrap-recv-evs? ; Should user events be wrapped in [:chsk/recv _] envelope?
+                    ; Defaults to true (DEPRECATED)"
   [path &
    & [{:keys [type host recv-buf-or-n ws-kalive-ms lp-timeout-ms packer
-              client-id ajax-opts backoff-ms-fn]
+              client-id ajax-opts wrap-recv-evs? backoff-ms-fn]
        :as   opts
        :or   {type          :auto
               recv-buf-or-n (async/sliding-buffer 2048) ; Mostly for buffered-evs
@@ -999,7 +1001,12 @@
               packer        :edn
               client-id     (or (:client-uuid opts) ; Backwards compatibility
                                 (enc/uuid-str))
-              backoff-ms-fn enc/exp-backoff}}
+
+              ;; TODO Deprecated. Default to false later, then eventually just
+              ;; drop this option altogether? - here now for back compatibility:
+              wrap-recv-evs? true
+
+              backoff-ms-fn  enc/exp-backoff}}
       _deprecated-more-opts]]
 
   {:pre [(have? [:in #{:ajax :ws :auto}] type)
@@ -1027,14 +1034,24 @@
                           (do (reset! ever-opened?_ true)
                               (assoc state :first-open? true))))
 
-        ;;; TODO
-        ;; * map< is deprecated in favour of transducers.
-        ;; * Maybe allow a flag to skip wrapping of :chsk/recv events?.
+        ;; TODO map< is deprecated in favour of transducers (but needs Clojure 1.7+)
+
         public-ch-recv
         (async/merge
           [(:internal private-chs)
            (async/map< (fn [state] [:chsk/state (state* state)]) (:state private-chs))
-           (async/map< (fn [ev]    [:chsk/recv  ev])          (:<server  private-chs))]
+
+           (let [<server-ch (:<server private-chs)]
+             (if wrap-recv-evs?
+               (async/map< (fn [ev] [:chsk/recv ev]) <server-ch)
+               (async/map< (fn [ev]
+                             (let [[id ?data] ev]
+                               ;; Server shouldn't send :chsk/ events. As a
+                               ;; matter of hygiene, ensure no :chsk/_ evs are
+                               ;; received over <server-ch
+                               (have? #(not= % "chsk") (namespace id))
+                               ev))
+                 <server-ch)))]
           ;; recv-buf-or-n ; Seems to be malfunctioning
           )
 
