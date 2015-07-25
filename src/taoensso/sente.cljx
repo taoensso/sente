@@ -60,32 +60,28 @@
   #+clj
   (:require
    [clojure.string     :as str]
-   [clojure.core.async :as async :refer (<! <!! >! >!! put! chan
-                                         go go-loop)]
-   ;; [clojure.tools.reader.edn :as edn]
-   [taoensso.encore           :as enc :refer (swap-in! reset-in! swapped
-                                              have? have)]
-   [taoensso.timbre           :as timbre :refer (tracef debugf infof warnf errorf)]
+   [clojure.core.async :as async  :refer (<! <!! >! >!! put! chan go go-loop)]
+   [taoensso.encore    :as enc    :refer (swap-in! reset-in! swapped have? have)]
+   [taoensso.timbre    :as timbre :refer (tracef debugf infof warnf errorf)]
    [taoensso.sente.interfaces :as interfaces])
 
   #+cljs
   (:require
    [clojure.string  :as str]
-   [cljs.core.async :as async :refer (<! >! put! chan)]
-   ;; [cljs.reader  :as edn]
-   [taoensso.encore :as enc :refer (format swap-in! reset-in! swapped
-                                    tracef debugf infof warnf errorf)]
+   [cljs.core.async :as async  :refer (<! >! put! chan)]
+   [taoensso.encore :as enc    :refer (format swap-in! reset-in! swapped)
+                               :refer-macros (have? have)]
+   [taoensso.timbre :as timbre :refer-macros (tracef debugf infof warnf errorf)]
    [taoensso.sente.interfaces :as interfaces])
 
   #+cljs
   (:require-macros
-   [cljs.core.async.macros :as asyncm :refer (go go-loop)]
-   [taoensso.encore        :as enc    :refer (have? have)]))
+   [cljs.core.async.macros :as asyncm :refer (go go-loop)]))
 
 ;;;; Encore version check
 
 #+clj
-(let [min-encore-version 1.23]
+(let [min-encore-version 1.38]
   (if-let [assert! (ns-resolve 'taoensso.encore 'assert-min-encore-version)]
     (assert! min-encore-version)
     (throw
@@ -94,39 +90,6 @@
           "Insufficient com.taoensso/encore version (< %s). You may have a Leiningen dependency conflict (see http://goo.gl/qBbLvC for solution)."
           min-encore-version)
         {:min-version min-encore-version}))))
-
-;;;; Logging
-
-(defn set-logging-level! [level]
-  #+clj  (timbre/set-level!    level)
-  #+cljs (set! enc/*log-level* level))
-
-;; (set-logging-level! :trace) ; For debugging
-
-;;;; Ajax
-
-#+cljs
-(def ajax-call
-  "Alpha - subject to change.
-  Simple+lightweight Ajax via Google Closure. Returns nil, or the xhr instance.
-  Ref. https://developers.google.com/closure/library/docs/xhrio.
-
-  (ajax-call \"/my-post-route\"
-    {:method     :post
-     :params     {:username \"Rich Hickey\"
-                  :type     \"Awesome\"}
-     :headers    {\"Foo\" \"Bar\"}
-     :resp-type  :text
-     :timeout-ms 7000
-     :with-credentials? false ; Enable if using CORS (requires xhr v2+)
-    }
-    (fn async-callback [resp-map]
-      (let [{:keys [success? ?status ?error ?content ?content-type]} resp-map]
-        ;; ?status  - 200, 404, ..., or nil on no response
-        ;; ?error   - e/o #{:xhr-pool-depleted :exception :http-error :abort
-        ;;                  :timeout :no-content <http-error-status> nil}
-        (js/alert (str \"Ajax response: \" resp-map)))))"
-  enc/ajax-lite)
 
 ;;;; Events
 ;; * Clients & server both send `event`s and receive (i.e. route) `event-msg`s.
@@ -174,7 +137,7 @@
     (map? x)
     (enc/keys= x #{:ch-recv :send-fn :connected-uids
                    :ring-req :client-id
-                   :event :id :?data :?reply-fn})
+                   :event :id :?data :?reply-fn :uid})
     (let [{:keys [ch-recv send-fn connected-uids
                   ring-req client-id event ?reply-fn]} x]
       (and
@@ -317,6 +280,12 @@
         connected-uids_ (atom {:ws #{} :ajax #{} :any #{}})
         send-buffers_   (atom {:ws  {} :ajax  {}}) ; {<uid> [<buffered-evs> <#{ev-uuids}>]}
 
+        user-id-fn
+        (fn [ring-req client-id]
+          ;; Allow uid to depend (in part or whole) on client-id. Be cautious
+          ;; of security implications.
+          (or (user-id-fn (assoc ring-req :client-id client-id)) ::nil-uid))
+
         connect-uid!
         (fn [type uid] {:pre [(have? uid)]}
           (let [newly-connected?
@@ -454,7 +423,7 @@
           (fn [net-ch]
             (let [params        (get ring-req :params)
                   ppstr         (get params   :ppstr)
-                  ;; client-id  (get params   :client-id) ; Unnecessary here
+                  client-id     (get params   :client-id)
                   [clj has-cb?] (unpack packer ppstr)]
 
               (put-event-msg>ch-recv! ch-recv
@@ -462,6 +431,7 @@
                   {:client-id "unnecessary-for-non-lp-POSTs"
                    :ring-req  ring-req
                    :event     clj
+                   :uid       (user-id-fn ring-req client-id)
                    :?reply-fn
                    (when has-cb?
                      (fn reply-fn [resp-clj] ; Any clj form
@@ -482,11 +452,7 @@
        (let [csrf-token (csrf-token-fn ring-req)
              params     (get ring-req :params)
              client-id  (get params   :client-id)
-             uid        (or (user-id-fn
-                              ;; Allow uid to depend on client-id
-                              ;; (keep these private if being used for uids!!)
-                              (assoc ring-req :client-id client-id))
-                          ::nil-uid)
+             uid        (user-id-fn ring-req client-id)
              websocket? (:websocket? ring-req)
 
              receive-event-msg! ; Partial
@@ -496,7 +462,8 @@
                    {:client-id client-id
                     :ring-req  ring-req
                     :event     event
-                    :?reply-fn ?reply-fn})))
+                    :?reply-fn ?reply-fn
+                    :uid       uid})))
 
              handshake!
              (fn [net-ch]
@@ -777,8 +744,9 @@
         :handled))))
 
 #+cljs
-(defn set-exp-backoff-timeout! [nullary-f & [nattempt]]
-  (.setTimeout js/window nullary-f (enc/exp-backoff (or nattempt 0))))
+(defn set-exp-backoff-timeout! [nullary-f nattempt & [backoff-ms-fn]]
+  (let [timeout-ms (backoff-ms-fn (or nattempt 0))]
+    (.setTimeout js/window nullary-f timeout-ms)))
 
 #+cljs ;; Handles reconnects, keep-alives, callbacks:
 (defrecord ChWebSocket
@@ -786,7 +754,7 @@
      cbs-waiting_ ; {<cb-uuid> <fn> ...}
      state_       ; {:type _ :open? _ :uid _ :csrf-token _ :destroyed? _}
      packer       ; IPacker
-     ]
+     backoff-ms-fn]
 
   IChSocket
   (chsk-send!* [chsk ev {:as opts ?timeout-ms :timeout-ms ?cb :cb :keys [flush?]}]
@@ -812,7 +780,7 @@
             (reset! kalive-due?_ false)
             :apparent-success
             (catch js/Error e
-              (errorf "Chsk send error: %s" e)
+              (errorf e "Chsk send error")
               (when-let [cb-uuid ?cb-uuid]
                 (let [cb-fn* (or (pull-unused-cb-fn! cbs-waiting_ cb-uuid)
                                  (have ?cb-fn))]
@@ -837,14 +805,15 @@
                    (let [nattempt* (swap! nattempt_ inc)]
                      (.clearInterval js/window @kalive-timer_)
                      (warnf "Chsk is closed: will try reconnect (%s)." nattempt*)
-                     (set-exp-backoff-timeout! connect! nattempt*)))]
+                     (set-exp-backoff-timeout! connect! nattempt*
+                       backoff-ms-fn)))]
 
              (if-let [socket
                       (try
                         (WebSocket. (enc/merge-url-with-query-string url
                                       {:client-id client-id}))
                         (catch js/Error e
-                          (errorf "WebSocket js/Error: %s" e)
+                          (errorf e "WebSocket js/Error")
                           nil))]
 
                (reset! socket_
@@ -896,7 +865,8 @@
 
 #+cljs
 (defrecord ChAjaxSocket
-    [client-id url chs timeout-ms ajax-opts curr-xhr_ state_ packer]
+    [client-id url chs timeout-ms ajax-opts curr-xhr_ state_ packer
+     backoff-ms-fn]
   IChSocket
   (chsk-send!* [chsk ev {:as opts ?timeout-ms :timeout-ms ?cb :cb :keys [flush?]}]
     (assert-send-args ev ?timeout-ms ?cb)
@@ -907,7 +877,7 @@
 
         ;; TODO Buffer before sending (but honor `:flush?`)
         (do
-          (ajax-call url
+          (enc/ajax-lite url
             (merge ajax-opts
               {:method :post :timeout-ms ?timeout-ms
                :resp-type :text ; We'll do our own pstr decoding
@@ -953,10 +923,11 @@
                    (warnf "Chsk is closed: will try reconnect (%s)." nattempt*)
                    (set-exp-backoff-timeout!
                      (partial async-poll-for-update! nattempt*)
-                     nattempt*)))]
+                     nattempt*
+                     backoff-ms-fn)))]
 
            (reset! curr-xhr_
-             (ajax-call url
+             (enc/ajax-lite url
                (merge ajax-opts
                  {:method :get :timeout-ms timeout-ms
                   :resp-type :text ; Prefer to do our own pstr reading
@@ -995,27 +966,10 @@
     chsk))
 
 #+cljs
-(def default-chsk-url-fn
-  "(ƒ [path window-location websocket?]) -> server-side chsk route URL string.
-
-    * path       - As provided to client-side `make-channel-socket!` fn
-                   (usu. \"/chsk\").
-    * websocket? - True for WebSocket connections, false for Ajax (long-polling)
-                   connections.
-    * window-location - Map with keys:
-      :href     ; \"http://www.example.org:80/foo/bar?q=baz#bang\"
-      :protocol ; \"http:\" ; Note the :
-      :hostname ; \"example.org\"
-      :host     ; \"example.org:80\"
-      :pathname ; \"/foo/bar\"
-      :search   ; \"?q=baz\"
-      :hash     ; \"#bang\"
-
-  Note that the *same* URL is used for: WebSockets, POSTs, GETs. Server-side
-  routes should be configured accordingly."
-  (fn [path {:as window-location :keys [protocol host pathname]} websocket?]
-    (str (if-not websocket? protocol (if (= protocol "https:") "wss:" "ws:"))
-         "//" host (or path pathname))))
+(defn- get-chsk-url [protocol chsk-host chsk-path type]
+  (let [protocol (case type :ajax protocol
+                            :ws   (if (= protocol "https:") "wss:" "ws:"))]
+    (str protocol "//" (enc/path chsk-host chsk-path))))
 
 #+cljs
 (defn make-channel-socket!
@@ -1027,25 +981,32 @@
     :chsk    ; IChSocket implementer. You can usu. ignore this.
 
   Common options:
-    :type         ; e/o #{:auto :ws :ajax}. You'll usually want the default (:auto)
-    :ws-kalive-ms ; Ping to keep a WebSocket conn alive if no activity w/in given
-                  ; number of milliseconds
-    :lp-kalive-ms ; Ping to keep a long-polling (Ajax) conn alive ''
-    :chsk-url-fn  ; Please see `default-chsk-url-fn` for details
-    :packer       ; :edn (default), or an IPacker implementation (experimental)
-    :ajax-opts    ; Base opts map provided to `ajax-call`"
+    :type           ; e/o #{:auto :ws :ajax}. You'll usually want the default (:auto)
+    :host           ; Server host (defaults to current page's host)
+    :ws-kalive-ms   ; Ping to keep a WebSocket conn alive if no activity w/in given
+                    ; number of milliseconds
+    :lp-kalive-ms   ; Ping to keep a long-polling (Ajax) conn alive ''
+    :packer         ; :edn (default), or an IPacker implementation (experimental)
+    :ajax-opts      ; Base opts map provided to `taoensso.encore/ajax-lite`
+    :wrap-recv-evs? ; Should user events be wrapped in [:chsk/recv _] envelope?
+                    ; Defaults to true (DEPRECATED)"
   [path &
-   & [{:keys [type recv-buf-or-n ws-kalive-ms lp-timeout-ms chsk-url-fn packer
-              client-id ajax-opts]
+   & [{:keys [type host recv-buf-or-n ws-kalive-ms lp-timeout-ms packer
+              client-id ajax-opts wrap-recv-evs? backoff-ms-fn]
        :as   opts
        :or   {type          :auto
               recv-buf-or-n (async/sliding-buffer 2048) ; Mostly for buffered-evs
               ws-kalive-ms  25000 ; < Heroku 30s conn timeout
               lp-timeout-ms 25000 ; ''
-              chsk-url-fn   default-chsk-url-fn
               packer        :edn
               client-id     (or (:client-uuid opts) ; Backwards compatibility
-                                (enc/uuid-str))}}
+                                (enc/uuid-str))
+
+              ;; TODO Deprecated. Default to false later, then eventually just
+              ;; drop this option altogether? - here now for back compatibility:
+              wrap-recv-evs? true
+
+              backoff-ms-fn  enc/exp-backoff}}
       _deprecated-more-opts]]
 
   {:pre [(have? [:in #{:ajax :ws :auto}] type)
@@ -1057,7 +1018,12 @@
     (warnf ":lp-timeout opt has CHANGED; please use :lp-timout-ms."))
 
   (let [packer (interfaces/coerce-packer packer)
-        window-location (enc/get-window-location)
+
+        win-location (enc/get-window-location)
+        win-protocol      (:protocol win-location)
+        host     (or host (:host     win-location))
+        path     (or path (:pathname win-location))
+
         private-chs {:state    (chan (async/sliding-buffer 10))
                      :internal (chan (async/sliding-buffer 10))
                      :<server  (chan recv-buf-or-n)}
@@ -1068,14 +1034,24 @@
                           (do (reset! ever-opened?_ true)
                               (assoc state :first-open? true))))
 
-        ;;; TODO
-        ;; * map< is deprecated in favour of transducers.
-        ;; * Maybe allow a flag to skip wrapping of :chsk/recv events?.
+        ;; TODO map< is deprecated in favour of transducers (but needs Clojure 1.7+)
+
         public-ch-recv
         (async/merge
           [(:internal private-chs)
            (async/map< (fn [state] [:chsk/state (state* state)]) (:state private-chs))
-           (async/map< (fn [ev]    [:chsk/recv  ev])          (:<server  private-chs))]
+
+           (let [<server-ch (:<server private-chs)]
+             (if wrap-recv-evs?
+               (async/map< (fn [ev] [:chsk/recv ev]) <server-ch)
+               (async/map< (fn [ev]
+                             (let [[id ?data] ev]
+                               ;; Server shouldn't send :chsk/ events. As a
+                               ;; matter of hygiene, ensure no :chsk/_ evs are
+                               ;; received over <server-ch
+                               (have? #(not= % "chsk") (namespace id))
+                               ev))
+                 <server-ch)))]
           ;; recv-buf-or-n ; Seems to be malfunctioning
           )
 
@@ -1085,7 +1061,9 @@
               (chsk-init!
                 (map->ChWebSocket
                   {:client-id     client-id
-                   :url           (chsk-url-fn path window-location :ws)
+                   :url           (if-let [f (:chsk-url-fn opts)]
+                                    (f path win-location :ws) ; Deprecated
+                                    (get-chsk-url win-protocol host path :ws))
                    :chs           private-chs
                    :packer        packer
                    :socket_       (atom nil)
@@ -1095,20 +1073,24 @@
                    :nattempt_     (atom 0)
                    :cbs-waiting_  (atom {})
                    :state_        (atom {:type :ws :open? false
-                                         :destroyed? false})})))
+                                         :destroyed? false})
+                   :backoff-ms-fn backoff-ms-fn})))
 
          (and (not= type :ws)
               (chsk-init!
                 (map->ChAjaxSocket
-                  {:client-id  client-id
-                   :url        (chsk-url-fn path window-location (not :ws))
-                   :chs        private-chs
-                   :packer     packer
-                   :timeout-ms lp-timeout-ms
-                   :ajax-opts  ajax-opts
-                   :curr-xhr_  (atom nil)
-                   :state_     (atom {:type :ajax :open? false
-                                      :destroyed? false})}))))
+                  {:client-id     client-id
+                   :url           (if-let [f (:chsk-url-fn opts)]
+                                    (f path win-location :ajax) ; Deprecated
+                                    (get-chsk-url win-protocol host path :ajax))
+                   :chs           private-chs
+                   :packer        packer
+                   :timeout-ms    lp-timeout-ms
+                   :curr-xhr_     (atom nil)
+                   :state_        (atom {:type :ajax :open? false
+                                         :destroyed? false})
+                   :ajax-opts     ajax-opts
+                   :backoff-ms-fn backoff-ms-fn}))))
 
         _ (assert chsk "Failed to create channel socket")
         send-fn (partial chsk-send! chsk)
@@ -1142,42 +1124,23 @@
   [ch-recv event-msg-handler & [{:as opts :keys [trace-evs?]}]]
   (let [ch-ctrl (chan)]
     (go-loop []
-      (when-not
-        (enc/kw-identical? ::stop
-          (try
-            (let [[v p] (async/alts! [ch-recv ch-ctrl])]
-              (if (enc/kw-identical? p ch-ctrl) ::stop
-                  (let [{:as event-msg :keys [event]} v]
-                  (try
-                    (when trace-evs?
-                      (tracef "Pre-handler event: %s" event))
-                    (if-not (event-msg? event-msg)
-                      ;; Shouldn't be possible here, but we're being cautious:
-                      (errorf "Bad event: %s" event) ; Log 'n drop
-                      (event-msg-handler event-msg))
-                    nil
-                    (catch
-                      #+clj Throwable
-                      #+cljs js/Error ; :default ; Temp workaround for [1]
-                      t
-                      #+clj  (errorf t "Chsk router handling error: %s" event)
-                      #+cljs (errorf   "Chsk router handling error (%s): %s"
-                               event t))))))
-            (catch
-              #+clj Throwable
-              #+cljs js/Error ; :default [1] Temp workaround for [1]
-              t
-              #+clj  (errorf t "Chsk router channel error!")
-              #+cljs (errorf   "Chsk router channel error (%s)!" t))))
+      (let [[v p] (async/alts! [ch-recv ch-ctrl])
+            stop? (enc/kw-identical? p  ch-ctrl)]
 
-        ;; TODO [1]
-        ;; @shaharz reported (https://github.com/ptaoussanis/sente/issues/97)
-        ;; that current releases of core.async have trouble with :default error
-        ;; catching, Ref. http://goo.gl/QFBvfO.
-        ;; The issue's been fixed but we're waiting for a new core.async
-        ;; release.
+        (when-not stop?
+          (let [{:as event-msg :keys [event]} v
+                [_ ?error]
+                (enc/catch-errors
+                  (when trace-evs? (tracef "Pre-handler event: %s" event))
 
-        (recur)))
+                  (if-not (event-msg? event-msg)
+                    ;; Shouldn't be possible here, but we're being cautious:
+                    (errorf "Bad event: %s" event) ; Log 'n drop
+                    (event-msg-handler event-msg)))]
+
+            (when-let [e ?error] (errorf e "Chsk router handling error: %s" event))
+            (recur)))))
+
     (fn stop! [] (async/close! ch-ctrl))))
 
 ;;;; Deprecated
@@ -1197,3 +1160,18 @@
   (start-chsk-router! ch-recv
     ;; Old handler form: (fn [ev ch-recv])
     (fn [ev-msg] (event-handler (:event ev-msg) (:ch-recv ev-msg)))))
+
+(defn set-logging-level! "DEPRECATED. Please use `timbre/set-level!` instead."
+  [level] (timbre/set-level! level))
+
+;; (set-logging-level! :trace) ; For debugging
+
+#+cljs
+(def ajax-call
+  "DEPRECATED. Please use `taoensso.encore/ajax-lite` instead."
+  enc/ajax-lite)
+
+#+cljs
+(def default-chsk-url-fn "DEPRECATED."
+  (fn [path {:as location :keys [adjusted-protocol host pathname]} websocket?]
+    (str adjusted-protocol "//" host (or path pathname))))

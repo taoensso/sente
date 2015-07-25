@@ -1,4 +1,4 @@
-(defproject com.taoensso.examples/sente "1.5.0"
+(defproject com.taoensso.examples/sente "1.6.0-RC1"
   :description "Sente, reference web-app example project"
   :url "https://github.com/ptaoussanis/sente"
   :license {:name "Eclipse Public License"
@@ -10,25 +10,25 @@
                 *assert* true}
 
   :dependencies
-  [[org.clojure/clojure       "1.7.0-RC1"] ; May use any v1.5.1+
+  [[org.clojure/clojure       "1.7.0"] ; May use any v1.5.1+
    ;; [org.clojure/clojure    "1.6.0"]
 
    [org.clojure/clojurescript "0.0-3308"]
 
    [org.clojure/core.async    "0.1.346.0-17112a-alpha"]
 
-   [com.taoensso/sente        "1.5.0"] ; <--- Sente
-   [com.taoensso/timbre       "3.4.0"]
+   [com.taoensso/sente        "1.6.0-RC1"] ; <--- Sente
+   [com.taoensso/timbre       "4.0.2"]
 
    ;;; ---> Choose (uncomment) a supported web server <---
    [http-kit                  "2.1.19"]
-   ;; [org.immutant/web       "2.0.1"]
+   ;; [org.immutant/web       "2.0.2"]
 
-   [ring                      "1.3.2"]
+   [ring                      "1.4.0"]
    [ring/ring-defaults        "0.1.5"] ; Includes `ring-anti-forgery`, etc.
    ;; [ring-anti-forgery      "1.0.0"]
 
-   [compojure                 "1.3.4"] ; Or routing lib of your choice
+   [compojure                 "1.4.0"] ; Or routing lib of your choice
    [hiccup                    "1.0.5"] ; Optional, just for HTML
 
    ;;; Transit deps optional; may be used to aid perf. of larger data payloads

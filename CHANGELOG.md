@@ -1,5 +1,27 @@
 > This project uses [Break Versioning](https://github.com/ptaoussanis/encore/blob/master/BREAK-VERSIONING.md) as of **Aug 16, 2014**.
 
+## v1.6.0-RC1 - 2015 Jul 25
+
+> This is a significant maintenance+feature release which **MAY BE BREAKING** due to a mandatory dependency bump to Timbre v4 (see **note 1** for details).
+
+* **BREAKING**: switch to Timbre v4 for cross-platform logging [note 1]
+* **DEPRECATED**: `chsk-url-fn`, make cross-domain chsks easier to configure [#50 #136]
+* **Implementation**: refactor default chsk-router
+* **New**: add :uid to ev-msg's handled by Sente server [@danielcompton #147]
+* **New**: add support for Transit packer opts [@estsauver #145]
+* **New**: add option to leave :chsk/recv events unwrapped [#151]
+* **New**: add client-side backoff opts [#125]
+* **Fix**: switch to encore edn reader/writer (fix issue with printing large data structures under REPL)
+* **Ref example**: add run command [@estsauver #144]
+
+```clojure
+[com.taoensso/sente "1.6.0-RC1"]
+```
+
+#### Notes
+
+**[1]** Please see https://github.com/ptaoussanis/timbre/releases/tag/v4.0.0 for Timbre v4's **migration checklist**. Sorry for the hassle! This one-off change allows Sente to inherit all of Timbre's logging goodness (full logging config, ns filtering, production logging call elision, etc.). Migration usu. consists of a 1 or 2 line change if you're not using custom Timbre appenders.
+
 ## v1.5.0 - 2015 Jun 11
 
 > This is a non-breaking maintenance release
@@ -7,7 +29,6 @@
 * **New**: support Ajax CORS via new `:with-credentials?` opt [#130 @bplatz]
 * **Fix**: bad missing-middleware error logging call format
 * **Implementation**: update dependencies
-
 
 ```clojure
 [com.taoensso/sente "1.5.0"]
