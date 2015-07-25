@@ -4,7 +4,7 @@
 
 > This is a significant maintenance+feature release which **MAY BE BREAKING** due to a mandatory dependency bump to Timbre v4 (see **note 1** for details).
 
-* **BREAKING**: switch to Timbre v4 for cross-platform logging [note 1]
+* **BREAKING**: switch to Timbre v4 for cross-platform logging [**note 1**]
 * **DEPRECATED**: `chsk-url-fn`, make cross-domain chsks easier to configure [#50 #136]
 * **Implementation**: refactor default chsk-router
 * **New**: add :uid to ev-msg's handled by Sente server [@danielcompton #147]
