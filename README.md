@@ -77,8 +77,8 @@ For Sente, we're going to add 2 new URLs and setup their handlers:
     [taoensso.sente :as sente] ; <--- Add this
 
     ;; Uncomment a web-server adapter --->
-    ;; [taoensso.sente.server-adapters.http-kit :refer (sente-web-server-adapter)]
-    ;; [taoensso.sente.server-adapters.immutant :refer (sente-web-server-adapter)]
+    ;; [taoensso.sente.server-adapters.http-kit :refer [sente-web-server-adapter]]
+    ;; [taoensso.sente.server-adapters.immutant :refer [sente-web-server-adapter]]
   ))
 
 ;;; Add this: --->
