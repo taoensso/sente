@@ -11,7 +11,7 @@
   ;; Wraps a web server's own async channel/comms interface to abstract away
   ;; implementation differences
   (send!* [net-ch msg close-after-send?] "Sends a message to channel.")
-  (open?  [net-ch] "Returns true iff the channel is currently open.")
+  (open?  [net-ch] "Returns true if the channel is currently open.")
   (close! [net-ch] "Closes the channel."))
 
 #+clj (defn send! [net-ch msg & [close-after-send?]]
