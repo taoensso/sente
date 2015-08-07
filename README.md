@@ -50,7 +50,7 @@ So you can ignore the underlying protocol and deal directly with Sente's unified
 Add the necessary dependency to your [Leiningen][] `project.clj`. This'll provide your project with both the client (ClojureScript) + server (Clojure) side library code:
 
 ```clojure
-[com.taoensso/sente "1.5.0"]
+[com.taoensso/sente "1.6.0"]
 ```
 
 ### On the server (Clojure) side
