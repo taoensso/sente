@@ -81,7 +81,7 @@
 ;;;; Encore version check
 
 #+clj
-(let [min-encore-version 1.38]
+(let [min-encore-version 2.4]
   (if-let [assert! (ns-resolve 'taoensso.encore 'assert-min-encore-version)]
     (assert! min-encore-version)
     (throw
@@ -796,8 +796,8 @@
     (when-let [s @socket_] (.close s 1000 "CLOSE_NORMAL")))
 
   (chsk-init! [chsk]
-    (when-let [WebSocket (or (aget js/window "WebSocket")
-                             (aget js/window "MozWebSocket"))]
+    (when-let [WebSocket (or (enc/oget js/window "WebSocket")
+                             (enc/oget js/window "MozWebSocket"))]
       ((fn connect! []
          (when-not (:destroyed? @state_)
            (let [retry!
@@ -825,7 +825,7 @@
                              ;; receive cb replies here! This is actually why
                              ;; we prefix our pstrs to indicate whether they're
                              ;; wrapped or not.
-                             ppstr (aget ws-ev "data")
+                             ppstr (enc/oget ws-ev "data")
                              [clj ?cb-uuid] (unpack packer ppstr)]
                          ;; (assert-event clj) ;; NO!
                          (or
