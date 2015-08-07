@@ -1,6 +1,6 @@
 > This project uses [Break Versioning](https://github.com/ptaoussanis/encore/blob/master/BREAK-VERSIONING.md) as of **Aug 16, 2014**.
 
-## v1.6.0-RC1 - 2015 Jul 25
+## v1.6.0 - 2015 Aug 7
 
 > This is a significant maintenance+feature release which **MAY BE BREAKING** due to a mandatory dependency bump to Timbre v4 (see **note 1** for details).
 
@@ -15,7 +15,7 @@
 * **Ref example**: add run command [@estsauver #144]
 
 ```clojure
-[com.taoensso/sente "1.6.0-RC1"]
+[com.taoensso/sente "1.6.0"]
 ```
 
 #### Notes
