@@ -1134,10 +1134,14 @@
                   (event-msg-handler (have :! event-msg? event-msg)))]
 
             (when-let [e ?error]
-              (enc/catch-errors
-                (if-let [eh error-handler]
-                  (error-handler e event-msg)
-                  (errorf e "Chsk router handling error: %s" event))))
+              (let [[_ ?error2]
+                    (enc/catch-errors
+                      (if-let [eh error-handler]
+                        (error-handler e event-msg)
+                        (errorf e "Chsk router `event-msg-handler` error: %s" event)))]
+                (when-let [e2 ?error2]
+                  (errorf e2 "Chsk router `error-handler` error: %s" event))))
+
             (recur)))))
 
     (fn stop! [] (async/close! ch-ctrl))))
