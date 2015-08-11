@@ -23,7 +23,7 @@
    :1.6  {:dependencies [[org.clojure/clojure "1.6.0"]]}
    :1.7  {:dependencies [[org.clojure/clojure "1.7.0"]]}
    :1.8  {:dependencies [[org.clojure/clojure "1.8.0-alpha2"]]}
-   :test {:dependencies [[com.cognitect/transit-clj  "0.8.275"]
+   :test {:dependencies [[com.cognitect/transit-clj  "0.8.281"]
                          [com.cognitect/transit-cljs "0.8.220"]
                          [expectations               "2.1.0"]
                          [org.clojure/test.check     "0.7.0"]
