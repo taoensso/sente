@@ -754,7 +754,7 @@
 
 #+cljs ;; Handles reconnects, keep-alives, callbacks:
 (defrecord ChWebSocket
-    [client-id url chs socket_ kalive-ms kalive-timer_ kalive-due?_ nattempt_
+    [client-id url params chs socket_ kalive-ms kalive-timer_ kalive-due?_ nattempt_
      cbs-waiting_ ; {<cb-uuid> <fn> ...}
      state_       ; {:type _ :open? _ :uid _ :csrf-token _ :destroyed? _}
      packer       ; IPacker
@@ -815,7 +815,8 @@
              (if-let [socket
                       (try
                         (WebSocket. (enc/merge-url-with-query-string url
-                                      {:client-id client-id}))
+                                      ; We want params first so people don't clobber our query params accidentally
+                                      (merge params {:client-id client-id})))
                         (catch js/Error e
                           (errorf e "WebSocket js/Error")
                           nil))]
@@ -869,7 +870,7 @@
 
 #+cljs
 (defrecord ChAjaxSocket
-    [client-id url chs timeout-ms ajax-opts curr-xhr_ state_ packer
+    [client-id url params chs timeout-ms ajax-opts curr-xhr_ state_ packer
      backoff-ms-fn]
   IChSocket
   (chsk-send!* [chsk ev {:as opts ?timeout-ms :timeout-ms ?cb :cb :keys [flush?]}]
@@ -937,6 +938,7 @@
                   :resp-type :text ; Prefer to do our own pstr reading
                   :params
                   (merge
+                    params ; We want params first so people don't clobber our query params accidentally
                     {:_          (enc/now-udt) ; Force uncached resp
                      :client-id  client-id}
 
@@ -987,6 +989,8 @@
   Common options:
     :type           ; e/o #{:auto :ws :ajax}. You'll usually want the default (:auto)
     :host           ; Server host (defaults to current page's host)
+    :params         ; A map of query parameters to put in the chsk request URL.
+                    ; Keywords will be converted to strings.
     :ws-kalive-ms   ; Ping to keep a WebSocket conn alive if no activity w/in given
                     ; number of milliseconds
     :lp-kalive-ms   ; Ping to keep a long-polling (Ajax) conn alive ''
@@ -994,7 +998,7 @@
     :ajax-opts      ; Base opts map provided to `taoensso.encore/ajax-lite`
     :wrap-recv-evs? ; Should events from server be wrapped in [:chsk/recv _]?"
   [path &
-   [{:keys [type host recv-buf-or-n ws-kalive-ms lp-timeout-ms packer
+   [{:keys [type host params recv-buf-or-n ws-kalive-ms lp-timeout-ms packer
               client-id ajax-opts wrap-recv-evs? backoff-ms-fn]
        :as   opts
        :or   {type          :auto
@@ -1067,6 +1071,7 @@
                    :url           (if-let [f (:chsk-url-fn opts)]
                                     (f path win-location :ws) ; Deprecated
                                     (get-chsk-url win-protocol host path :ws))
+                   :params        params
                    :chs           private-chs
                    :packer        packer
                    :socket_       (atom nil)
@@ -1086,6 +1091,7 @@
                    :url           (if-let [f (:chsk-url-fn opts)]
                                     (f path win-location :ajax) ; Deprecated
                                     (get-chsk-url win-protocol host path :ajax))
+                   :params        params
                    :chs           private-chs
                    :packer        packer
                    :timeout-ms    lp-timeout-ms
