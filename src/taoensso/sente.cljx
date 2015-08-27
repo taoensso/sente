@@ -990,7 +990,7 @@
     :ajax-opts      ; Base opts map provided to `taoensso.encore/ajax-lite`
     :wrap-recv-evs? ; Should events from server be wrapped in [:chsk/recv _]?"
   [path &
-   & [{:keys [type host recv-buf-or-n ws-kalive-ms lp-timeout-ms packer
+   [{:keys [type host recv-buf-or-n ws-kalive-ms lp-timeout-ms packer
               client-id ajax-opts wrap-recv-evs? backoff-ms-fn]
        :as   opts
        :or   {type          :auto
