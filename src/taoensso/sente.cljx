@@ -428,7 +428,11 @@
 
               (put-event-msg>ch-recv! ch-recv
                 (merge ev-msg-const
-                  {:client-id "unnecessary-for-non-lp-POSTs"
+                  {;; Note that the client-id is provided here just for the
+                   ;; user's convenience. non-lp-POSTs don't actually need a
+                   ;; client-id for Sente's own implementation:
+                   :client-id client-id #_"unnecessary-for-non-lp-POSTs"
+
                    :ring-req  ring-req
                    :event     clj
                    :uid       (user-id-fn ring-req client-id)
@@ -885,7 +889,11 @@
                (let [ppstr (pack packer (meta ev) ev (when ?cb-fn :ajax-cb))]
                  {:_           (enc/now-udt) ; Force uncached resp
                   :csrf-token  (:csrf-token @state_)
-                  ;; :client-id client-id ; Unnecessary here
+
+                  ;; Just for user's convenience here. non-lp-POSTs don't
+                  ;; actually need a client-id for Sente's own implementation:
+                  :client-id   client-id
+
                   :ppstr       ppstr})})
 
            (fn ajax-cb [{:keys [?error ?content]}]
