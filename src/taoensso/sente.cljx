@@ -430,8 +430,7 @@
                 (merge ev-msg-const
                   {;; Note that the client-id is provided here just for the
                    ;; user's convenience. non-lp-POSTs don't actually need a
-                   ;; client-id on the implementation end:
-                   ;; Sente's implementation
+                   ;; client-id on Sente's implementation end:
                    :client-id client-id #_"unnecessary-for-non-lp-POSTs"
 
                    :ring-req  ring-req
