@@ -985,7 +985,7 @@
     :host           ; Server host (defaults to current page's host)
     :ws-kalive-ms   ; Ping to keep a WebSocket conn alive if no activity w/in given
                     ; number of milliseconds
-    :lp-kalive-ms   ; Ping to keep a long-polling (Ajax) conn alive ''
+    :lp-timeout-ms  ; Ping to keep a long-polling (Ajax) conn alive ''
     :packer         ; :edn (default), or an IPacker implementation (experimental)
     :ajax-opts      ; Base opts map provided to `taoensso.encore/ajax-lite`
     :wrap-recv-evs? ; Should events from server be wrapped in [:chsk/recv _]?"
