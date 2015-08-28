@@ -814,9 +814,10 @@
 
              (if-let [socket
                       (try
-                        (WebSocket. (enc/merge-url-with-query-string url
-                                      ; We want params first so people don't clobber our query params accidentally
-                                      (merge params {:client-id client-id})))
+                        (WebSocket.
+                          (enc/merge-url-with-query-string url
+                            ;; User params first (don't clobber impl. params):
+                            (merge params {:client-id client-id})))
                         (catch js/Error e
                           (errorf e "WebSocket js/Error")
                           nil))]
@@ -888,14 +889,16 @@
                :resp-type :text ; We'll do our own pstr decoding
                :params
                (let [ppstr (pack packer (meta ev) ev (when ?cb-fn :ajax-cb))]
-                 {:_           (enc/now-udt) ; Force uncached resp
-                  :csrf-token  (:csrf-token @state_)
+                 (merge
+                   params ; User params first (don't clobber impl. params):
+                   {:_           (enc/now-udt) ; Force uncached resp
+                    :csrf-token  (:csrf-token @state_)
 
-                  ;; Just for user's convenience here. non-lp-POSTs don't
-                  ;; actually need a client-id for Sente's own implementation:
-                  :client-id   client-id
+                    ;; Just for user's convenience here. non-lp-POSTs don't
+                    ;; actually need a client-id for Sente's own implementation:
+                    :client-id   client-id
 
-                  :ppstr       ppstr})})
+                    :ppstr       ppstr}))})
 
            (fn ajax-cb [{:keys [?error ?content]}]
              (if ?error
@@ -942,7 +945,12 @@
                   :resp-type :text ; Prefer to do our own pstr reading
                   :params
                   (merge
-                    params ; We want params first so people don't clobber our query params accidentally
+
+                    ;; Note that user params here are actually POST params for
+                    ;; convenience. Contrast: WebSocket params sent as query
+                    ;; params since there's no other choice there.
+                    params ; User params first (don't clobber impl. params)
+
                     {:_          (enc/now-udt) ; Force uncached resp
                      :client-id  client-id}
 
@@ -993,8 +1001,8 @@
   Common options:
     :type           ; e/o #{:auto :ws :ajax}. You'll usually want the default (:auto)
     :host           ; Server host (defaults to current page's host)
-    :params         ; A map of query parameters to put in the chsk request URL.
-                    ; Keywords will be converted to strings.
+    :params         ; Map of any params to incl. in chsk Ring requests (handy for
+                    ; application-level auth, etc.)
     :ws-kalive-ms   ; Ping to keep a WebSocket conn alive if no activity w/in given
                     ; number of milliseconds
     :lp-timeout-ms  ; Ping to keep a long-polling (Ajax) conn alive ''
