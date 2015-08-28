@@ -1005,10 +1005,16 @@
                     ; application-level auth, etc.)
     :ws-kalive-ms   ; Ping to keep a WebSocket conn alive if no activity w/in given
                     ; number of milliseconds
-    :lp-timeout-ms  ; Ping to keep a long-polling (Ajax) conn alive ''
+    :lp-timeout-ms  ; Ping to keep a long-polling (Ajax) conn alive '' [1]
     :packer         ; :edn (default), or an IPacker implementation (experimental)
     :ajax-opts      ; Base opts map provided to `taoensso.encore/ajax-lite`
-    :wrap-recv-evs? ; Should events from server be wrapped in [:chsk/recv _]?"
+    :wrap-recv-evs? ; Should events from server be wrapped in [:chsk/recv _]?
+
+  [1] If you are using Immutant and override the default :lp-timeout-ms, you will
+      need provide the same value to
+      `taoensso.sente.server-adapters.immutant/make-immutant-adapter` and use the
+      result of that function as the web-server-adapter to your server-side
+      `make-channel-socket!`."
   [path &
    [{:keys [type host params recv-buf-or-n ws-kalive-ms lp-timeout-ms packer
               client-id ajax-opts wrap-recv-evs? backoff-ms-fn]
