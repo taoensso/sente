@@ -14,8 +14,8 @@
   [[org.clojure/clojure      "1.5.1"]
    [org.clojure/core.async   "0.1.346.0-17112a-alpha"]
    [org.clojure/tools.reader "0.9.2"]
-   [com.taoensso/encore      "2.4.2"]
-   [com.taoensso/timbre      "4.1.0"]]
+   [com.taoensso/encore      "2.5.0"]
+   [com.taoensso/timbre      "4.1.1"]]
 
   :profiles
   {;; :default [:base :system :user :provided :dev]
@@ -39,7 +39,7 @@
     {:plugins
      [;;; These must be in :dev, Ref. https://github.com/lynaghk/cljx/issues/47:
       [com.keminglabs/cljx             "0.5.0"]
-      [lein-cljsbuild                  "1.0.5"]
+      [lein-cljsbuild                  "1.1.0"]
       ;;
       [http-kit                        "2.1.19"]
       [org.immutant/web                "2.0.0"]
