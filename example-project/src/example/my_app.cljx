@@ -43,6 +43,9 @@
 
    ;; [immutant.web    :as immutant]
    ;; [taoensso.sente.server-adapters.immutant :refer (sente-web-server-adapter)]
+   
+   ;; [nginx.clojure.embed :as nginx-clojure]
+   ;; [taoensso.sente.server-adapters.nginx-clojure :refer (sente-web-server-adapter)]
 
    ;; Optional, for Transit encoding:
    [taoensso.sente.packers.transit :as sente-transit])
@@ -85,6 +88,15 @@
 ;;     {:server  server
 ;;      :port    (:port server)
 ;;      :stop-fn (fn [] (immutant/stop server))}))
+
+;;; nginx-clojure embeded
+;; #+clj
+;; (defn start-web-server!* [ring-handler port]
+;;   (println "Starting nginx-clojure...")
+;;   (let [port (nginx-clojure/run-server ring-handler {:port port})]
+;;     {:server  nil ; nginx-clojure doesn't expose this
+;;      :port    port
+;;      :stop-fn nginx-clojure/stop-server}))
 
 ;;;; Packer (client<->server serializtion format) config
 
