@@ -22,8 +22,8 @@
 
    ;;; ---> Choose (uncomment) a supported web server <---
    [http-kit                  "2.1.19"]
-   ;; [org.immutant/web       "2.0.2"]
-   ;; [nginx-clojure/nginx-clojure-embed "0.4.2"]
+   [org.immutant/web          "2.1.0"]
+   [nginx-clojure/nginx-clojure-embed "0.4.2"]
 
    [ring                      "1.4.0"]
    [ring/ring-defaults        "0.1.5"] ; Includes `ring-anti-forgery`, etc.

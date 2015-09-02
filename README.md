@@ -30,7 +30,7 @@ Or: **Clojure(Script) + core.async + WebSockets/Ajax = _The Shiz_**
   * Standard **Ring security model**: auth as you like, HTTPS when available, CSRF support, etc.
   * **Fully documented, with examples**.
   * **Small codebase**: ~1k lines for the entire client+server implementation.
-  * **Supported servers**: [http-kit][], [Immutant v2+][] (with Sente v1.4+).
+  * **Supported servers**: [http-kit][], [Immutant v2+][] (with Sente v1.4+, Immutant 2.1+ & Sente 1.7+ recommended).
 
 
 ### Capabilities

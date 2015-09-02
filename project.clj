@@ -42,7 +42,7 @@
       [lein-cljsbuild                  "1.1.0"]
       ;;
       [http-kit                        "2.1.19"]
-      [org.immutant/web                "2.0.0"]
+      [org.immutant/web                "2.1.0"]
       [nginx-clojure                   "0.4.2"]
       ;;
       [lein-pprint                     "1.1.1"]
