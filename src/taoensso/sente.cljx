@@ -55,7 +55,8 @@
       modify sessions! Use standard a/sync HTTP Ring req/resp for logins, etc.
     * Easy to wrap standard HTTP Ring resps for transport over chsks. Prefer
       this approach to modifying handlers (better portability)."
-  {:author "Peter Taoussanis"}
+
+  {:author "Peter Taoussanis (@ptaoussanis)"}
 
   #+clj
   (:require
@@ -81,7 +82,7 @@
 ;;;; Encore version check
 
 #+clj
-(let [min-encore-version 1.38]
+(let [min-encore-version 2.4]
   (if-let [assert! (ns-resolve 'taoensso.encore 'assert-min-encore-version)]
     (assert! min-encore-version)
     (throw
@@ -428,7 +429,11 @@
 
               (put-event-msg>ch-recv! ch-recv
                 (merge ev-msg-const
-                  {:client-id "unnecessary-for-non-lp-POSTs"
+                  {;; Note that the client-id is provided here just for the
+                   ;; user's convenience. non-lp-POSTs don't actually need a
+                   ;; client-id for Sente's own implementation:
+                   :client-id client-id #_"unnecessary-for-non-lp-POSTs"
+
                    :ring-req  ring-req
                    :event     clj
                    :uid       (user-id-fn ring-req client-id)
@@ -750,7 +755,7 @@
 
 #+cljs ;; Handles reconnects, keep-alives, callbacks:
 (defrecord ChWebSocket
-    [client-id url chs socket_ kalive-ms kalive-timer_ kalive-due?_ nattempt_
+    [client-id url params chs socket_ kalive-ms kalive-timer_ kalive-due?_ nattempt_
      cbs-waiting_ ; {<cb-uuid> <fn> ...}
      state_       ; {:type _ :open? _ :uid _ :csrf-token _ :destroyed? _}
      packer       ; IPacker
@@ -796,8 +801,8 @@
     (when-let [s @socket_] (.close s 1000 "CLOSE_NORMAL")))
 
   (chsk-init! [chsk]
-    (when-let [WebSocket (or (aget js/window "WebSocket")
-                             (aget js/window "MozWebSocket"))]
+    (when-let [WebSocket (or (enc/oget js/window "WebSocket")
+                             (enc/oget js/window "MozWebSocket"))]
       ((fn connect! []
          (when-not (:destroyed? @state_)
            (let [retry!
@@ -810,8 +815,10 @@
 
              (if-let [socket
                       (try
-                        (WebSocket. (enc/merge-url-with-query-string url
-                                      {:client-id client-id}))
+                        (WebSocket.
+                          (enc/merge-url-with-query-string url
+                            ;; User params first (don't clobber impl. params):
+                            (merge params {:client-id client-id})))
                         (catch js/Error e
                           (errorf e "WebSocket js/Error")
                           nil))]
@@ -825,7 +832,7 @@
                              ;; receive cb replies here! This is actually why
                              ;; we prefix our pstrs to indicate whether they're
                              ;; wrapped or not.
-                             ppstr (aget ws-ev "data")
+                             ppstr (enc/oget ws-ev "data")
                              [clj ?cb-uuid] (unpack packer ppstr)]
                          ;; (assert-event clj) ;; NO!
                          (or
@@ -865,7 +872,7 @@
 
 #+cljs
 (defrecord ChAjaxSocket
-    [client-id url chs timeout-ms ajax-opts curr-xhr_ state_ packer
+    [client-id url params chs timeout-ms ajax-opts curr-xhr_ state_ packer
      backoff-ms-fn]
   IChSocket
   (chsk-send!* [chsk ev {:as opts ?timeout-ms :timeout-ms ?cb :cb :keys [flush?]}]
@@ -883,10 +890,16 @@
                :resp-type :text ; We'll do our own pstr decoding
                :params
                (let [ppstr (pack packer (meta ev) ev (when ?cb-fn :ajax-cb))]
-                 {:_           (enc/now-udt) ; Force uncached resp
-                  :csrf-token  (:csrf-token @state_)
-                  ;; :client-id client-id ; Unnecessary here
-                  :ppstr       ppstr})})
+                 (merge
+                   params ; User params first (don't clobber impl. params):
+                   {:_           (enc/now-udt) ; Force uncached resp
+                    :csrf-token  (:csrf-token @state_)
+
+                    ;; Just for user's convenience here. non-lp-POSTs don't
+                    ;; actually need a client-id for Sente's own implementation:
+                    :client-id   client-id
+
+                    :ppstr       ppstr}))})
 
            (fn ajax-cb [{:keys [?error ?content]}]
              (if ?error
@@ -933,6 +946,12 @@
                   :resp-type :text ; Prefer to do our own pstr reading
                   :params
                   (merge
+
+                    ;; Note that user params here are actually POST params for
+                    ;; convenience. Contrast: WebSocket params sent as query
+                    ;; params since there's no other choice there.
+                    params ; User params first (don't clobber impl. params)
+
                     {:_          (enc/now-udt) ; Force uncached resp
                      :client-id  client-id}
 
@@ -983,30 +1002,38 @@
   Common options:
     :type           ; e/o #{:auto :ws :ajax}. You'll usually want the default (:auto)
     :host           ; Server host (defaults to current page's host)
+    :params         ; Map of any params to incl. in chsk Ring requests (handy for
+                    ; application-level auth, etc.)
     :ws-kalive-ms   ; Ping to keep a WebSocket conn alive if no activity w/in given
                     ; number of milliseconds
-    :lp-timeout-ms  ; Ping to keep a long-polling (Ajax) conn alive ''
+    :lp-timeout-ms  ; Ping to keep a long-polling (Ajax) conn alive '' [1]
     :packer         ; :edn (default), or an IPacker implementation (experimental)
     :ajax-opts      ; Base opts map provided to `taoensso.encore/ajax-lite`
-    :wrap-recv-evs? ; Should events from server be wrapped in [:chsk/recv _]?"
+    :wrap-recv-evs? ; Should events from server be wrapped in [:chsk/recv _]?
+
+  [1] If you're using Immutant and override the default :lp-timeout-ms, you'll
+      need to provide the same timeout value to
+      `taoensso.sente.server-adapters.immutant/make-immutant-adapter` and use
+      the result of that function as the web server adapter to your server-side
+      `make-channel-socket!`."
   [path &
-   & [{:keys [type host recv-buf-or-n ws-kalive-ms lp-timeout-ms packer
-              client-id ajax-opts wrap-recv-evs? backoff-ms-fn]
-       :as   opts
-       :or   {type          :auto
-              recv-buf-or-n (async/sliding-buffer 2048) ; Mostly for buffered-evs
-              ws-kalive-ms  25000 ; < Heroku 30s conn timeout
-              lp-timeout-ms 25000 ; ''
-              packer        :edn
-              client-id     (or (:client-uuid opts) ; Backwards compatibility
+   [{:keys [type host params recv-buf-or-n ws-kalive-ms lp-timeout-ms packer
+            client-id ajax-opts wrap-recv-evs? backoff-ms-fn]
+     :as   opts
+     :or   {type          :auto
+            recv-buf-or-n (async/sliding-buffer 2048) ; Mostly for buffered-evs
+            ws-kalive-ms  25000 ; < Heroku 30s conn timeout
+            lp-timeout-ms 25000 ; ''
+            packer        :edn
+            client-id     (or (:client-uuid opts) ; Backwards compatibility
                                 (enc/uuid-str))
 
-              ;; TODO Deprecated. Default to false later, then eventually just
-              ;; drop this option altogether? - here now for back compatibility:
-              wrap-recv-evs? true
+            ;; TODO Deprecated. Default to false later, then eventually just
+            ;; drop this option altogether? - here now for back compatibility:
+            wrap-recv-evs? true
 
-              backoff-ms-fn  enc/exp-backoff}}
-      _deprecated-more-opts]]
+            backoff-ms-fn  enc/exp-backoff}}
+    _deprecated-more-opts]]
 
   {:pre [(have? [:in #{:ajax :ws :auto}] type)
          (have? enc/nblank-str?          client-id)]}
@@ -1063,6 +1090,7 @@
                    :url           (if-let [f (:chsk-url-fn opts)]
                                     (f path win-location :ws) ; Deprecated
                                     (get-chsk-url win-protocol host path :ws))
+                   :params        params
                    :chs           private-chs
                    :packer        packer
                    :socket_       (atom nil)
@@ -1082,6 +1110,7 @@
                    :url           (if-let [f (:chsk-url-fn opts)]
                                     (f path win-location :ajax) ; Deprecated
                                     (get-chsk-url win-protocol host path :ajax))
+                   :params        params
                    :chs           private-chs
                    :packer        packer
                    :timeout-ms    lp-timeout-ms
@@ -1120,7 +1149,7 @@
   "Creates a go-loop to call `(event-msg-handler <event-msg>)` and returns a
   `(fn stop! [])`. Catches & logs errors. Advanced users may choose to instead
   write their own loop against `ch-recv`."
-  [ch-recv event-msg-handler & [{:as opts :keys [trace-evs?]}]]
+  [ch-recv event-msg-handler & [{:as opts :keys [trace-evs? error-handler]}]]
   (let [ch-ctrl (chan)]
     (go-loop []
       (let [[v p] (async/alts! [ch-recv ch-ctrl])
@@ -1131,13 +1160,17 @@
                 [_ ?error]
                 (enc/catch-errors
                   (when trace-evs? (tracef "Pre-handler event: %s" event))
+                  (event-msg-handler (have :! event-msg? event-msg)))]
 
-                  (if-not (event-msg? event-msg)
-                    ;; Shouldn't be possible here, but we're being cautious:
-                    (errorf "Bad event: %s" event) ; Log 'n drop
-                    (event-msg-handler event-msg)))]
+            (when-let [e ?error]
+              (let [[_ ?error2]
+                    (enc/catch-errors
+                      (if-let [eh error-handler]
+                        (error-handler e event-msg)
+                        (errorf e "Chsk router `event-msg-handler` error: %s" event)))]
+                (when-let [e2 ?error2]
+                  (errorf e2 "Chsk router `error-handler` error: %s" event))))
 
-            (when-let [e ?error] (errorf e "Chsk router handling error: %s" event))
             (recur)))))
 
     (fn stop! [] (async/close! ch-ctrl))))

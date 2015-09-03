@@ -1,6 +1,7 @@
 (ns taoensso.sente.server-adapters.http-kit
   "Experimental- subject to change!
   Optional http-kit adapter for use with Sente."
+  {:author "Peter Taoussanis (@ptaoussanis)"}
   (:require [taoensso.sente.interfaces :as i]
             [org.httpkit.server :as http-kit]))
 

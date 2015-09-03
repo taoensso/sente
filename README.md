@@ -1,7 +1,8 @@
 **[API docs][]** | **[CHANGELOG][]** | [other Clojure libs][] | [Twitter][] | [contact/contrib](#contact--contributing) | current [Break Version][]:
 
 ```clojure
-[com.taoensso/sente "1.6.0"] ; Stable, see CHANGELOG for details
+[com.taoensso/sente "1.6.0"]       ; Stable
+[com.taoensso/sente "1.7.0-beta1"] ; Dev, see CHANGELOG for details
 ```
 
 # Sente, channel sockets for Clojure
@@ -30,7 +31,7 @@ Or: **Clojure(Script) + core.async + WebSockets/Ajax = _The Shiz_**
   * Standard **Ring security model**: auth as you like, HTTPS when available, CSRF support, etc.
   * **Fully documented, with examples**.
   * **Small codebase**: ~1k lines for the entire client+server implementation.
-  * **Supported servers**: [http-kit][], [Immutant v2+][] (with Sente v1.4+).
+  * **Supported servers**: [http-kit][], [Immutant v2+][], [nginx-clojure][]
 
 
 ### Capabilities
@@ -55,7 +56,7 @@ Add the necessary dependency to your [Leiningen][] `project.clj`. This'll provid
 
 ### On the server (Clojure) side
 
-First, make sure you're using a **supported Ring-compatible async web server**. These are currently: [http-kit][] and [Immutant v2+][].
+First, make sure you're using a **supported Ring-compatible async web server**. These are currently: [http-kit][], [Immutant v2+][], and [nginx-clojure][].
 
 > [Welcoming PRs](https://github.com/ptaoussanis/sente/issues/102) to support additional servers, btw.
 
@@ -76,8 +77,9 @@ For Sente, we're going to add 2 new URLs and setup their handlers:
     [taoensso.sente :as sente] ; <--- Add this
 
     ;; Uncomment a web-server adapter --->
-    ;; [taoensso.sente.server-adapters.http-kit :refer (sente-web-server-adapter)]
-    ;; [taoensso.sente.server-adapters.immutant :refer (sente-web-server-adapter)]
+    ;; [taoensso.sente.server-adapters.http-kit      :refer (sente-web-server-adapter)]
+    ;; [taoensso.sente.server-adapters.immutant      :refer (sente-web-server-adapter)]
+    ;; [taoensso.sente.server-adapters.nginx-clojure :refer (sente-web-server-adapter)]
   ))
 
 ;;; Add this: --->
@@ -250,6 +252,26 @@ I have a strong preference for [Reagent][] myself, so would recommend checking t
 
 As of v1, Sente uses an extensible client<->server serialization mechanism. It uses edn by default since this usu. gives good performance and doesn't require any external dependencies. The [reference example project][] shows how you can plug in an alternative de/serializer. In particular, note that Sente ships with a Transit de/serializer that allows manual or smart (automatic) per-payload format selection.
 
+#### How do I add custom Transit read and write handlers?
+
+To add custom handlers to the TransitPacker, pass them in as `writer-opts` and `reader-opts` when creating a `TransitPacker`. These arguments are the same as the `opts` map you would pass directly to `transit/writer`. The code sample below shows how you would do this to add a write handler to convert [Joda-Time](http://www.joda.org/joda-time/) `DateTime` objects to Transit `time` objects.
+
+```clj
+(ns my-ns.app
+  (:require [cognitect.transit :as transit]
+            [taoensso.sente.packers.transit :as sente-transit])
+  (:import [org.joda.time DateTime ReadableInstant]))
+
+;; From http://increasinglyfunctional.com/2014/09/02/custom-transit-writers-clojure-joda-time/
+(def joda-time-writer
+  (transit/write-handler
+    (constantly "m")
+    (fn [v] (-> ^ReadableInstant v .getMillis))
+    (fn [v] (-> ^ReadableInstant v .getMillis .toString))))
+
+(def packer (sente-transit/->TransitPacker :json {:handlers {DateTime joda-time-writer}} {}))
+```
+
 #### How do I route client/server events?
 
 However you like! If you don't have many events, a simple `cond` will probably do. Otherwise a multimethod dispatching against event ids works well (this is the approach taken in the [reference example project][]).
@@ -338,6 +360,7 @@ Copyright &copy; 2012-2014 Peter Taoussanis. Distributed under the [Eclipse Publ
 [edn]: https://github.com/edn-format/edn
 [http-kit]: https://github.com/http-kit/http-kit
 [Immutant v2+]: http://immutant.org/
+[nginx-clojure]: https://github.com/nginx-clojure/nginx-clojure
 [Reactjs]: http://facebook.github.io/react/
 [Reagent]: http://reagent-project.github.io/
 [Om]: https://github.com/swannodette/om

@@ -1,4 +1,4 @@
-(defproject com.taoensso/sente "1.6.0"
+(defproject com.taoensso/sente "1.7.0-beta1"
   :author "Peter Taoussanis <https://www.taoensso.com>"
   :description "Clojure channel sockets library"
   :url "https://github.com/ptaoussanis/sente"
@@ -14,8 +14,8 @@
   [[org.clojure/clojure      "1.5.1"]
    [org.clojure/core.async   "0.1.346.0-17112a-alpha"]
    [org.clojure/tools.reader "0.9.2"]
-   [com.taoensso/encore      "2.4.2"]
-   [com.taoensso/timbre      "4.1.0"]]
+   [com.taoensso/encore      "2.6.4"]
+   [com.taoensso/timbre      "4.1.1"]]
 
   :profiles
   {;; :default [:base :system :user :provided :dev]
@@ -23,8 +23,8 @@
    :1.6  {:dependencies [[org.clojure/clojure "1.6.0"]]}
    :1.7  {:dependencies [[org.clojure/clojure "1.7.0"]]}
    :1.8  {:dependencies [[org.clojure/clojure "1.8.0-alpha2"]]}
-   :test {:dependencies [[com.cognitect/transit-clj  "0.8.275"]
-                         [com.cognitect/transit-cljs "0.8.220"]
+   :test {:dependencies [[com.cognitect/transit-clj  "0.8.281"]
+                         [com.cognitect/transit-cljs "0.8.225"]
                          [expectations               "2.1.0"]
                          [org.clojure/test.check     "0.7.0"]
                          ;; [com.cemerick/double-check "0.6.1"]
@@ -32,17 +32,18 @@
           :plugins [[lein-expectations "0.0.8"]
                     [lein-autoexpect   "1.5.0"]]}
 
-   :provided {:dependencies [[org.clojure/clojurescript "0.0-3308"]]}
+   :provided {:dependencies [[org.clojure/clojurescript "1.7.122"]]}
 
    :dev
    [:1.7 :test
     {:plugins
      [;;; These must be in :dev, Ref. https://github.com/lynaghk/cljx/issues/47:
       [com.keminglabs/cljx             "0.5.0"]
-      [lein-cljsbuild                  "1.0.5"]
+      [lein-cljsbuild                  "1.1.0"]
       ;;
       [http-kit                        "2.1.19"]
-      [org.immutant/web                "2.0.0"]
+      [org.immutant/web                "2.1.0"]
+      [nginx-clojure                   "0.4.2"]
       ;;
       [lein-pprint                     "1.1.1"]
       [lein-ancient                    "0.6.7"]

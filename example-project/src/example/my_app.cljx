@@ -4,12 +4,12 @@
   Ref. https://github.com/lynaghk/cljx
 
   ------------------------------------------------------------------------------
-  This example dives into Sente's full functionality quite quickly and is thus
-  probably more useful as a reference than a tutorial. See the GitHub README for
-  a somewhat gentler intro.
+  This example dives into Sente's full functionality quickly; it's probably
+  more useful as a reference than a tutorial. See the GitHub README for a
+  gentler intro.
   ------------------------------------------------------------------------------
 
-  INSTRUCTIONS:
+  Instructions:
     1. Call `lein start-dev` at your terminal.
     2. Connect to development nREPL (port will be printed).
     3. Evaluate this namespace (M-x `cider-load-current-buffer` for CIDER+Emacs).
@@ -18,9 +18,10 @@
     5. Open browser & point to local web server (port will be printed).
     6. Observe browser's console + nREPL's std-out.
 
-  LIGHT TABLE USERS:
+  Light Table users:
     To configure Cljx support please see Ref. http://goo.gl/fKL5Z4."
-  {:author "Peter Taoussanis"}
+
+  {:author "Peter Taoussanis, and contributors"}
 
   #+clj
   (:require
@@ -35,14 +36,14 @@
    [taoensso.sente     :as sente]
 
    ;;; ---> Choose (uncomment) a supported web server and adapter <---
-
    [org.httpkit.server :as http-kit]
    [taoensso.sente.server-adapters.http-kit :refer (sente-web-server-adapter)]
-
-   ;; or
-
-   ;; [immutant.web    :as immutant]
+   ;;
+   ;; [immutant.web :as immutant]
    ;; [taoensso.sente.server-adapters.immutant :refer (sente-web-server-adapter)]
+   ;;
+   ;; [nginx.clojure.embed :as nginx-clojure]
+   ;; [taoensso.sente.server-adapters.nginx-clojure :refer (sente-web-server-adapter)]
 
    ;; Optional, for Transit encoding:
    [taoensso.sente.packers.transit :as sente-transit])
@@ -68,7 +69,6 @@
 
 ;;;; ---> Choose (uncomment) a supported web server and adapter <---
 
-;;; http-kit
 #+clj
 (defn start-web-server!* [ring-handler port]
   (println "Starting http-kit...")
@@ -77,7 +77,6 @@
      :port    (:local-port (meta http-kit-stop-fn))
      :stop-fn (fn [] (http-kit-stop-fn :timeout 100))}))
 
-;;; Immutant
 ;; #+clj
 ;; (defn start-web-server!* [ring-handler port]
 ;;   (println "Starting Immutant...")
@@ -85,6 +84,14 @@
 ;;     {:server  server
 ;;      :port    (:port server)
 ;;      :stop-fn (fn [] (immutant/stop server))}))
+
+;; #+clj
+;; (defn start-web-server!* [ring-handler port]
+;;   (println "Starting nginx-clojure...")
+;;   (let [port (nginx-clojure/run-server ring-handler {:port port})]
+;;     {:server  nil ; nginx-clojure doesn't expose this
+;;      :port    port
+;;      :stop-fn nginx-clojure/stop-server}))
 
 ;;;; Packer (client<->server serializtion format) config
 
