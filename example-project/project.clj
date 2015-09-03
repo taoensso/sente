@@ -13,7 +13,7 @@
   [[org.clojure/clojure       "1.7.0"] ; May use any v1.5.1+
    ;; [org.clojure/clojure    "1.6.0"]
 
-   [org.clojure/clojurescript "1.7.28"]
+   [org.clojure/clojurescript "1.7.122"]
 
    [org.clojure/core.async    "0.1.346.0-17112a-alpha"]
 
@@ -35,7 +35,7 @@
    ;;; Transit deps optional; may be used to aid perf. of larger data payloads
    ;;; (see reference example for details):
    [com.cognitect/transit-clj  "0.8.281"]
-   [com.cognitect/transit-cljs "0.8.220"]]
+   [com.cognitect/transit-cljs "0.8.225"]]
 
   :plugins
   [[lein-pprint         "1.1.2"]

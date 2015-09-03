@@ -14,7 +14,7 @@
   [[org.clojure/clojure      "1.5.1"]
    [org.clojure/core.async   "0.1.346.0-17112a-alpha"]
    [org.clojure/tools.reader "0.9.2"]
-   [com.taoensso/encore      "2.5.0"]
+   [com.taoensso/encore      "2.6.4"]
    [com.taoensso/timbre      "4.1.1"]]
 
   :profiles
@@ -24,7 +24,7 @@
    :1.7  {:dependencies [[org.clojure/clojure "1.7.0"]]}
    :1.8  {:dependencies [[org.clojure/clojure "1.8.0-alpha2"]]}
    :test {:dependencies [[com.cognitect/transit-clj  "0.8.281"]
-                         [com.cognitect/transit-cljs "0.8.220"]
+                         [com.cognitect/transit-cljs "0.8.225"]
                          [expectations               "2.1.0"]
                          [org.clojure/test.check     "0.7.0"]
                          ;; [com.cemerick/double-check "0.6.1"]
@@ -32,7 +32,7 @@
           :plugins [[lein-expectations "0.0.8"]
                     [lein-autoexpect   "1.5.0"]]}
 
-   :provided {:dependencies [[org.clojure/clojurescript "0.0-3308"]]}
+   :provided {:dependencies [[org.clojure/clojurescript "1.7.122"]]}
 
    :dev
    [:1.7 :test
