@@ -55,7 +55,8 @@
       modify sessions! Use standard a/sync HTTP Ring req/resp for logins, etc.
     * Easy to wrap standard HTTP Ring resps for transport over chsks. Prefer
       this approach to modifying handlers (better portability)."
-  {:author "Peter Taoussanis"}
+
+  {:author "Peter Taoussanis (@ptaoussanis)"}
 
   #+clj
   (:require
@@ -1010,29 +1011,29 @@
     :ajax-opts      ; Base opts map provided to `taoensso.encore/ajax-lite`
     :wrap-recv-evs? ; Should events from server be wrapped in [:chsk/recv _]?
 
-  [1] If you are using Immutant and override the default :lp-timeout-ms, you will
-      need provide the same value to
-      `taoensso.sente.server-adapters.immutant/make-immutant-adapter` and use the
-      result of that function as the web-server-adapter to your server-side
+  [1] If you're using Immutant and override the default :lp-timeout-ms, you'll
+      need to provide the same timeout value to
+      `taoensso.sente.server-adapters.immutant/make-immutant-adapter` and use
+      the result of that function as the web server adapter to your server-side
       `make-channel-socket!`."
   [path &
    [{:keys [type host params recv-buf-or-n ws-kalive-ms lp-timeout-ms packer
-              client-id ajax-opts wrap-recv-evs? backoff-ms-fn]
-       :as   opts
-       :or   {type          :auto
-              recv-buf-or-n (async/sliding-buffer 2048) ; Mostly for buffered-evs
-              ws-kalive-ms  25000 ; < Heroku 30s conn timeout
-              lp-timeout-ms 25000 ; ''
-              packer        :edn
-              client-id     (or (:client-uuid opts) ; Backwards compatibility
+            client-id ajax-opts wrap-recv-evs? backoff-ms-fn]
+     :as   opts
+     :or   {type          :auto
+            recv-buf-or-n (async/sliding-buffer 2048) ; Mostly for buffered-evs
+            ws-kalive-ms  25000 ; < Heroku 30s conn timeout
+            lp-timeout-ms 25000 ; ''
+            packer        :edn
+            client-id     (or (:client-uuid opts) ; Backwards compatibility
                                 (enc/uuid-str))
 
-              ;; TODO Deprecated. Default to false later, then eventually just
-              ;; drop this option altogether? - here now for back compatibility:
-              wrap-recv-evs? true
+            ;; TODO Deprecated. Default to false later, then eventually just
+            ;; drop this option altogether? - here now for back compatibility:
+            wrap-recv-evs? true
 
-              backoff-ms-fn  enc/exp-backoff}}
-      _deprecated-more-opts]]
+            backoff-ms-fn  enc/exp-backoff}}
+    _deprecated-more-opts]]
 
   {:pre [(have? [:in #{:ajax :ws :auto}] type)
          (have? enc/nblank-str?          client-id)]}

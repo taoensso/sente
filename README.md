@@ -30,7 +30,7 @@ Or: **Clojure(Script) + core.async + WebSockets/Ajax = _The Shiz_**
   * Standard **Ring security model**: auth as you like, HTTPS when available, CSRF support, etc.
   * **Fully documented, with examples**.
   * **Small codebase**: ~1k lines for the entire client+server implementation.
-  * **Supported servers**: [http-kit][], [Immutant v2+][] (with Sente v1.4+, Immutant 2.1+ & Sente 1.7+ recommended).
+  * **Supported servers**: [http-kit][], [Immutant v2+][], [nginx-clojure][]
 
 
 ### Capabilities
@@ -55,7 +55,7 @@ Add the necessary dependency to your [Leiningen][] `project.clj`. This'll provid
 
 ### On the server (Clojure) side
 
-First, make sure you're using a **supported Ring-compatible async web server**. These are currently: [http-kit][] and [Immutant v2+][].
+First, make sure you're using a **supported Ring-compatible async web server**. These are currently: [http-kit][], [Immutant v2+][], and [nginx-clojure][].
 
 > [Welcoming PRs](https://github.com/ptaoussanis/sente/issues/102) to support additional servers, btw.
 
@@ -76,8 +76,9 @@ For Sente, we're going to add 2 new URLs and setup their handlers:
     [taoensso.sente :as sente] ; <--- Add this
 
     ;; Uncomment a web-server adapter --->
-    ;; [taoensso.sente.server-adapters.http-kit :refer (sente-web-server-adapter)]
-    ;; [taoensso.sente.server-adapters.immutant :refer (sente-web-server-adapter)]
+    ;; [taoensso.sente.server-adapters.http-kit      :refer (sente-web-server-adapter)]
+    ;; [taoensso.sente.server-adapters.immutant      :refer (sente-web-server-adapter)]
+    ;; [taoensso.sente.server-adapters.nginx-clojure :refer (sente-web-server-adapter)]
   ))
 
 ;;; Add this: --->
@@ -338,6 +339,7 @@ Copyright &copy; 2012-2014 Peter Taoussanis. Distributed under the [Eclipse Publ
 [edn]: https://github.com/edn-format/edn
 [http-kit]: https://github.com/http-kit/http-kit
 [Immutant v2+]: http://immutant.org/
+[nginx-clojure]: https://github.com/nginx-clojure/nginx-clojure
 [Reactjs]: http://facebook.github.io/react/
 [Reagent]: http://reagent-project.github.io/
 [Om]: https://github.com/swannodette/om

@@ -1,6 +1,7 @@
 (ns taoensso.sente.server-adapters.immutant
   "Experimental- subject to change!
   Optional Immutant v2+ adapter for use with Sente."
+  {:author "Toby Crawley (@tobias)"}
   (:require [taoensso.sente.interfaces :as i]
             [immutant.web.async :as immutant]))
 
@@ -18,7 +19,7 @@
       ;; Returns {:status 200 :body <immutant-implementation-channel>}:
       (immutant/as-channel ring-req
         :on-open     (when on-open (fn [im-ch] (on-open im-ch)))
-        ;; :on-error (fn [im-ch throwable]) ; TODO Do we need/want this?
+        ;; :on-error (fn [im-ch throwable]) ; Do we need/want this?
         :on-close    (when on-close
                        (fn [im-ch {:keys [code reason] :as status-map}]
                          (on-close im-ch status-map)))

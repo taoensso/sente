@@ -1,10 +1,12 @@
 (ns taoensso.sente.server-adapters.nginx-clojure
   "Experimental- subject to change!
   Optional Nginx-Clojure v0.4.2+ adapter for use with Sente."
+  {:author "Zhang, Yuexiang (@xfeep)"}
   (:require [taoensso.sente.interfaces :as i]
             [nginx.clojure.core :as ncc]))
 
-(def ^:dynamic *max-message-size* nginx.clojure.WholeMessageAdapter/DEFAULT_MAX_MESSAGE_SIZE)
+(def ^:dynamic *max-message-size*
+  nginx.clojure.WholeMessageAdapter/DEFAULT_MAX_MESSAGE_SIZE)
 
 (extend-type nginx.clojure.NginxHttpServerChannel
   i/IAsyncNetworkChannel
@@ -22,20 +24,23 @@
           nc-ch (ncc/hijack! ring-req true)
           upgrade-ok? (ncc/websocket-upgrade! nc-ch false)]
       ;; Returns {:status 200 :body <nginx-clojure-implementation-channel>}:
-      (when (not upgrade-ok?) ;; send general header for non-websocket request
+      (when (not upgrade-ok?) ; Send normal header for non-websocket requests
         (.setIgnoreFilter nc-ch false)
-        ;; Give a chance to set client broken listener.
-        ;; Generally it can be mereged with invoking send-header! 
-        ;;   e.g. (send-header! nc-ch 200, ..., true, false)
-        ;; We do not merge them here just to make its behavior be the same with 
-        ;; those of other server adapters 
+
+        ;; For Sente #150, give client a chance to set broken listener. We
+        ;; could do this via `send-header!` with something like
+        ;; `(send-header! nc-ch 200, ..., true, false)`. Instead, we're choosing
+        ;; this approach to match the behaviour of other server adapters:
         (ncc/send! nc-ch nil true false)
+
         (ncc/send-header! nc-ch 200  {"Content-Type" "text/html"} false false))
+
       (ncc/add-aggregated-listener! nc-ch *max-message-size*
-        {:on-open (when on-open (fn [nc-ch] (on-open nc-ch)))
-         :on-error nil ;;Do we need/want this?
-         :on-message (when on-msg (fn [nc-ch msg] (on-msg nc-ch msg)))
-         :on-close (when on-close (fn [nc-ch reason] (on-close nc-ch reason)))})
+        {:on-open    (when on-open  (fn [nc-ch]        (on-open  nc-ch)))
+         :on-message (when on-msg   (fn [nc-ch msg]    (on-msg   nc-ch msg)))
+         :on-close   (when on-close (fn [nc-ch reason] (on-close nc-ch reason)))
+         :on-error   nil ; Do we need/want this?
+         })
       {:status 200 :body nc-ch})))
 
 (def nginx-clojure-adapter (NginxClojureAsyncNetworkChannelAdapter.))
