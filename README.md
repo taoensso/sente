@@ -252,6 +252,26 @@ I have a strong preference for [Reagent][] myself, so would recommend checking t
 
 As of v1, Sente uses an extensible client<->server serialization mechanism. It uses edn by default since this usu. gives good performance and doesn't require any external dependencies. The [reference example project][] shows how you can plug in an alternative de/serializer. In particular, note that Sente ships with a Transit de/serializer that allows manual or smart (automatic) per-payload format selection.
 
+#### How do I add custom Transit read and write handlers?
+
+To add custom handlers to the TransitPacker, pass them in as `writer-opts` and `reader-opts` when creating a `TransitPacker`. These arguments are the same as the `opts` map you would pass directly to `transit/writer`. The code sample below shows how you would do this to add a write handler to convert [Joda-Time](http://www.joda.org/joda-time/) `DateTime` objects to Transit `time` objects.
+
+```clj
+(ns my-ns.app
+  (:require [cognitect.transit :as transit]
+            [taoensso.sente.packers.transit :as sente-transit])
+  (:import [org.joda.time DateTime ReadableInstant]))
+
+;; From http://increasinglyfunctional.com/2014/09/02/custom-transit-writers-clojure-joda-time/
+(def joda-time-writer
+  (transit/write-handler
+    (constantly "m")
+    (fn [v] (-> ^ReadableInstant v .getMillis))
+    (fn [v] (-> ^ReadableInstant v .getMillis .toString))))
+
+(def packer (sente-transit/->TransitPacker :json {:handlers {DateTime joda-time-writer}} {}))
+```
+
 #### How do I route client/server events?
 
 However you like! If you don't have many events, a simple `cond` will probably do. Otherwise a multimethod dispatching against event ids works well (this is the approach taken in the [reference example project][]).
