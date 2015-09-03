@@ -24,6 +24,12 @@
       ;; Returns {:status 200 :body <nginx-clojure-implementation-channel>}:
       (when (not upgrade-ok?) ;; send general header for non-websocket request
         (.setIgnoreFilter nc-ch false)
+        ;; Give a chance to set client broken listener.
+        ;; Generally it can be mereged with invoking send-header! 
+        ;;   e.g. (send-header! nc-ch 200, ..., true, false)
+        ;; We do not merge them here just to make its behavior be the same with 
+        ;; those of other server adapters 
+        (ncc/send! nc-ch nil true false)
         (ncc/send-header! nc-ch 200  {"Content-Type" "text/html"} false false))
       (ncc/add-aggregated-listener! nc-ch *max-message-size*
         {:on-open (when on-open (fn [nc-ch] (on-open nc-ch)))
