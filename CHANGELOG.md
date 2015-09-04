@@ -1,6 +1,6 @@
 > This project uses [Break Versioning](https://github.com/ptaoussanis/encore/blob/master/BREAK-VERSIONING.md) as of **Aug 16, 2014**.
 
-## v1.7.0-beta1 - 2015 Sep 3
+## v1.7.0-beta2 - 2015 Sep 3
 
 > This is a significant non-breaking feature release. Includes an important fix for Immutant users.
 
@@ -11,7 +11,7 @@
 * **Fix**: Immutant v2.1.0+ adapter now supports timeouts to prevent lp socket leaks [#150 @tobias]
 
 ```clojure
-[com.taoensso/sente "1.7.0-beta1"]
+[com.taoensso/sente "1.7.0-beta2"]
 ```
 
 
