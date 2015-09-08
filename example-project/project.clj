@@ -21,7 +21,8 @@
    [com.taoensso/timbre       "4.1.1"]
 
    ;;; ---> Choose (uncomment) a supported web server <---
-   [http-kit                  "2.1.19"]
+   [org.clojars.whamtet/dogfort "0.2.0-SNAPSHOT"]
+   ;; [http-kit                  "2.1.19"]
    ;; [org.immutant/web       "2.1.0"] ; v2.1+ recommended
    ;; [nginx-clojure/nginx-clojure-embed "0.4.2"] ; Needs v0.4.2+
 
@@ -44,6 +45,7 @@
    [com.keminglabs/cljx "0.6.0"]
    [lein-cljsbuild      "1.1.0"]
    [cider/cider-nrepl   "0.8.2"] ; Optional, for use with Emacs
+   [lein-npm "0.6.1"]
    ]
 
   :prep-tasks [["cljx" "once"] "javac" "compile"]
@@ -58,7 +60,15 @@
      :source-paths ["src" "target/classes"]
      :compiler     {:output-to "resources/public/main.js"
                     :optimizations :whitespace #_:advanced
-                    :pretty-print true}}]}
+                    :pretty-print true}}
+    {:id "dogfort"
+     :source-paths ["src" "target/classes"]
+     :compiler {:output-to "main.js"
+                :main example.my-app-node
+                :target :nodejs
+                :output-dir "out"
+                }}
+    ]}
 
   ;; Call `lein start-dev` to get a (headless) development repl that you can
   ;; connect to with Cider+emacs or your IDE of choice:
