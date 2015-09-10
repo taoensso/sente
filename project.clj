@@ -36,14 +36,14 @@
 
    :dev
    [:1.7 :test
-    {:plugins
+    {:dependencies
+     [[http-kit                        "2.1.19"]
+      [org.immutant/web                "2.1.0"]
+      [nginx-clojure                   "0.4.2"]]
+     :plugins
      [;;; These must be in :dev, Ref. https://github.com/lynaghk/cljx/issues/47:
       [com.keminglabs/cljx             "0.5.0"]
       [lein-cljsbuild                  "1.1.0"]
-      ;;
-      [http-kit                        "2.1.19"]
-      [org.immutant/web                "2.1.0"]
-      [nginx-clojure                   "0.4.2"]
       ;;
       [lein-pprint                     "1.1.1"]
       [lein-ancient                    "0.6.7"]
