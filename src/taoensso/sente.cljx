@@ -165,9 +165,9 @@
       (warnf "Bad ev-msg: %s" ev-msg) ; Log 'n drop
       (put! ch-recv ev-msg*))))
 
-#+cljs
-(defn cb-success? "Note that cb reply need _not_ be `event` form!"
-  [cb-reply-clj] (not (#{:chsk/closed :chsk/timeout :chsk/error} cb-reply-clj)))
+;;; Note that cb replys need _not_ be `event` form!
+#+cljs (defn cb-error?   [cb-reply-clj] (#{:chsk/closed :chsk/timeout :chsk/error} cb-reply-clj))
+#+cljs (defn cb-success? [cb-reply-clj] (not (cb-error? cb-reply-clj)))
 
 ;;;; Packing
 ;; * Client<->server payloads are arbitrary Clojure vals (cb replies or events).
