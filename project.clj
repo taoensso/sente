@@ -1,4 +1,4 @@
-(defproject com.taoensso/sente "1.7.0-beta2"
+(defproject com.taoensso/sente "1.7.0-RC1"
   :author "Peter Taoussanis <https://www.taoensso.com>"
   :description "Clojure channel sockets library"
   :url "https://github.com/ptaoussanis/sente"
@@ -20,9 +20,10 @@
   :profiles
   {;; :default [:base :system :user :provided :dev]
    :server-jvm {:jvm-opts ^:replace ["-server"]}
+   :1.5  {:dependencies [[org.clojure/clojure "1.5.1"]]}
    :1.6  {:dependencies [[org.clojure/clojure "1.6.0"]]}
    :1.7  {:dependencies [[org.clojure/clojure "1.7.0"]]}
-   :1.8  {:dependencies [[org.clojure/clojure "1.8.0-alpha2"]]}
+   :1.8  {:dependencies [[org.clojure/clojure "1.8.0-alpha5"]]}
    :test {:dependencies [[com.cognitect/transit-clj  "0.8.281"]
                          [com.cognitect/transit-cljs "0.8.225"]
                          [expectations               "2.1.0"]
@@ -78,7 +79,7 @@
                             #(.replaceFirst (str %) "(.cljs$|.clj$)" ".cljx")}}
 
   :aliases
-  {"test-all"   ["with-profile" "default:+1.6:+1.7:+1.8" "expectations"]
+  {"test-all"   ["with-profile" "+1.6:+1.7:+1.8" "expectations"]
    "test-auto"  ["with-profile" "+test" "autoexpect"]
    "build-once" ["do" "cljx" "once," "cljsbuild" "once"]
    "deploy-lib" ["do" "build-once," "deploy" "clojars," "install"]
