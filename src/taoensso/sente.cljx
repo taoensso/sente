@@ -79,18 +79,9 @@
   (:require-macros
    [cljs.core.async.macros :as asyncm :refer (go go-loop)]))
 
-;;;; Encore version check
-
-#+clj
-(let [min-encore-version 2.4]
-  (if-let [assert! (ns-resolve 'taoensso.encore 'assert-min-encore-version)]
-    (assert! min-encore-version)
-    (throw
-      (ex-info
-        (format
-          "Insufficient com.taoensso/encore version (< %s). You may have a Leiningen dependency conflict (see http://goo.gl/qBbLvC for solution)."
-          min-encore-version)
-        {:min-version min-encore-version}))))
+(if (vector? taoensso.encore/encore-version)
+  (enc/assert-min-encore-version [2 11 0])
+  (enc/assert-min-encore-version  2.11))
 
 ;;;; Events
 ;; * Clients & server both send `event`s and receive (i.e. route) `event-msg`s.
@@ -165,9 +156,9 @@
       (warnf "Bad ev-msg: %s" ev-msg) ; Log 'n drop
       (put! ch-recv ev-msg*))))
 
-#+cljs
-(defn cb-success? "Note that cb reply need _not_ be `event` form!"
-  [cb-reply-clj] (not (#{:chsk/closed :chsk/timeout :chsk/error} cb-reply-clj)))
+;;; Note that cb replys need _not_ be `event` form!
+#+cljs (defn cb-error?   [cb-reply-clj] (#{:chsk/closed :chsk/timeout :chsk/error} cb-reply-clj))
+#+cljs (defn cb-success? [cb-reply-clj] (not (cb-error? cb-reply-clj)))
 
 ;;;; Packing
 ;; * Client<->server payloads are arbitrary Clojure vals (cb replies or events).

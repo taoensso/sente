@@ -1,6 +1,6 @@
 > This project uses [Break Versioning](https://github.com/ptaoussanis/encore/blob/master/BREAK-VERSIONING.md) as of **Aug 16, 2014**.
 
-## v1.7.0-beta2 - 2015 Sep 3
+## v1.7.0-RC1 - 2015 Sep 28
 
 > This is a significant non-breaking feature release. Includes an important fix for Immutant users.
 
@@ -8,10 +8,11 @@
 * **New**: add `:error-handler` option to standard chsk routers
 * **New**: `make-channel-socket!` now accepts an optional :params map [#158 #135 @danielcompton]
 * **New**: include `:client-id` with Ajax long-polling requests [#155 @akhudek]
+* **New**: `cb-error?` convenience fn = `(complement cb-success?)`
 * **Fix**: Immutant v2.1.0+ adapter now supports timeouts to prevent lp socket leaks [#150 @tobias]
 
 ```clojure
-[com.taoensso/sente "1.7.0-beta2"]
+[com.taoensso/sente "1.7.0-RC1"]
 ```
 
 

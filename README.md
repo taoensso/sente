@@ -1,8 +1,8 @@
 **[API docs][]** | **[CHANGELOG][]** | [other Clojure libs][] | [Twitter][] | [contact/contrib](#contact--contributing) | current [Break Version][]:
 
 ```clojure
-[com.taoensso/sente "1.6.0"]       ; Stable
-[com.taoensso/sente "1.7.0-beta2"] ; Dev, see CHANGELOG for details
+[com.taoensso/sente "1.6.0"]     ; Stable
+[com.taoensso/sente "1.7.0-RC1"] ; Dev, see CHANGELOG for details
 ```
 
 # Sente, channel sockets for Clojure
@@ -154,15 +154,15 @@ The client will automatically initiate a WebSocket or repeating long-polling con
 
 ===============
 
-Term          | Form                                                                  |
-------------- | --------------------------------------------------------------------- |
-**event**     | `[<ev-id> <?ev-data>]`, e.g. `[:my-app/some-req {:data "data"}]`      |
-**event-msg** (server) | `{:event _ :send-fn _ :?reply-fn _ :ring-req _ <...>}`       |
-**event-msg** (client) | `{:event _ :send-fn _ <...>}`                                |
-`<ev-id>`     | A _namespaced_ keyword like `:my-app/some-req`                        |
-`<?ev-data>`  | An optional _arbitrary edn value_ like `{:data "data"}`               |
-`:ring-req`   | Ring map for Ajax request or WebSocket's initial handshake request    |
-`:?reply-fn`  | Present only when client requested a reply.                           |
+Term          | Form                                                                   |
+------------- | ---------------------------------------------------------------------- |
+event         | `[<ev-id> <?ev-data>]`, e.g. `[:my-app/some-req {:data "data"}]`       |
+server event-msg | `{:keys [event id ?data send-fn ?reply-fn uid ring-req client-id]}` |
+client event-msg | `{:keys [event id ?data send-fn]}`                                  |
+`<ev-id>`     | A _namespaced_ keyword like `:my-app/some-req`                         |
+`<?ev-data>`  | An optional _arbitrary edn value_ like `{:data "data"}`                |
+`:ring-req`   | Ring map for Ajax request or WebSocket's initial handshake request     |
+`:?reply-fn`  | Present only when client requested a reply.                            |
 
 #### Summary
 
