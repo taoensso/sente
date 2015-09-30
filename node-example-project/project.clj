@@ -57,7 +57,7 @@
                     :source-map-path "out"
                     :pretty-print true}}
     {:id "dogfort"
-     :source-paths ["src"]
+     :source-paths ["src" "src_node"]
      :compiler {:output-to "main.js"
                 :main example.my-app-node
                 :target :nodejs
