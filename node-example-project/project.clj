@@ -20,11 +20,7 @@
    [com.taoensso/sente        "1.7.0-RC1"] ; <--- Sente
    [com.taoensso/timbre       "4.1.2"]
 
-   ;;; ---> Choose (uncomment) a supported web server <---
    [org.clojars.whamtet/dogfort "0.2.0-SNAPSHOT"]
-   ;; [http-kit                  "2.1.19"]
-   ;; [org.immutant/web       "2.1.0"] ; v2.1+ recommended
-   ;; [nginx-clojure/nginx-clojure-embed "0.4.2"] ; Needs v0.4.2+
 
    [ring                      "1.4.0"]
    [ring/ring-defaults        "0.1.5"] ; Includes `ring-anti-forgery`, etc.
