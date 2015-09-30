@@ -59,9 +59,11 @@
     {:id "dogfort"
      :source-paths ["src" "src_node"]
      :compiler {:output-to "main.js"
+                :output-dir "out"
                 :main example.my-app-node
                 :target :nodejs
-                :output-dir "out"
+                :source-map "main.js.map"
+                :source-map-path "out"
                 }}
     ]}
 
