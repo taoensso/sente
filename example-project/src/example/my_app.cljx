@@ -103,7 +103,7 @@
 #+clj
 (let [{:keys [ch-recv send-fn ajax-post-fn ajax-get-or-ws-handshake-fn
               connected-uids]}
-      (sente/make-channel-socket! sente-web-server-adapter {:packer packer})]
+      (sente/make-channel-socket-server! sente-web-server-adapter {:packer packer})]
   (def ring-ajax-post                ajax-post-fn)
   (def ring-ajax-get-or-ws-handshake ajax-get-or-ws-handshake-fn)
   (def ch-chsk                       ch-recv) ; ChannelSocket's receive channel
@@ -158,7 +158,7 @@
 (def my-ring-handler
   (let [ring-defaults-config
         (assoc-in ring.middleware.defaults/site-defaults [:security :anti-forgery]
-          {:read-token (fn [req] (-> req :params :csrf-token))})]
+                  {:read-token (fn [req] (-> req :params :csrf-token))})]
 
     ;; NB: Sente requires the Ring `wrap-params` + `wrap-keyword-params`
     ;; middleware to work. These are included with
@@ -174,7 +174,7 @@
 (let [rand-chsk-type (if (>= (rand) 0.5) :ajax :auto)
 
       {:keys [chsk ch-recv send-fn state]}
-      (sente/make-channel-socket! "/chsk" ; Note the same URL as before
+      (sente/make-channel-socket-client! "/chsk" ; Note the same URL as before
         {:type   rand-chsk-type
          :packer packer})]
   (debugf "Randomly selected chsk type: %s" rand-chsk-type)
@@ -329,12 +329,13 @@
 #+clj  (defonce router_ (atom nil))
 #+cljs (def     router_ (atom nil))
 (defn  stop-router! [] (when-let [stop-f @router_] (stop-f)))
-(defn start-router! []
+(defn start-router! [server?]
   (stop-router!)
-  (reset! router_ (sente/start-chsk-router! ch-chsk event-msg-handler*)))
+  (reset! router_ (sente/start-chsk-router! ch-chsk event-msg-handler* server?)))
 
 (defn start! []
-  (start-router!)
+  #+clj (start-router! true)
+  #+cljs (start-router! false)
   #+clj (start-web-server!)
   #+clj (start-broadcaster!))
 
