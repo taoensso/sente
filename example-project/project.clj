@@ -46,6 +46,9 @@
    [cider/cider-nrepl   "0.8.2"] ; Optional, for use with Emacs
    ]
 
+  :main example.my-app
+  :source-paths ["src" "target/classes"]
+
   :prep-tasks [["cljx" "once"] "javac" "compile"]
   :cljx
   {:builds
@@ -57,7 +60,10 @@
    [{:id :main
      :source-paths ["src" "target/classes"]
      :compiler     {:output-to "resources/public/main.js"
+                    :output-dir "resources/public/out"
                     :optimizations :whitespace #_:advanced
+                    :source-map "resources/public/main.js.map"
+                    :source-map-path "out"
                     :pretty-print true}}]}
 
   ;; Call `lein start-dev` to get a (headless) development repl that you can
