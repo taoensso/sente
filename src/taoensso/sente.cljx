@@ -112,8 +112,7 @@
            " Event should be of `[ev-id ?ev-data]` form: %s")]
       (throw (ex-info (format err-fmt (str x)) {:malformed-event x})))))
 
-(defn event-msg? [x]
-  #+cljs
+(defn client-event-msg? [x]
   (and
     (map? x)
     (enc/keys= x #{:ch-recv :send-fn :state :event :id :?data})
@@ -122,9 +121,10 @@
         (enc/chan? ch-recv)
         (ifn?      send-fn)
         (enc/atom? state)
-        (event?    event))))
+        (event?    event)))))
 
-  #+clj
+
+(defn server-event-msg? [x]
   (and
     (map? x)
     (enc/keys= x #{:ch-recv :send-fn :connected-uids
@@ -143,7 +143,6 @@
         (or (nil? ?reply-fn)
             (ifn? ?reply-fn))))))
 
-#+clj
 (defn- put-event-msg>ch-recv!
   "All server-side `event-msg`s go through this."
   [ch-recv {:as ev-msg :keys [event ?reply-fn]}]
@@ -152,7 +151,7 @@
                                :?reply-fn ?reply-fn
                                :id        ev-id
                                :?data     ev-?data})]
-    (if-not (event-msg? ev-msg*)
+    (if-not (server-event-msg? ev-msg*)
       (warnf "Bad ev-msg: %s" ev-msg) ; Log 'n drop
       (put! ch-recv ev-msg*))))
 
@@ -216,11 +215,10 @@
 
 ;;;; Server API
 
-#+clj (declare ^:private send-buffered-evs>ws-clients!
-               ^:private send-buffered-evs>ajax-clients!)
+(declare ^:private send-buffered-evs>ws-clients!
+         ^:private send-buffered-evs>ajax-clients!)
 
-#+clj
-(defn make-channel-socket!
+(defn make-channel-socket-server!
   "Takes a web server adapter[1] and returns a map with keys:
     :ch-recv ; core.async channel to receive `event-msg`s (internal or from clients).
     :send-fn ; (fn [user-id ev] for server>user push.
@@ -569,7 +567,6 @@
                             (when (upd-connected-uid! uid)
                               (receive-event-msg! [:chsk/uidport-close])))))))))}))))}))
 
-#+clj
 (defn- send-buffered-evs>ws-clients!
   "Actually pushes buffered events (as packed-str) to all uid's WebSocket conns."
   [conns_ uid buffered-evs-pstr]
@@ -577,7 +574,6 @@
   (doseq [net-ch (vals (get-in @conns_ [:ws uid]))]
     (interfaces/send! net-ch buffered-evs-pstr)))
 
-#+clj
 (defn- send-buffered-evs>ajax-clients!
   "Actually pushes buffered events (as packed-str) to all uid's Ajax conns.
   Allows some time for possible Ajax poller reconnects."
@@ -982,7 +978,7 @@
     (str protocol "//" (enc/path chsk-host chsk-path))))
 
 #+cljs
-(defn make-channel-socket!
+(defn make-channel-socket-client!
   "Returns a map with keys:
     :ch-recv ; core.async channel to receive `event-msg`s (internal or from clients).
              ; May `put!` (inject) arbitrary `event`s to this channel.
@@ -1006,7 +1002,7 @@
       need to provide the same timeout value to
       `taoensso.sente.server-adapters.immutant/make-immutant-adapter` and use
       the result of that function as the web server adapter to your server-side
-      `make-channel-socket!`."
+      `make-channel-socket-server!`."
   [path &
    [{:keys [type host params recv-buf-or-n ws-kalive-ms lp-timeout-ms packer
             client-id ajax-opts wrap-recv-evs? backoff-ms-fn]
@@ -1140,8 +1136,9 @@
   "Creates a go-loop to call `(event-msg-handler <event-msg>)` and returns a
   `(fn stop! [])`. Catches & logs errors. Advanced users may choose to instead
   write their own loop against `ch-recv`."
-  [ch-recv event-msg-handler & [{:as opts :keys [trace-evs? error-handler]}]]
-  (let [ch-ctrl (chan)]
+  [ch-recv event-msg-handler server? & [{:as opts :keys [trace-evs? error-handler]}]]
+  (let [ch-ctrl (chan)
+        event-msg? (if server? server-event-msg? client-event-msg?)]
     (go-loop []
       (let [[v p] (async/alts! [ch-recv ch-ctrl])
             stop? (enc/kw-identical? p  ch-ctrl)]
