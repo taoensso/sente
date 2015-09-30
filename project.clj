@@ -40,7 +40,8 @@
     {:dependencies
      [[http-kit                        "2.1.19"]
       [org.immutant/web                "2.1.0"]
-      [nginx-clojure                   "0.4.2"]]
+      [nginx-clojure                   "0.4.2"]
+      [org.clojars.whamtet/dogfort     "0.2.0-SNAPSHOT"]]
      :plugins
      [;;; These must be in :dev, Ref. https://github.com/lynaghk/cljx/issues/47:
       [com.keminglabs/cljx             "0.5.0"]
