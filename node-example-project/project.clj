@@ -45,7 +45,7 @@
 
                        ;; express needs express and express-ws
                        [express "4.13.3"]
-                       [express-ws "1.0.0-rc.1"]
+                       [express-ws "1.0.0-rc.2"]
                        [body-parser "1.14.1"]
                        [cookie-parser "1.4.0"]
                        [express-session "1.11.3"]
