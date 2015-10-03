@@ -40,8 +40,21 @@
    ]
 
   :npm {:dependencies [[source-map-support "*"]
-                       [ws "*"]]}
-  
+
+                       ;; If you uncommone one of these servers, comment out the others above
+
+                       ;; express needs express and express-ws
+                       [express "4.13.3"]
+                       [express-ws "1.0.0-rc.1"]
+                       [body-parser "1.14.1"]
+                       [cookie-parser "1.4.0"]
+                       [express-session "1.11.3"]
+                       [csurf "1.8.3"]
+
+
+                       ;; ws is needed for dogfort and express
+                       [ws "0.8.0"]]}
+
   :cljsbuild
   {:builds ; Compiled in parallel
    [{:id :main

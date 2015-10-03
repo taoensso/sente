@@ -23,7 +23,9 @@
 
   {:author "Peter Taoussanis, and contributors"}
 
+  (:require-macros [hiccups.core :as hiccups])
   (:require
+   [cljs.nodejs :as nodejs]
    [clojure.string     :as str]
    [cljs.core.async :as async  :refer (<!)]
    [taoensso.encore    :as encore :refer ()]
@@ -32,23 +34,26 @@
    [hiccups.runtime]
 
    ;;; ---> Choose (uncomment) a supported web server and adapter <---
-   [dogfort.middleware.defaults :as defaults]
-   [dogfort.middleware.routes]
-   [taoensso.sente.server-adapters.dogfort :refer (sente-web-server-adapter)]
+
+   ;; Dogfort
+   ;; [dogfort.middleware.defaults :as defaults]
+   ;; [dogfort.middleware.routes]
+   ;; [taoensso.sente.server-adapters.dogfort :refer (sente-web-server-adapter)]
+   ;; [dogfort.http :refer (run-http)]
+
+   ;; Express
+   [taoensso.sente.server-adapters.express :as sente-express]
 
    ;; Optional, for Transit encoding:
    [taoensso.sente.packers.transit :as sente-transit])
 
-  (:use [dogfort.http :only [run-http]])
-  (:require-macros [hiccups.core :as hiccups]
-                   [cljs.core.async.macros :as asyncm :refer (go go-loop)]
-                   )
-  (:use-macros [dogfort.middleware.routes-macros :only [defroutes GET POST]])
-  )
+  (:require-macros
+   [dogfort.middleware.routes-macros :refer (defroutes GET POST)]
+   [hiccups.core :as hiccups]
+   [cljs.core.async.macros :as asyncm :refer (go go-loop)]))
 
-(defn start-web-server!* [ring-handler port]
-  (println "Starting dogfort...")
-  (run-http ring-handler {:port port}))
+(enable-console-print!)
+(timbre/set-level! :trace)
 
 ;;;; Packer (client<->server serializtion format) config
 
@@ -57,18 +62,8 @@
 
 ;;;; Server-side setup
 
-(let [{:keys [ch-recv send-fn ajax-post-fn ajax-get-or-ws-handshake-fn
-              connected-uids]}
-      (sente/make-channel-socket-server! sente-web-server-adapter {:packer packer})]
-  (def ring-ajax-post                ajax-post-fn)
-  (def ring-ajax-get-or-ws-handshake ajax-get-or-ws-handshake-fn)
-  (def ch-chsk                       ch-recv) ; ChannelSocket's receive channel
-  (def chsk-send!                    send-fn) ; ChannelSocket's send API fn
-  (def connected-uids                connected-uids) ; Watchable, read-only atom
-  )
-
 (defn landing-pg-handler [req]
-  (hiccups/html5
+  (hiccups/html
    [:h1 "Sente reference example"]
    [:p "An Ajax/WebSocket connection has been configured (random)."]
    [:hr]
@@ -88,26 +83,147 @@
    ))
 
 
+
+;; ---> UNCOMMENT FROM HERE FOR DOGFORT <---
+
+;; (let [{:keys [ch-recv send-fn ajax-post-fn ajax-get-or-ws-handshake-fn
+;;               connected-uids]}
+;;       (sente/make-channel-socket-server! sente-web-server-adapter {:packer packer})]
+;;   (def ring-ajax-post                ajax-post-fn)
+;;   (def ring-ajax-get-or-ws-handshake ajax-get-or-ws-handshake-fn)
+;;   (def ch-chsk                       ch-recv) ; ChannelSocket's receive channel
+;;   (def chsk-send!                    send-fn) ; ChannelSocket's send API fn
+;;   (def connected-uids                connected-uids) ; Watchable, read-only atom
+;;   )
+
+;; (defn start-web-server!* [ring-handler port]
+;;   (println "Starting dogfort...")
+;;   (run-http ring-handler {:port port}))
+
+;; (defn login!
+;;   "Here's where you'll add your server-side login/auth procedure (Friend, etc.).
+;;   In our simplified example we'll just always successfully authenticate the user
+;;   with whatever user-id they provided in the auth request."
+;;   [ring-request]
+;;   (let [{:keys [session params]} ring-request
+;;         {:keys [user-id]} params]
+;;     (debugf "Login request: %s" params)
+;;     {:status 200 :session (assoc session :uid user-id)}))
+
+
+;; (defroutes my-routes
+;;   (GET  "/"      req (landing-pg-handler req))
+;;   ;;
+;;   (GET  "/chsk"  req (ring-ajax-get-or-ws-handshake req))
+;;   (POST "/chsk"  req (ring-ajax-post                req))
+;;   (POST "/login" req (login! req)))
+
+;; (def my-ring-handler
+;;   (defaults/wrap-defaults my-routes {:wrap-file "resources/public"}))
+
+;; ---> UNCOMMENT TO HERE FOR DOGFORT <---
+
+
+;; ---> UNCOMMENT FROM HERE FOR EXPRESS <---
+
+(let [{:keys [ch-recv send-fn ajax-post-fn ajax-get-or-ws-handshake-fn
+              connected-uids]}
+      (sente-express/make-channel-socket-server! {:packer packer})]
+  (def express-ajax-post                ajax-post-fn)
+  (def express-ajax-get-or-ws-handshake ajax-get-or-ws-handshake-fn)
+  (def ch-chsk                       ch-recv) ; ChannelSocket's receive channel
+  (def chsk-send!                    send-fn) ; ChannelSocket's send API fn
+  (def connected-uids                connected-uids) ; Watchable, read-only atom
+  )
+
+;; express doesn't use it, but the example program does.
+(def my-ring-handler nil)
+
+(def http       (nodejs/require "http"))
+(def express (nodejs/require "express"))
+(def express-ws (nodejs/require "express-ws"))
+(def ws (nodejs/require "ws"))
+(def cookie-parser (nodejs/require "cookie-parser"))
+(def body-parser (nodejs/require "body-parser"))
+(def csurf (nodejs/require "csurf"))
+(def session (nodejs/require "express-session"))
+
+(def web-app (atom nil))
+
+
+(defn get-csrf-token
+  "Sente uses 'csrf-token' in it's request but csurf usually uses
+  '_csrf'.  This extends what csurf looks for."
+  [req]
+  (let [body (.-body req)
+        query (.-query req)
+        headers (.-headers req)]
+    ;; It would be nice to be able to tell sente to use a different
+    ;; name...
+    (or
+     (aget body "_csrf") (aget body "csrf-token")
+     (aget query "_csrf") (aget query "csrf-token")
+     (aget headers "csrf-token") (aget headers "xsrf-token")
+     (aget headers "x-csrf-token") (aget headers "x-xsrf-token"))))
+
+(def cookie-secret "the shiz")
+
+(def session-config #js {:secret cookie-secret
+                         :resave true
+                         :cookie {}
+                         :store (.MemoryStore session)
+                         :saveUninitialized true})
+
+(def csurf-config #js {:cookie false
+                       :value get-csrf-token})
+
 (defn login!
   "Here's where you'll add your server-side login/auth procedure (Friend, etc.).
   In our simplified example we'll just always successfully authenticate the user
   with whatever user-id they provided in the auth request."
-  [ring-request]
-  (let [{:keys [session params]} ring-request
-        {:keys [user-id]} params]
+  [req res]
+  (let [req-session (aget req "session")
+        params (aget req "params")
+        user-id (aget params "user-id")]
     (debugf "Login request: %s" params)
-    {:status 200 :session (assoc session :uid user-id)}))
+    (aset req-session "uid" user-id)
+    (.send res "Success")))
 
+(defn start-web-server!* [ring-handler port]
+  (println "Starting express...")
+  (let [app (express)
+        wss (express-ws app)]
+    (reset! web-app {:app app :wss wss})
 
-(defroutes my-routes
-  (GET  "/"      req (landing-pg-handler req))
-  ;;
-  (GET  "/chsk"  req (ring-ajax-get-or-ws-handshake req))
-  (POST "/chsk"  req (ring-ajax-post                req))
-  (POST "/login" req (login! req)))
+    (doto app
+      (.use (fn [req res next]
+              (tracef "Request: %s" (.-originalUrl req))
+              (next)))
+      (.use (session session-config))
+      (.use (.urlencoded body-parser #js {:extended false}))
+      (.use (cookie-parser cookie-secret))
+      (.use (csurf csurf-config))
 
-(def my-ring-handler
-  (defaults/wrap-defaults my-routes {:wrap-file "resources/public"}))
+      (.get "/" (fn [req res] (.send res (landing-pg-handler req))))
+
+      (.ws "/chsk"
+           (fn [ws req next]
+             (express-ajax-get-or-ws-handshake req nil nil {:websocket? true
+                                                            :websocket ws})))
+      (.use (fn [req res next]
+              (tracef "Not websocket: %s" (.-originalUrl req))
+              (next)))
+      (.get "/chsk" express-ajax-get-or-ws-handshake)
+      (.post "/chsk" express-ajax-post)
+      (.post "/login" login!)
+
+      (.use (.static express "resources/public"))
+      (.use (fn [req res next]
+              (tracef "Unhandled request: %s" (.-originalUrl req))
+              (next)))
+      (.listen  port))))
+
+;; ;; ---> UNCOMMENT TO HERE FOR EXPRESS <---
 
 ;;;; Routing handlers
 
@@ -172,19 +288,6 @@
 (defn start-web-server! []
   (start-web-server!* my-ring-handler 5000)
   (debugf "Web server is at %s" "http://localhost:5000"))
-
-#_(defn start-web-server! [& [port]]
-;  (stop-web-server!)
-  (let [{:keys [stop-fn port] :as server-map}
-        (start-web-server!* (var my-ring-handler)
-                            (or port 0) ; 0 => auto (any available) port
-                            )
-        uri (str "http://localhost:" port "/")]
-    (debugf "Web server is running at `%s`" uri)
-    (try
-      (.browse (java.awt.Desktop/getDesktop) (java.net.URI. uri))
-      (catch java.awt.HeadlessException _))
-    (reset! web-server_ server-map)))
 
 (defonce router_ (atom nil))
 
