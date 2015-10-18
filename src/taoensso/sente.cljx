@@ -791,6 +791,7 @@
         (when-let [s @socket_] (.close s 3000 "SENTE_RECONNECT")))
       (do
         (.clearInterval js/window @kalive-timer_)
+        (reset! nattempt_ 0)
         (infof "Forced reconnect attempt.")
         (@connect-fn))))
 
