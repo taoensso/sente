@@ -750,7 +750,8 @@
      cbs-waiting_ ; {<cb-uuid> <fn> ...}
      state_       ; {:type _ :open? _ :uid _ :csrf-token _ :destroyed? _}
      packer       ; IPacker
-     backoff-ms-fn]
+     backoff-ms-fn
+     connect-fn]
 
   IChSocket
   (chsk-send!* [chsk ev {:as opts ?timeout-ms :timeout-ms ?cb :cb :keys [flush?]}]
@@ -784,8 +785,14 @@
               false))))))
 
   (chsk-reconnect!  [chsk]
-    (merge>chsk-state! chsk {:open? false :requested-reconnect-pending? true})
-    (when-let [s @socket_] (.close s 3000 "SENTE_RECONNECT")))
+    (if (:open? @state_)
+      (do
+        (merge>chsk-state! chsk {:open? false :requested-reconnect-pending? true})
+        (when-let [s @socket_] (.close s 3000 "SENTE_RECONNECT")))
+      (do
+        (.clearInterval js/window @kalive-timer_)
+        (infof "Forced reconnect attempt.")
+        (@connect-fn))))
 
   (chsk-destroy!    [chsk]
     (merge>chsk-state! chsk {:open? false :destroyed? true})
@@ -795,6 +802,7 @@
     (when-let [WebSocket (or (enc/oget js/window "WebSocket")
                              (enc/oget js/window "MozWebSocket"))]
       ((fn connect! []
+         (reset! connect-fn connect!)
          (when-not (:destroyed? @state_)
            (let [retry!
                  (fn []
@@ -806,6 +814,7 @@
 
              (if-let [socket
                       (try
+                        (infof "Attempting to connect")
                         (WebSocket.
                           (enc/merge-url-with-query-string url
                             ;; User params first (don't clobber impl. params):
@@ -1092,7 +1101,8 @@
                    :cbs-waiting_  (atom {})
                    :state_        (atom {:type :ws :open? false
                                          :destroyed? false})
-                   :backoff-ms-fn backoff-ms-fn})))
+                   :backoff-ms-fn backoff-ms-fn
+                   :connect-fn (atom nil)})))
 
          (and (not= type :ws)
               (chsk-init!
