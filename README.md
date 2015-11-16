@@ -356,15 +356,15 @@ Copyright &copy; 2012-2014 Peter Taoussanis. Distributed under the [Eclipse Publ
 
 [example projects]: #example-projects
 [reference example project]: https://github.com/ptaoussanis/sente/tree/master/example-project
-[Go]: http://en.wikipedia.org/wiki/Go_game
+[Go]: https://en.wikipedia.org/wiki/Go_game
 [edn]: https://github.com/edn-format/edn
 [http-kit]: https://github.com/http-kit/http-kit
 [Immutant v2+]: http://immutant.org/
 [nginx-clojure]: https://github.com/nginx-clojure/nginx-clojure
 [Reactjs]: http://facebook.github.io/react/
 [Reagent]: http://reagent-project.github.io/
-[Om]: https://github.com/swannodette/om
-[Chord]: https://github.com/james-henderson/chord
+[Om]: https://github.com/omcljs/om
+[Chord]: https://github.com/jarohen/chord
 [jetty7-websockets-async]: https://github.com/lynaghk/jetty7-websockets-async
 [Socket.IO]: http://socket.io/
 [om-sente]: https://github.com/seancorfield/om-sente
