@@ -10,15 +10,15 @@
                 *assert* true}
 
   :dependencies
-  [[org.clojure/clojure       "1.7.0"] ; May use any v1.5.1+
-   ;; [org.clojure/clojure    "1.6.0"]
+  [;; [org.clojure/clojure    "1.6.0"]
+   ;; [org.clojure/clojure    "1.7.0"]
+   [org.clojure/clojure       "1.8.0-RC3"] ; May use any v1.5.1+
 
-   [org.clojure/clojurescript "1.7.122"]
-
-   [org.clojure/core.async    "0.1.346.0-17112a-alpha"]
+   [org.clojure/clojurescript "1.7.170"]
+   [org.clojure/core.async    "0.2.374"]
 
    [com.taoensso/sente        "1.7.0-RC1"] ; <--- Sente
-   [com.taoensso/timbre       "4.1.2"]
+   [com.taoensso/timbre       "4.1.4"]
 
    ;;; ---> Choose (uncomment) a supported web server <---
    [http-kit                  "2.1.19"]
@@ -34,16 +34,16 @@
 
    ;;; Transit deps optional; may be used to aid perf. of larger data payloads
    ;;; (see reference example for details):
-   [com.cognitect/transit-clj  "0.8.281"]
-   [com.cognitect/transit-cljs "0.8.225"]]
+   [com.cognitect/transit-clj  "0.8.285"]
+   [com.cognitect/transit-cljs "0.8.232"]]
 
   :plugins
   [[lein-pprint         "1.1.2"]
-   [lein-ancient        "0.6.7"]
+   [lein-ancient        "0.6.8"]
    [com.cemerick/austin "0.1.6"]
    [com.keminglabs/cljx "0.6.0"]
-   [lein-cljsbuild      "1.1.0"]
-   [cider/cider-nrepl   "0.8.2"] ; Optional, for use with Emacs
+   [lein-cljsbuild      "1.1.1"]
+   [cider/cider-nrepl   "0.10.0"] ; Optional, for use with Emacs
    ]
 
   :prep-tasks [["cljx" "once"] "javac" "compile"]
