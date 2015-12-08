@@ -9,11 +9,21 @@ pre, code {
    margin: 15px 0;
 }
 
-h2 {
+h1 {
    font-weight: normal;
    font-size: 28px;
-   padding: 10px 0 2px 0;
-   margin: 0;
+   margin: 10px 0 2px 0;
+   padding: 0;
+}
+
+h2 {
+    font-weight: normal;
+    font-size: 25px;
+}
+
+.document h1, .namespace-index h1 {
+    font-size: 30px;
+    margin-top: 12px;
 }
 
 #header, #content, .sidebar {
@@ -24,14 +34,13 @@ h2 {
    top: 0;
    left: 0;
    right: 0;
-   height: 20px;
-   background: #444;
-   color: #fff;
+   height: 22px;
+   color: #f5f5f5;
    padding: 5px 7px;
 }
 
 #content {
-   top: 30px;
+   top: 32px;
    right: 0;
    bottom: 0;
    overflow: auto;
@@ -42,49 +51,57 @@ h2 {
 
 .sidebar {
    position: fixed;
-   top: 30px;
+   top: 32px;
    bottom: 0;
    overflow: auto;
 }
 
-#namespaces {
+.sidebar.primary {
    background: #e2e2e2;
    border-right: solid 1px #cccccc;
    left: 0;
    width: 250px;
 }
 
-#vars {
+.sidebar.secondary {
    background: #f2f2f2;
    border-right: solid 1px #cccccc;
    left: 251px;
    width: 200px;
 }
 
-.namespace-index {
+#content.namespace-index, #content.document {
    left: 251px;
 }
 
-.namespace-docs {
+#content.namespace-docs {
    left: 452px;
 }
 
+#content.document {
+    padding-bottom: 10%;
+}
+
 #header {
-   background: -moz-linear-gradient(top, #555 0%, #222 100%);
-   background: -webkit-linear-gradient(top, #555 0%, #333 100%);
-   background: -o-linear-gradient(top, #555 0%, #222 100%);
-   background: -ms-linear-gradient(top, #555 0%, #222 100%);
-   background: linear-gradient(top, #555 0%, #222 100%);
-   box-shadow: 0 0 8px rgba(0, 0, 0, 0.4);
-   z-index: 100;
+    background: #3f3f3f;
+    box-shadow: 0 0 8px rgba(0, 0, 0, 0.4);
+    z-index: 100;
 }
 
 #header h1 {
    margin: 0;
    padding: 0;
-   font-size: 12pt;
+   font-size: 18px;
    font-weight: lighter;
    text-shadow: -1px -1px 0px #333;
+}
+
+#header h1 .project-version {
+    font-weight: normal;
+}
+
+.project-version {
+    padding-left: 5px;
 }
 
 #header a, .sidebar a {
@@ -93,7 +110,7 @@ h2 {
 }
 
 #header a {
-   color: #fff;
+   color: #f5f5f5;
 }
 
 .sidebar a {
@@ -104,7 +121,7 @@ h2 {
     float: right;
     font-size: 9pt;
     font-weight: normal;
-    margin: 3px 3px;
+    margin: 4px 3px;
     padding: 0;
     color: #bbb;
 }
@@ -120,9 +137,18 @@ h2 {
    font-weight: normal;
 }
 
+.sidebar h3.no-link {
+    color: #636363;
+   font-weight: lighter;
+}
+
 .sidebar ul {
-   padding: 0.5em 0em;
+   padding: 7px 0 6px 0;
    margin: 0;
+}
+
+.sidebar ul.index-link {
+    padding-bottom: 4px;
 }
 
 .sidebar li {
@@ -193,18 +219,37 @@ h2 {
     border-left: 1px solid #aaa;
 }
 
-#namespaces li.current a {
+.sidebar.primary li.current a {
    border-left: 3px solid #a33;
    color: #a33;
 }
 
-#vars li.current a {
+.sidebar.secondary li.current a {
    border-left: 3px solid #33a;
    color: #33a;
 }
 
-#content h3 {
-   font-size: 13pt;
+.namespace-index h2 {
+    margin: 30px 0 0 0;
+}
+
+.namespace-index h3 {
+    font-size: 16px;
+    font-weight: bold;
+    margin-bottom: 0;
+}
+
+.namespace-index .topics {
+    padding-left: 30px;
+    margin: 11px 0 0 0;
+}
+
+.namespace-index .topics li {
+    padding: 5px 0;
+}
+
+.namespace-docs h3 {
+   font-size: 18px;
    font-weight: bold;
 }
 
@@ -375,8 +420,24 @@ p {
 }
 
 .markdown {
-    line-height: 18px;
     font-size: 14px;
+}
+
+.markdown p, .markdown li, .markdown dt, .markdown dd, .markdown td {
+    line-height: 18px;
+}
+
+.markdown h2 {
+    font-weight: normal;
+    font-size: 25px;
+}
+
+#content .markdown h3 {
+    font-size: 20px;
+}
+
+.markdown h4 {
+    font-size: 15px;
 }
 
 .doc, .public, .namespace .index {
