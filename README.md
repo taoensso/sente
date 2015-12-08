@@ -1,8 +1,7 @@
 **[API docs][]** | **[CHANGELOG][]** | [other Clojure libs][] | [Twitter][] | [contact/contrib](#contact--contributing) | current [Break Version][]:
 
 ```clojure
-[com.taoensso/sente "1.6.0"]     ; Stable
-[com.taoensso/sente "1.7.0-RC1"] ; Dev, see CHANGELOG for details
+[com.taoensso/sente "1.7.0"] ; See CHANGELOG for details
 ```
 
 # Sente, channel sockets for Clojure
@@ -51,7 +50,7 @@ So you can ignore the underlying protocol and deal directly with Sente's unified
 Add the necessary dependency to your [Leiningen][] `project.clj`. This'll provide your project with both the client (ClojureScript) + server (Clojure) side library code:
 
 ```clojure
-[com.taoensso/sente "1.6.0"]
+[com.taoensso/sente "1.7.0"]
 ```
 
 ### On the server (Clojure) side
@@ -337,7 +336,7 @@ Otherwise reach me (Peter Taoussanis) at [taoensso.com][] or on [Twitter][]. Che
 
 ## License
 
-Copyright &copy; 2012-2014 Peter Taoussanis. Distributed under the [Eclipse Public License][], the same as Clojure.
+Copyright &copy; 2012-2015 Peter Taoussanis. Distributed under the [Eclipse Public License][], the same as Clojure.
 
 
 [API docs]: http://ptaoussanis.github.io/sente/
