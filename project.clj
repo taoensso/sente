@@ -38,7 +38,7 @@
    :dev
    [:1.7 :test
     {:dependencies
-     [[http-kit                        "2.1.19"]
+     [[com.taoensso.forks/http-kit     "2.1.20"]
       [org.immutant/web                "2.1.1"]
       [nginx-clojure                   "0.4.3"]]
      :plugins
