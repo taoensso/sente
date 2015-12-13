@@ -4,7 +4,7 @@
 [com.taoensso/sente "1.7.0"] ; See CHANGELOG for details
 ```
 
-# Sente, channel sockets for Clojure
+# Sente, channel sockets for Clojure/Script
 
 ![Almost sente](https://github.com/ptaoussanis/sente/raw/master/almost-sente.jpg)
 

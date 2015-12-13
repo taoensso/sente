@@ -1,6 +1,6 @@
 (defproject com.taoensso/sente "1.7.0"
   :author "Peter Taoussanis <https://www.taoensso.com>"
-  :description "Clojure channel sockets library"
+  :description "Clojure/Script channel sockets library"
   :url "https://github.com/ptaoussanis/sente"
   :license {:name "Eclipse Public License"
             :url  "http://www.eclipse.org/legal/epl-v10.html"
