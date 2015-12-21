@@ -1,4 +1,4 @@
-(defproject com.taoensso/sente "1.7.0-RC1"
+(defproject com.taoensso/sente "1.7.0"
   :author "Peter Taoussanis <https://www.taoensso.com>"
   :description "Clojure channel sockets library"
   :url "https://github.com/ptaoussanis/sente"
@@ -12,10 +12,10 @@
 
   :dependencies
   [[org.clojure/clojure      "1.5.1"]
-   [org.clojure/core.async   "0.1.346.0-17112a-alpha"]
-   [org.clojure/tools.reader "0.9.2"]
-   [com.taoensso/encore      "2.18.0"]
-   [com.taoensso/timbre      "4.1.2"]]
+   [org.clojure/core.async   "0.2.374"]
+   [com.taoensso/encore      "2.26.3"]
+   [org.clojure/tools.reader "0.10.0"]
+   [com.taoensso/timbre      "4.1.4"]]
 
   :profiles
   {;; :default [:base :system :user :provided :dev]
@@ -23,36 +23,36 @@
    :1.5  {:dependencies [[org.clojure/clojure "1.5.1"]]}
    :1.6  {:dependencies [[org.clojure/clojure "1.6.0"]]}
    :1.7  {:dependencies [[org.clojure/clojure "1.7.0"]]}
-   :1.8  {:dependencies [[org.clojure/clojure "1.8.0-alpha5"]]}
-   :test {:dependencies [[com.cognitect/transit-clj  "0.8.281"]
-                         [com.cognitect/transit-cljs "0.8.225"]
-                         [expectations               "2.1.0"]
-                         [org.clojure/test.check     "0.8.2"]
+   :1.8  {:dependencies [[org.clojure/clojure "1.8.0-RC3"]]}
+   :test {:dependencies [[com.cognitect/transit-clj  "0.8.285"]
+                         [com.cognitect/transit-cljs "0.8.232"]
+                         [expectations               "2.1.4"]
+                         [org.clojure/test.check     "0.9.0"]
                          ;; [com.cemerick/double-check "0.6.1"]
                          ]
           :plugins [[lein-expectations "0.0.8"]
-                    [lein-autoexpect   "1.5.0"]]}
+                    [lein-autoexpect   "1.7.0"]]}
 
-   :provided {:dependencies [[org.clojure/clojurescript "1.7.122"]]}
+   :provided {:dependencies [[org.clojure/clojurescript "1.7.170"]]}
 
    :dev
    [:1.7 :test
     {:dependencies
-     [[http-kit                        "2.1.19"]
-      [org.immutant/web                "2.1.0"]
-      [nginx-clojure                   "0.4.2"]]
+     [[com.taoensso.forks/http-kit     "2.1.20"]
+      [org.immutant/web                "2.1.1"]
+      [nginx-clojure                   "0.4.3"]]
      :plugins
      [;;; These must be in :dev, Ref. https://github.com/lynaghk/cljx/issues/47:
-      [com.keminglabs/cljx             "0.5.0"]
-      [lein-cljsbuild                  "1.1.0"]
+      [com.keminglabs/cljx             "0.6.0"]
+      [lein-cljsbuild                  "1.1.1"]
       ;;
-      [lein-pprint                     "1.1.1"]
-      [lein-ancient                    "0.6.7"]
+      [lein-pprint                     "1.1.2"]
+      [lein-ancient                    "0.6.8"]
       ;; [com.cemerick/austin          "0.1.4"]
       [lein-expectations               "0.0.8"]
-      [lein-autoexpect                 "1.4.2"]
+      [lein-autoexpect                 "1.7.0"]
       [com.cemerick/clojurescript.test "0.3.3"]
-      [codox                           "0.8.11"]]}]}
+      [lein-codox                      "0.9.0"]]}]}
 
   :cljx
   {:builds
@@ -71,12 +71,14 @@
 
   :test-paths ["test" "src"]
   :prep-tasks [["cljx" "once"] "javac" "compile"]
-  :codox {:language :clojure ; [:clojure :clojurescript] ; No support?
-          :sources  ["target/classes"]
-          :src-linenum-anchor-prefix "L"
-          :src-dir-uri "http://github.com/ptaoussanis/sente/blob/master/src/"
-          :src-uri-mapping {#"target/classes"
-                            #(.replaceFirst (str %) "(.cljs$|.clj$)" ".cljx")}}
+  :codox
+  {:language :clojure ; [:clojure :clojurescript] ; No support?
+   :source-paths ["target/classes"]
+   :source-uri
+   {#"target/classes"
+    "https://github.com/ptaoussanis/sente/blob/master/src/{classpath}x#L{line}"
+    #".*"
+    "https://github.com/ptaoussanis/sente/blob/master/{filepath}#L{line}"}}
 
   :aliases
   {"test-all"   ["with-profile" "+1.6:+1.7:+1.8" "expectations"]

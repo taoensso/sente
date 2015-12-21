@@ -1,5 +1,14 @@
 > This project uses [Break Versioning](https://github.com/ptaoussanis/encore/blob/master/BREAK-VERSIONING.md) as of **Aug 16, 2014**.
 
+## v1.7.0 - 2015 Dec 8
+
+> As v1.7.0-RC1 with some updated dependencies, improved reference example
+
+```clojure
+[com.taoensso/sente "1.7.0"]
+```
+
+
 ## v1.7.0-RC1 - 2015 Sep 28
 
 > This is a significant non-breaking feature release. Includes an important fix for Immutant users.
