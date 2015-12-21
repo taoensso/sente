@@ -210,11 +210,12 @@ There's a full [reference example project][] in the repo. Call `lein start-dev` 
 There's also some **user-submitted** examples which may be handy:
 > PRs welcome for additional examples!
 
-| Author/link              | Description                                      |
--------------------------- | ------------------------------------------------ |
-[@danielsz]/[sente-boot]   | Same example app, different toolchain ([boot])   |
-[@danielsz]/[sente-system] | Same example app, adapted for [danielsz/system]  |
-[@seancorfield]/[om-sente] | ??                                               |
+| Author/link              | Description                                                          |
+-------------------------- | ---------------------------------------------------------------------|
+[@ebellani]/[carpet]       | Single language application using sente as the communication channel |
+[@danielsz]/[sente-boot]   | Same example app, different toolchain ([boot])                       |
+[@danielsz]/[sente-system] | Same example app, adapted for [danielsz/system]                      |
+[@seancorfield]/[om-sente] | ??                                                                   |
 
 ### FAQ
 
@@ -368,10 +369,12 @@ Copyright &copy; 2012-2015 Peter Taoussanis. Distributed under the [Eclipse Publ
 [Socket.IO]: http://socket.io/
 [om-sente]: https://github.com/seancorfield/om-sente
 [sente-boot]: https://github.com/danielsz/sente-boot
+[carpet]: https://github.com/ebellani/carpet
 [sente-system]: https://github.com/danielsz/sente-system
 [@tf0054]: https://github.com/tf0054
 [@seancorfield]: https://github.com/seancorfield
 [@danielsz]: https://github.com/danielsz
+[@ebellani]: https://github.com/ebellani
 [stuartsierra/component]: https://github.com/stuartsierra/component
 [danielsz/system]: https://github.com/danielsz/system
 [palletops/leaven]: https://github.com/palletops/leaven
