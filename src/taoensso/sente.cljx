@@ -1171,7 +1171,7 @@
   [event-msg-handler ch-recv]
   (start-chsk-router! ch-recv
     ;; Old handler form: (fn [ev-msg ch-recv])
-    (fn [ev-msg] (event-msg-handler ev-msg (:ch-recv ev-msg)))))
+    (fn [ev-msg] (event-msg-handler ev-msg (:ch-recv ev-msg))) true))
 
 #+cljs
 (defn start-chsk-router-loop!
@@ -1179,7 +1179,7 @@
   [event-handler ch-recv]
   (start-chsk-router! ch-recv
     ;; Old handler form: (fn [ev ch-recv])
-    (fn [ev-msg] (event-handler (:event ev-msg) (:ch-recv ev-msg)))))
+    (fn [ev-msg] (event-handler (:event ev-msg) (:ch-recv ev-msg))) false))
 
 (defn set-logging-level! "DEPRECATED. Please use `timbre/set-level!` instead."
   [level] (timbre/set-level! level))
