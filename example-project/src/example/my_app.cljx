@@ -10,13 +10,14 @@
   ------------------------------------------------------------------------------
 
   Instructions:
-    1. Call `lein start-dev` at your terminal.
-    2. Connect to development nREPL (port will be printed).
-    3. Evaluate this namespace (M-x `cider-load-current-buffer` for CIDER+Emacs).
-    4. Evaluate `(start!)` in this namespace (M-x `cider-eval-last-sexp` for
-       CIDER+Emacs).
-    5. Open browser & point to local web server (port will be printed).
-    6. Observe browser's console + nREPL's std-out.
+    1. Call `lein build-once` at your terminal
+    2. Call `lein start-dev` at your terminal
+    3. Connect to development nREPL (port will be printed)
+    4. Evaluate this namespace (M-x `cider-load-current-buffer` for CIDER+Emacs)
+    5. Evaluate `(start!)` in this namespace (M-x `cider-eval-last-sexp` for
+       CIDER+Emacs)
+    6. Open browser & point to local web server (port will be printed)
+    7. Observe output textarea + nREPL's std-out
 
   Light Table users:
     To configure Cljx support please see Ref. http://goo.gl/fKL5Z4."
@@ -71,7 +72,7 @@
 
 #+clj
 (defn start-web-server!* [ring-handler port]
-  (println "Starting http-kit...")
+  (infof "Starting http-kit...")
   (let [http-kit-stop-fn (http-kit/run-server ring-handler {:port port})]
     {:server  nil ; http-kit doesn't expose this
      :port    (:local-port (meta http-kit-stop-fn))
@@ -79,7 +80,7 @@
 
 ;; #+clj
 ;; (defn start-web-server!* [ring-handler port]
-;;   (println "Starting Immutant...")
+;;   (infof "Starting Immutant...")
 ;;   (let [server (immutant/run ring-handler :port port)]
 ;;     {:server  server
 ;;      :port    (:port server)
@@ -87,7 +88,7 @@
 
 ;; #+clj
 ;; (defn start-web-server!* [ring-handler port]
-;;   (println "Starting nginx-clojure...")
+;;   (infof "Starting nginx-clojure...")
 ;;   (let [port (nginx-clojure/run-server ring-handler {:port port})]
 ;;     {:server  nil ; nginx-clojure doesn't expose this
 ;;      :port    port
@@ -95,8 +96,8 @@
 
 ;;;; Packer (client<->server serializtion format) config
 
-(def packer (sente-transit/get-flexi-packer :edn)) ; Experimental, needs Transit dep
-;; (def packer :edn) ; Default packer (no need for Transit dep)
+(def packer :edn) ; Default packer, a good choice in most cases
+;; (def packer (sente-transit/get-flexi-packer :edn)) ; Experimental, needs Transit dep
 
 ;;;; Server-side setup
 
@@ -115,20 +116,21 @@
 (defn landing-pg-handler [req]
   (hiccup/html
     [:h1 "Sente reference example"]
-    [:p "An Ajax/WebSocket connection has been configured (random)."]
+    [:p "An Ajax/WebSocket" [:strong " (random choice!)"] " has been configured for this example"]
     [:hr]
-    [:p [:strong "Step 1: "] "Open browser's JavaScript console."]
-    [:p [:strong "Step 2: "] "Try: "
-     [:button#btn1 {:type "button"} "chsk-send! (w/o reply)"]
-     [:button#btn2 {:type "button"} "chsk-send! (with reply)"]]
+    [:p [:strong "Next step -"] " try hitting the buttons:"]
+    [:button#btn1 {:type "button"} "chsk-send! (w/o reply)"]
+    [:button#btn2 {:type "button"} "chsk-send! (with reply)"]
     ;;
-    [:p [:strong "Step 3: "] "See browser's console + nREPL's std-out." ]
+    [:p [:strong "Then -"] " watch nREPL's std-out (for server output) and below (for client output):"]
+    [:textarea#output {:style "width: 100%; height: 200px;"}]
     ;;
     [:hr]
     [:h2 "Login with a user-id"]
     [:p  "The server can use this id to send events to *you* specifically."]
-    [:p [:input#input-login {:type :text :placeholder "User-id"}]
-        [:button#btn-login {:type "button"} "Secure login!"]]
+    [:p
+     [:input#input-login {:type :text :placeholder "User-id"}]
+     [:button#btn-login {:type "button"} "Secure login!"]]
     [:script {:src "main.js"}] ; Include our cljs target
     ))
 
@@ -169,7 +171,15 @@
 
 ;;;; Client-side setup
 
-#+cljs (debugf "ClojureScript appears to have loaded correctly.")
+#+cljs (def output-el (.getElementById js/document "output"))
+#+cljs
+(defn ->output! [fmt & args]
+  (let [msg (apply encore/format fmt args)]
+    (timbre/debug msg)
+    (aset output-el "value" (str "• " (.-value output-el) "\n" msg))
+    (aset output-el "scrollTop" (.-scrollHeight output-el))))
+
+#+cljs (->output! "ClojureScript appears to have loaded correctly.")
 #+cljs
 (let [rand-chsk-type (if (>= (rand) 0.5) :ajax :auto)
 
@@ -177,7 +187,7 @@
       (sente/make-channel-socket-client! "/chsk" ; Note the same URL as before
         {:type   rand-chsk-type
          :packer packer})]
-  (debugf "Randomly selected chsk type: %s" rand-chsk-type)
+  (->output! "Randomly selected chsk type: %s" rand-chsk-type)
   (def chsk       chsk)
   (def ch-chsk    ch-recv) ; ChannelSocket's receive channel
   (def chsk-send! send-fn) ; ChannelSocket's send API fn
@@ -196,7 +206,6 @@
 (defmulti event-msg-handler :id) ; Dispatch on event-id
 ;; Wrap for logging, catching, etc.:
 (defn     event-msg-handler* [{:as ev-msg :keys [id ?data event]}]
-  (debugf "Event: %s" event)
   (event-msg-handler ev-msg))
 
 #+clj
@@ -216,22 +225,22 @@
 (do ; Client-side methods
   (defmethod event-msg-handler :default ; Fallback
     [{:as ev-msg :keys [event]}]
-    (debugf "Unhandled event: %s" event))
+    (->output! "Unhandled event: %s" event))
 
   (defmethod event-msg-handler :chsk/state
     [{:as ev-msg :keys [?data]}]
     (if (= ?data {:first-open? true})
-      (debugf "Channel socket successfully established!")
-      (debugf "Channel socket state change: %s" ?data)))
+      (->output! "Channel socket successfully established!")
+      (->output! "Channel socket state change: %s" ?data)))
 
   (defmethod event-msg-handler :chsk/recv
     [{:as ev-msg :keys [?data]}]
-    (debugf "Push event from server: %s" ?data))
+    (->output! "Push event from server: %s" ?data))
 
   (defmethod event-msg-handler :chsk/handshake
     [{:as ev-msg :keys [?data]}]
     (let [[?uid ?csrf-token ?handshake-data] ?data]
-      (debugf "Handshake: %s" ?data)))
+      (->output! "Handshake: %s" ?data)))
 
   ;; Add your (defmethod handle-event-msg! <event-id> [ev-msg] <body>)s here...
   )
@@ -242,16 +251,16 @@
 (when-let [target-el (.getElementById js/document "btn1")]
   (.addEventListener target-el "click"
     (fn [ev]
-      (debugf "Button 1 was clicked (won't receive any reply from server)")
+      (->output! "Button 1 was clicked (won't receive any reply from server)")
       (chsk-send! [:example/button1 {:had-a-callback? "nope"}]))))
 
 #+cljs
 (when-let [target-el (.getElementById js/document "btn2")]
   (.addEventListener target-el "click"
     (fn [ev]
-      (debugf "Button 2 was clicked (will receive reply from server)")
+      (->output! "Button 2 was clicked (will receive reply from server)")
       (chsk-send! [:example/button2 {:had-a-callback? "indeed"}] 5000
-        (fn [cb-reply] (debugf "Callback reply: %s" cb-reply))))))
+        (fn [cb-reply] (->output! "Callback reply: %s" cb-reply))))))
 
 #+cljs
 (when-let [target-el (.getElementById js/document "btn-login")]
@@ -261,7 +270,7 @@
         (if (str/blank? user-id)
           (js/alert "Please enter a user-id first")
           (do
-            (debugf "Logging in with user-id %s" user-id)
+            (->output! "Logging in with user-id %s" user-id)
 
             ;;; Use any login procedure you'd like. Here we'll trigger an Ajax
             ;;; POST request that resets our server-side session. Then we ask
@@ -273,13 +282,13 @@
                :params {:user-id    (str user-id)
                         :csrf-token (:csrf-token @chsk-state)}}
               (fn [ajax-resp]
-                (debugf "Ajax login response: %s" ajax-resp)
+                (->output! "Ajax login response: %s" ajax-resp)
                 (let [login-successful? true ; Your logic here
                       ]
                   (if-not login-successful?
-                    (debugf "Login failed")
+                    (->output! "Login failed")
                     (do
-                      (debugf "Login successful")
+                      (->output! "Login successful")
                       (sente/chsk-reconnect! chsk))))))))))))
 
 ;;;; Example: broadcast server>user
@@ -290,7 +299,7 @@
 (defn start-broadcaster! []
   (go-loop [i 0]
     (<! (async/timeout 10000))
-    (println (format "Broadcasting server>user: %s" @connected-uids))
+    (debugf "Broadcasting server>user: %s" @connected-uids)
     (doseq [uid (:any @connected-uids)]
       (chsk-send! uid
         [:some/broadcast

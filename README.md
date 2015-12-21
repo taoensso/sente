@@ -1,8 +1,7 @@
 **[API docs][]** | **[CHANGELOG][]** | [other Clojure libs][] | [Twitter][] | [contact/contrib](#contact--contributing) | current [Break Version][]:
 
 ```clojure
-[com.taoensso/sente "1.6.0"]     ; Stable
-[com.taoensso/sente "1.7.0-RC1"] ; Dev, see CHANGELOG for details
+[com.taoensso/sente "1.7.0"] ; See CHANGELOG for details
 ```
 
 # Sente, channel sockets for Clojure
@@ -51,7 +50,7 @@ So you can ignore the underlying protocol and deal directly with Sente's unified
 Add the necessary dependency to your [Leiningen][] `project.clj`. This'll provide your project with both the client (ClojureScript) + server (Clojure) side library code:
 
 ```clojure
-[com.taoensso/sente "1.6.0"]
+[com.taoensso/sente "1.7.0"]
 ```
 
 ### On the server (Clojure) side
@@ -211,11 +210,12 @@ There's a full [reference example project][] in the repo. Call `lein start-dev` 
 There's also some **user-submitted** examples which may be handy:
 > PRs welcome for additional examples!
 
-| Author/link              | Description                                      |
--------------------------- | ------------------------------------------------ |
-[@danielsz]/[sente-boot]   | Same example app, different toolchain ([boot])   |
-[@danielsz]/[sente-system] | Same example app, adapted for [danielsz/system]  |
-[@seancorfield]/[om-sente] | ??                                               |
+| Author/link              | Description                                                          |
+-------------------------- | ---------------------------------------------------------------------|
+[@ebellani]/[carpet]       | Single language application using sente as the communication channel |
+[@danielsz]/[sente-boot]   | Same example app, different toolchain ([boot])                       |
+[@danielsz]/[sente-system] | Same example app, adapted for [danielsz/system]                      |
+[@seancorfield]/[om-sente] | ??                                                                   |
 
 ### FAQ
 
@@ -337,7 +337,7 @@ Otherwise reach me (Peter Taoussanis) at [taoensso.com][] or on [Twitter][]. Che
 
 ## License
 
-Copyright &copy; 2012-2014 Peter Taoussanis. Distributed under the [Eclipse Public License][], the same as Clojure.
+Copyright &copy; 2012-2015 Peter Taoussanis. Distributed under the [Eclipse Public License][], the same as Clojure.
 
 
 [API docs]: http://ptaoussanis.github.io/sente/
@@ -356,23 +356,25 @@ Copyright &copy; 2012-2014 Peter Taoussanis. Distributed under the [Eclipse Publ
 
 [example projects]: #example-projects
 [reference example project]: https://github.com/ptaoussanis/sente/tree/master/example-project
-[Go]: http://en.wikipedia.org/wiki/Go_game
+[Go]: https://en.wikipedia.org/wiki/Go_game
 [edn]: https://github.com/edn-format/edn
 [http-kit]: https://github.com/http-kit/http-kit
 [Immutant v2+]: http://immutant.org/
 [nginx-clojure]: https://github.com/nginx-clojure/nginx-clojure
 [Reactjs]: http://facebook.github.io/react/
 [Reagent]: http://reagent-project.github.io/
-[Om]: https://github.com/swannodette/om
-[Chord]: https://github.com/james-henderson/chord
+[Om]: https://github.com/omcljs/om
+[Chord]: https://github.com/jarohen/chord
 [jetty7-websockets-async]: https://github.com/lynaghk/jetty7-websockets-async
 [Socket.IO]: http://socket.io/
 [om-sente]: https://github.com/seancorfield/om-sente
 [sente-boot]: https://github.com/danielsz/sente-boot
+[carpet]: https://github.com/ebellani/carpet
 [sente-system]: https://github.com/danielsz/sente-system
 [@tf0054]: https://github.com/tf0054
 [@seancorfield]: https://github.com/seancorfield
 [@danielsz]: https://github.com/danielsz
+[@ebellani]: https://github.com/ebellani
 [stuartsierra/component]: https://github.com/stuartsierra/component
 [danielsz/system]: https://github.com/danielsz/system
 [palletops/leaven]: https://github.com/palletops/leaven
