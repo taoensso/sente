@@ -208,14 +208,14 @@ Some important differences to note:
 There's a full [reference example project][] in the repo. Call `lein start-dev` in that dir to get a (headless) development repl that you can connect to with [Cider][] (emacs) or your IDE.
 
 There's also some **user-submitted** examples which may be handy:
-> PRs welcome for additional examples!
 
-| Author/link              | Description                                                          |
--------------------------- | ---------------------------------------------------------------------|
-[@ebellani]/[carpet]       | Single language application using sente as the communication channel |
-[@danielsz]/[sente-boot]   | Same example app, different toolchain ([boot])                       |
-[@danielsz]/[sente-system] | Same example app, adapted for [danielsz/system]                      |
-[@seancorfield]/[om-sente] | ??                                                                   |
+Link                     | Description
+------------------------ | --------------------------------------------------------------------
+[@danielsz/sente-boot]   | Reference example adapted for [boot]
+[@danielsz/sente-system] | Reference example adapted for [@danielsz/system]
+[@seancorfield/om-sente] | ??
+[@ebellani/carpet]       | Web+mobile interface for a remmitance application
+Your link here?          | **PR's welcome!**
 
 ### FAQ
 
@@ -308,7 +308,7 @@ You've got two choices:
 
 #### Lifecycle management (component management/shutdown, etc.)
 
-Using something like [stuartsierra/component] or [palletops/leaven]?
+Using something like [@stuartsierra/component] or [@palletops/leaven]?
 
 Most of Sente's state is held internally to each channel socket (the map returned from client/server calls to `make-channel-socket!`). The absence of global state makes things like testing, and running multiple concurrent connections easy. It also makes integration with your component management easy.
 
@@ -318,8 +318,8 @@ The only thing you _may_[1] want to do on component shutdown is stop any router 
 
 There's also a couple lifecycle libraries that include Sente components:
 
-  1. [danielsz/system] for use with [stuartsierra/component].
-  2. [palletops/bakery] for use with [palletops/leaven].
+  1. [@danielsz/system] for use with [@stuartsierra/component].
+  2. [@palletops/bakery] for use with [@palletops/leaven].
 
 If you do want a lifecycle management lib, I'm personally fond of Leaven since it's simpler (no auto dependencies) and adds ClojureScript support (which is handy for Sente).
 
@@ -367,16 +367,16 @@ Copyright &copy; 2012-2015 Peter Taoussanis. Distributed under the [Eclipse Publ
 [Chord]: https://github.com/jarohen/chord
 [jetty7-websockets-async]: https://github.com/lynaghk/jetty7-websockets-async
 [Socket.IO]: http://socket.io/
-[om-sente]: https://github.com/seancorfield/om-sente
-[sente-boot]: https://github.com/danielsz/sente-boot
-[carpet]: https://github.com/ebellani/carpet
-[sente-system]: https://github.com/danielsz/sente-system
-[@tf0054]: https://github.com/tf0054
-[@seancorfield]: https://github.com/seancorfield
+
 [@danielsz]: https://github.com/danielsz
-[@ebellani]: https://github.com/ebellani
-[stuartsierra/component]: https://github.com/stuartsierra/component
-[danielsz/system]: https://github.com/danielsz/system
-[palletops/leaven]: https://github.com/palletops/leaven
-[palletops/bakery]: https://github.com/palletops/bakery
+
+[@danielsz/sente-boot]: https://github.com/danielsz/sente-boot
+[@danielsz/sente-system]: https://github.com/danielsz/sente-system
+[@seancorfield/om-sente]: https://github.com/seancorfield/om-sente
+[@ebellani/carpet]: https://github.com/ebellani/carpet
+
+[@stuartsierra/component]: https://github.com/stuartsierra/component
+[@danielsz/system]: https://github.com/danielsz/system
+[@palletops/leaven]: https://github.com/palletops/leaven
+[@palletops/bakery]: https://github.com/palletops/bakery
 [boot]: http://boot-clj.com/
