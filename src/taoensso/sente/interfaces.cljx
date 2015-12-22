@@ -1,12 +1,10 @@
 (ns taoensso.sente.interfaces
   "Experimental - subject to change!
   Public interfaces / extension points."
-  #+clj  (:require [taoensso.encore :as enc])
-  #+cljs (:require [taoensso.encore :as enc]))
+  (:require [taoensso.encore :as enc]))
 
 ;;;; Network channels
 
-#+clj
 (defprotocol IAsyncNetworkChannel
   ;; Wraps a web server's own async channel/comms interface to abstract away
   ;; implementation differences
@@ -14,10 +12,9 @@
   (open?  [net-ch] "Returns true iff the channel is currently open.")
   (close! [net-ch] "Closes the channel."))
 
-#+clj (defn send! [net-ch msg & [close-after-send?]]
+(defn send! [net-ch msg & [close-after-send?]]
         (send!* net-ch msg close-after-send?))
 
-#+clj
 (defprotocol IAsyncNetworkChannelAdapter
   ;; Wraps a web server's own Ring-request->async-channel-response interface to
   ;; abstract away implementation differences
