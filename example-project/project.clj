@@ -18,7 +18,7 @@
    [org.clojure/core.async    "0.2.374"]
 
    [com.taoensso/sente        "1.7.0"] ; <--- Sente
-   [com.taoensso/timbre       "4.1.4"]
+   [com.taoensso/timbre       "4.2.0"]
 
    ;;; ---> Choose (uncomment) a supported web server <---
    [com.taoensso.forks/http-kit "2.1.20"]
@@ -35,15 +35,15 @@
    ;;; Transit deps optional; may be used to aid perf. of larger data payloads
    ;;; (see reference example for details):
    [com.cognitect/transit-clj  "0.8.285"]
-   [com.cognitect/transit-cljs "0.8.232"]]
+   [com.cognitect/transit-cljs "0.8.237"]]
 
   :plugins
   [[lein-pprint         "1.1.2"]
    [lein-ancient        "0.6.8"]
    [com.cemerick/austin "0.1.6"]
    [com.keminglabs/cljx "0.6.0"]
-   [lein-cljsbuild      "1.1.1"]
-   [cider/cider-nrepl   "0.10.0"] ; Optional, for use with Emacs
+   [lein-cljsbuild      "1.1.2"]
+   [cider/cider-nrepl   "0.10.1"] ; Optional, for use with Emacs
    ]
 
   :prep-tasks [["cljx" "once"] "javac" "compile"]
