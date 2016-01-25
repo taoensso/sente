@@ -10,9 +10,8 @@
                 *assert* true}
 
   :dependencies
-  [;; [org.clojure/clojure    "1.6.0"]
-   ;; [org.clojure/clojure    "1.7.0"]
-   [org.clojure/clojure       "1.8.0"] ; May use any v1.5.1+
+  [;; [org.clojure/clojure    "1.7.0"]
+   [org.clojure/clojure       "1.8.0"]
 
    [org.clojure/clojurescript "1.7.170"]
    [org.clojure/core.async    "0.2.374"]
@@ -22,8 +21,8 @@
    [com.taoensso/timbre       "4.2.1"]
 
    ;;; ---> Choose (uncomment) a supported web server <---
-   [com.taoensso.forks/http-kit "2.1.20"]
-   ;; [org.immutant/web         "2.1.0"] ; v2.1+ recommended
+   [http-kit                  "2.1.21-alpha2"]
+   ;; [org.immutant/web       "2.1.0"] ; v2.1+ recommended
    ;; [nginx-clojure/nginx-clojure-embed "0.4.2"] ; Needs v0.4.2+
 
    [ring                      "1.4.0"]
@@ -42,30 +41,25 @@
   [[lein-pprint         "1.1.2"]
    [lein-ancient        "0.6.8"]
    [com.cemerick/austin "0.1.6"]
-   [com.keminglabs/cljx "0.6.0"]
    [lein-cljsbuild      "1.1.2"]
    [cider/cider-nrepl   "0.10.1"] ; Optional, for use with Emacs
    ]
 
-  :prep-tasks [["cljx" "once"] "javac" "compile"]
-  :cljx
-  {:builds
-   [{:source-paths ["src"] :rules :clj  :output-path "target/classes"}
-    {:source-paths ["src"] :rules :cljs :output-path "target/classes"}]}
-
   :cljsbuild
   {:builds ; Compiled in parallel
    [{:id :main
-     :source-paths ["src" "target/classes"]
-     :compiler     {:output-to "resources/public/main.js"
-                    :optimizations :whitespace #_:advanced
-                    :pretty-print true}}]}
+     :source-paths ["src"]
+     :compiler {:output-to "resources/public/main.js"
+                :optimizations :whitespace #_:advanced
+                :pretty-print true}}]}
+
+  :main example.my-app
 
   ;; Call `lein start-dev` to get a (headless) development repl that you can
   ;; connect to with Cider+emacs or your IDE of choice:
   :aliases
-  {"build-once" ["do" "cljx" "once," "cljsbuild" "once"]
-   "start-dev"  ["repl" ":headless"]}
+  {"start-repl" ["do" "cljsbuild" "once," "repl" ":headless"]
+   "start"      ["do" "cljsbuild" "once," "run"]}
 
   :repositories
   {"sonatype-oss-public" "https://oss.sonatype.org/content/groups/public/"})

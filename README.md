@@ -208,7 +208,7 @@ Some important differences to note:
 
 ### Example projects
 
-There's a full [reference example project] in the repo. Call `lein start-dev` in that dir to get a (headless) development repl that you can connect to with [Cider] (emacs) or your IDE.
+There's a full [reference example project] in the repo. Call `lein start` in that dir to get a (headless) development repl that you can connect to with [Cider] (emacs) or your IDE.
 
 There's also some **user-submitted** examples which may be handy:
 

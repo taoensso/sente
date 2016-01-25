@@ -869,8 +869,8 @@
 
         (reset! active-retry-id_ retry-id)
         (reset! retry-count_ 0)
-        (connect-fn))
-      chsk)))
+        (connect-fn)
+        chsk))))
 
 #+cljs
 (defrecord ChAjaxSocket
