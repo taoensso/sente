@@ -627,6 +627,7 @@
 
 ;;;; Client API
 
+#+cljs (def ajax-lite "Alias of `taoensso.encore/ajax-lite`" enc/ajax-lite)
 #+cljs
 (defprotocol IChSocket
   (-chsk-init!     [chsk]         "Implementation detail")
@@ -879,7 +880,7 @@
 
         ;; TODO Buffer before sending (but honor `:flush?`)
         (do
-          (enc/ajax-lite url
+          (ajax-lite url
             (merge ajax-opts
               {:method :post :timeout-ms ?timeout-ms
                :resp-type :text ; We'll do our own pstr decoding
@@ -936,7 +937,7 @@
                           connect-fn)))]
 
                 (reset! curr-xhr_
-                  (enc/ajax-lite url
+                  (ajax-lite url
                     (merge ajax-opts
                       {:method :get :timeout-ms timeout-ms
                        :resp-type :text ; Prefer to do our own pstr reading
@@ -1194,12 +1195,9 @@
 
 ;; (set-logging-level! :trace) ; For debugging
 
-#+cljs
-(def ajax-call
-  "DEPRECATED. Please use `taoensso.encore/ajax-lite` instead."
-  enc/ajax-lite)
+#+cljs (def ajax-call "DEPRECATED"  enc/ajax-lite)
 
 #+cljs
-(def default-chsk-url-fn "DEPRECATED."
+(def default-chsk-url-fn "DEPRECATED"
   (fn [path {:as location :keys [adjusted-protocol host pathname]} websocket?]
     (str adjusted-protocol "//" host (or path pathname))))
