@@ -1,4 +1,4 @@
-(defproject com.taoensso.examples/sente "1.7.0"
+(defproject com.taoensso.examples/sente "1.8.0-SNAPSHOT"
   :description "Sente, reference web-app example project"
   :url "https://github.com/ptaoussanis/sente"
   :license {:name "Eclipse Public License"
@@ -12,14 +12,14 @@
   :dependencies
   [;; [org.clojure/clojure    "1.6.0"]
    ;; [org.clojure/clojure    "1.7.0"]
-   [org.clojure/clojure       "1.8.0-RC3"] ; May use any v1.5.1+
+   [org.clojure/clojure       "1.8.0"] ; May use any v1.5.1+
 
    [org.clojure/clojurescript "1.7.170"]
    [org.clojure/core.async    "0.2.374"]
    [org.clojure/tools.nrepl   "0.2.12"] ; Optional, for Cider
 
-   [com.taoensso/sente        "1.7.0"] ; <--- Sente
-   [com.taoensso/timbre       "4.2.0"]
+   [com.taoensso/sente        "1.8.0-SNAPSHOT"] ; <--- Sente
+   [com.taoensso/timbre       "4.2.1"]
 
    ;;; ---> Choose (uncomment) a supported web server <---
    [com.taoensso.forks/http-kit "2.1.20"]
