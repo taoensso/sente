@@ -629,10 +629,10 @@
 
 #+cljs
 (defprotocol IChSocket
-  (chsk-init!      [chsk] "Implementation detail.")
-  (chsk-destroy!   [chsk] "Kills socket, stops auto-reconnects.")
-  (chsk-reconnect! [chsk] "Drops connection, allows auto-reconnect. Useful for reauthenticating after login/logout.")
-  (chsk-send!*     [chsk ev opts] "Implementation detail."))
+  (-chsk-init!     [chsk]         "Implementation detail")
+  (-chsk-send!     [chsk ev opts] "Implementation detail")
+  (chsk-destroy!   [chsk] "Permanently kills socket")
+  (chsk-reconnect! [chsk] "Drops socket connection and allows immediate auto-reconnect. Useful for reauthenticating after login/logout"))
 
 #+cljs
 (defn chsk-send!
@@ -642,7 +642,7 @@
                                                   :cb         ?cb}))
   ([chsk ev opts]
      (tracef "Chsk send: (%s) %s" (assoc opts :cb (boolean (:cb opts))) ev)
-     (chsk-send!* chsk ev opts)))
+     (-chsk-send! chsk ev opts)))
 
 #+cljs
 (defn- assert-send-args [x ?timeout-ms ?cb]
@@ -740,20 +740,21 @@
         :handled))))
 
 #+cljs
-(defn set-exp-backoff-timeout! [nullary-f nattempt & [backoff-ms-fn]]
-  (let [timeout-ms (backoff-ms-fn (or nattempt 0))]
-    (.setTimeout js/window nullary-f timeout-ms)))
+(defn- after-timeout [msecs nullary-f]
+  (let [timer-id (.setTimeout js/window nullary-f msecs)]
+    (fn stop [] (.clearTimeout js/window timer-id) nil)))
 
 #+cljs ;; Handles reconnects, keep-alives, callbacks:
 (defrecord ChWebSocket
     [client-id url params chs socket_ kalive-ms kalive-timer_ kalive-due?_ nattempt_
-     cbs-waiting_ ; {<cb-uuid> <fn> ...}
-     state_       ; {:type _ :open? _ :uid _ :csrf-token _ :destroyed? _}
-     packer       ; IPacker
-     backoff-ms-fn]
+     cbs-waiting _ ; {<cb-uuid> <fn> ...}
+     state_        ; {:type _ :open? _ :uid _ :csrf-token _ :destroyed? _}
+     packer        ; IPacker
+     backoff-ms-fn ; (fn [nattempt]) -> msecs
+     ]
 
   IChSocket
-  (chsk-send!* [chsk ev {:as opts ?timeout-ms :timeout-ms ?cb :cb :keys [flush?]}]
+  (-chsk-send! [chsk ev {:as opts ?timeout-ms :timeout-ms ?cb :cb :keys [flush?]}]
     (assert-send-args ev ?timeout-ms ?cb)
     (let [?cb-fn (cb-chan-as-fn ?cb ev)]
       (if-not (:open? @state_) ; Definitely closed
@@ -791,20 +792,22 @@
     (merge>chsk-state! chsk {:open? false :destroyed? true})
     (when-let [s @socket_] (.close s 1000 "CLOSE_NORMAL")))
 
-  (chsk-init! [chsk]
+  (-chsk-init! [chsk]
     (when-let [WebSocket (or (enc/oget js/window "WebSocket")
                              (enc/oget js/window "MozWebSocket"))]
-      ((fn connect! []
-         (when-not (:destroyed? @state_)
-           (let [retry!
-                 (fn []
-                   (let [nattempt* (swap! nattempt_ inc)]
-                     (.clearInterval js/window @kalive-timer_)
-                     (warnf "Chsk is closed: will try reconnect (%s)." nattempt*)
-                     (set-exp-backoff-timeout! connect! nattempt*
-                       backoff-ms-fn)))]
+      (let [connect-fn
+            (fn connect-fn []
 
-             (if-let [socket
+              (when-not (:destroyed? @state_)
+                (let [retry-fn
+                      (fn []
+                        (let [nattempt*  (swap! nattempt_ inc)
+                              backoff-ms (backoff-ms-fn nattempt*)]
+                          (.clearInterval js/window @kalive-timer_)
+                          (warnf "Chsk is closed: will try reconnect (%s)." nattempt*)
+                          (after-timeout backoff-ms connect-fn)))
+
+                      ?socket
                       (try
                         (WebSocket.
                           (enc/merge-url-with-query-string url
@@ -814,51 +817,52 @@
                           (errorf e "WebSocket js/Error")
                           nil))]
 
-               (reset! socket_
-                 (doto socket
-                   (aset "onerror" (fn [ws-ev] (errorf "WebSocket error: %s" ws-ev)))
-                   (aset "onmessage" ; Nb receives both push & cb evs!
-                     (fn [ws-ev]
-                       (let [;; Nb may or may NOT satisfy `event?` since we also
-                             ;; receive cb replies here! This is actually why
-                             ;; we prefix our pstrs to indicate whether they're
-                             ;; wrapped or not.
-                             ppstr (enc/oget ws-ev "data")
-                             [clj ?cb-uuid] (unpack packer ppstr)]
-                         ;; (assert-event clj) ;; NO!
-                         (or
-                           (and (handle-when-handshake! chsk chs clj)
-                                (reset! nattempt_ 0))
-                           (if-let [cb-uuid ?cb-uuid]
-                             (if-let [cb-fn (pull-unused-cb-fn! cbs-waiting_
-                                              cb-uuid)]
-                               (cb-fn clj)
-                               (warnf "Cb reply w/o local cb-fn: %s" clj))
-                             (let [buffered-evs clj]
-                               (receive-buffered-evs! chs buffered-evs)))))))
+                  (if-not ?socket
+                    (retry-fn) ; Couldn't even get a socket
 
-                   (aset "onopen"
-                     (fn [_ws-ev]
-                       (reset! kalive-timer_
-                         (.setInterval js/window
-                           (fn []
-                             (when @kalive-due?_ ; Don't ping unnecessarily
-                               (chsk-send! chsk [:chsk/ws-ping]))
-                             (reset! kalive-due?_ true))
-                           kalive-ms))
-                       ;; NO, better for server to send a handshake!:
-                       ;; (merge>chsk-state! chsk {:open? true})
-                       ))
+                    (reset! socket_
+                      (doto socket
+                        (aset "onerror" (fn [ws-ev] (errorf "WebSocket error: %s" ws-ev)))
+                        (aset "onmessage" ; Nb receives both push & cb evs!
+                          (fn [ws-ev]
+                            (let [;; Nb may or may NOT satisfy `event?` since we also
+                                  ;; receive cb replies here! This is actually why
+                                  ;; we prefix our pstrs to indicate whether they're
+                                  ;; wrapped or not.
+                                  ppstr (enc/oget ws-ev "data")
+                                  [clj ?cb-uuid] (unpack packer ppstr)]
+                              ;; (assert-event clj) ;; NO!
+                              (or
+                                (and (handle-when-handshake! chsk chs clj)
+                                     (reset! nattempt_ 0))
+                                (if-let [cb-uuid ?cb-uuid]
+                                  (if-let [cb-fn (pull-unused-cb-fn! cbs-waiting_
+                                                   cb-uuid)]
+                                    (cb-fn clj)
+                                    (warnf "Cb reply w/o local cb-fn: %s" clj))
+                                  (let [buffered-evs clj]
+                                    (receive-buffered-evs! chs buffered-evs)))))))
 
-                   ;; Fires repeatedly (on each connection attempt) while
-                   ;; server is down:
-                   (aset "onclose"
-                     (fn [_ws-ev]
-                       (merge>chsk-state! chsk {:open? false})
-                       (retry!)))))
+                        (aset "onopen"
+                          (fn [_ws-ev]
+                            (reset! kalive-timer_
+                              (.setInterval js/window
+                                (fn []
+                                  (when @kalive-due?_ ; Don't ping unnecessarily
+                                    (chsk-send! chsk [:chsk/ws-ping]))
+                                  (reset! kalive-due?_ true))
+                                kalive-ms))
+                            ;; NO, better for server to send a handshake!:
+                            ;; (merge>chsk-state! chsk {:open? true})
+                            ))
 
-               ;; Couldn't even get a socket:
-               (retry!))))))
+                        ;; Fires repeatedly (on each connection attempt) while
+                        ;; server is down:
+                        (aset "onclose"
+                          (fn [_ws-ev]
+                            (merge>chsk-state! chsk {:open? false})
+                            (retry!)))))))))]
+        (connect-fn))
       chsk)))
 
 #+cljs
@@ -866,7 +870,7 @@
     [client-id url params chs timeout-ms ajax-opts curr-xhr_ state_ packer
      backoff-ms-fn]
   IChSocket
-  (chsk-send!* [chsk ev {:as opts ?timeout-ms :timeout-ms ?cb :cb :keys [flush?]}]
+  (-chsk-send! [chsk ev {:as opts ?timeout-ms :timeout-ms ?cb :cb :keys [flush?]}]
     (assert-send-args ev ?timeout-ms ?cb)
     (let [?cb-fn (cb-chan-as-fn ?cb ev)]
       (if-not (:open? @state_) ; Definitely closed
@@ -917,63 +921,64 @@
     (merge>chsk-state! chsk {:open? false :destroyed? true})
     (when-let [x @curr-xhr_] (.abort x)))
 
-  (chsk-init! [chsk]
-    ((fn async-poll-for-update! [nattempt]
-       (tracef "async-poll-for-update!")
-       (when-not (:destroyed? @state_)
-         (let [retry!
-               (fn []
-                 (let [nattempt* (inc nattempt)]
-                   (warnf "Chsk is closed: will try reconnect (%s)." nattempt*)
-                   (set-exp-backoff-timeout!
-                     (partial async-poll-for-update! nattempt*)
-                     nattempt*
-                     backoff-ms-fn)))]
+  (-chsk-init! [chsk]
+    (let [poll-fn ; async-poll-for-update-fn
+          (fn poll-fn [nattempt]
+            (tracef "async-poll-for-update!")
 
-           (reset! curr-xhr_
-             (enc/ajax-lite url
-               (merge ajax-opts
-                 {:method :get :timeout-ms timeout-ms
-                  :resp-type :text ; Prefer to do our own pstr reading
-                  :params
-                  (merge
+            (when-not (:destroyed? @state_)
+              (let [retry-fn
+                    (fn []
+                      (let [nattempt*  (inc nattempt)
+                            backoff-ms (backoff-ms-fn nattempt*)]
+                        (warnf "Chsk is closed: will try reconnect (%s)." nattempt*)
+                        (after-timeout backoff-ms (fn [] (poll-fn nattempt*))
+                          connect-fn)))]
 
-                    ;; Note that user params here are actually POST params for
-                    ;; convenience. Contrast: WebSocket params sent as query
-                    ;; params since there's no other choice there.
-                    params ; User params first (don't clobber impl. params)
+                (reset! curr-xhr_
+                  (enc/ajax-lite url
+                    (merge ajax-opts
+                      {:method :get :timeout-ms timeout-ms
+                       :resp-type :text ; Prefer to do our own pstr reading
+                       :params
+                       (merge
 
-                    {:_          (enc/now-udt) ; Force uncached resp
-                     :client-id  client-id}
+                         ;; Note that user params here are actually POST params for
+                         ;; convenience. Contrast: WebSocket params sent as query
+                         ;; params since there's no other choice there.
+                         params ; User params first (don't clobber impl. params)
 
-                    ;; A truthy :handshake? param will prompt server to
-                    ;; reply immediately with a handshake response,
-                    ;; letting us confirm that our client<->server comms
-                    ;; are working:
-                    (when-not (:open? @state_) {:handshake? true}))})
+                         {:_          (enc/now-udt) ; Force uncached resp
+                          :client-id  client-id}
 
-               (fn ajax-cb [{:keys [?error ?content]}]
-                 (if ?error
-                   (cond
-                     (= ?error :timeout) (async-poll-for-update! 0)
-                     ;; (= ?error :abort) ; Abort => intentional, not an error
-                     :else
-                     (do (merge>chsk-state! chsk {:open? false})
-                         (retry!)))
+                         ;; A truthy :handshake? param will prompt server to
+                         ;; reply immediately with a handshake response,
+                         ;; letting us confirm that our client<->server comms
+                         ;; are working:
+                         (when-not (:open? @state_) {:handshake? true}))})
 
-                   ;; The Ajax long-poller is used only for events, never cbs:
-                   (let [content ?content
-                         ppstr   content
-                         [clj _] (unpack packer ppstr)]
-                     (or
-                       (handle-when-handshake! chsk chs clj)
-                       ;; Actually poll for an application reply:
-                       (let [buffered-evs clj]
-                         (receive-buffered-evs! chs buffered-evs)
-                         (merge>chsk-state! chsk {:open? true})))
-                     (async-poll-for-update! 0)))))))))
-     0)
-    chsk))
+                    (fn ajax-cb [{:keys [?error ?content]}]
+                      (if ?error
+                        (cond
+                          (= ?error :timeout) (poll-fn 0)
+                          ;; (= ?error :abort) ; Abort => intentional, not an error
+                          :else
+                          (do (merge>chsk-state! chsk {:open? false})
+                              (retry-fn)))
+
+                        ;; The Ajax long-poller is used only for events, never cbs:
+                        (let [content ?content
+                              ppstr   content
+                              [clj _] (unpack packer ppstr)]
+                          (or
+                            (handle-when-handshake! chsk chs clj)
+                            ;; Actually poll for an application reply:
+                            (let [buffered-evs clj]
+                              (receive-buffered-evs! chs buffered-evs)
+                              (merge>chsk-state! chsk {:open? true})))
+                          (poll-fn 0)))))))))]
+      (poll-fn 0)
+      chsk)))
 
 #+cljs
 (defn- get-chsk-url [protocol chsk-host chsk-path type]
@@ -1075,7 +1080,7 @@
         chsk
         (or
          (and (not= type :ajax)
-              (chsk-init!
+              (-chsk-init!
                 (map->ChWebSocket
                   {:client-id     client-id
                    :url           (if-let [f (:chsk-url-fn opts)]
@@ -1095,7 +1100,7 @@
                    :backoff-ms-fn backoff-ms-fn})))
 
          (and (not= type :ws)
-              (chsk-init!
+              (-chsk-init!
                 (map->ChAjaxSocket
                   {:client-id     client-id
                    :url           (if-let [f (:chsk-url-fn opts)]
