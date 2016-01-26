@@ -1,4 +1,4 @@
-(defproject com.taoensso/sente "1.7.0"
+(defproject com.taoensso/sente "1.8.0-alpha1"
   :author "Peter Taoussanis <https://www.taoensso.com>"
   :description "Realtime web comms for Clojure/Script"
   :url "https://github.com/ptaoussanis/sente"
@@ -15,7 +15,7 @@
    [org.clojure/core.async   "0.2.374"]
    [com.taoensso/encore      "2.32.0"]
    [org.clojure/tools.reader "0.10.0"]
-   [com.taoensso/timbre      "4.2.0"]]
+   [com.taoensso/timbre      "4.2.1"]]
 
   :profiles
   {;; :default [:base :system :user :provided :dev]
@@ -23,15 +23,11 @@
    :1.5  {:dependencies [[org.clojure/clojure "1.5.1"]]}
    :1.6  {:dependencies [[org.clojure/clojure "1.6.0"]]}
    :1.7  {:dependencies [[org.clojure/clojure "1.7.0"]]}
-   :1.8  {:dependencies [[org.clojure/clojure "1.8.0-RC3"]]}
+   :1.8  {:dependencies [[org.clojure/clojure "1.8.0"]]}
    :test {:dependencies [[com.cognitect/transit-clj  "0.8.285"]
                          [com.cognitect/transit-cljs "0.8.237"]
-                         [expectations               "2.1.4"]
-                         [org.clojure/test.check     "0.9.0"]
-                         ;; [com.cemerick/double-check "0.6.1"]
-                         ]
-          :plugins [[lein-expectations "0.0.8"]
-                    [lein-autoexpect   "1.7.0"]]}
+                         [org.clojure/test.check     "0.9.0"]]
+          :plugins []}
 
    :provided {:dependencies [[org.clojure/clojurescript "1.7.170"]]}
 
@@ -49,8 +45,6 @@
       [lein-pprint                     "1.1.2"]
       [lein-ancient                    "0.6.8"]
       ;; [com.cemerick/austin          "0.1.4"]
-      [lein-expectations               "0.0.8"]
-      [lein-autoexpect                 "1.7.0"]
       [com.cemerick/clojurescript.test "0.3.3"]
       [lein-codox                      "0.9.1"]]}]}
 
@@ -81,8 +75,10 @@
     "https://github.com/ptaoussanis/sente/blob/master/{filepath}#L{line}"}}
 
   :aliases
-  {"test-all"   ["with-profile" "+1.6:+1.7:+1.8" "expectations"]
-   "test-auto"  ["with-profile" "+test" "autoexpect"]
+  {"test-all"   ["do" "clean," "cljx" "once,"
+                 "with-profile" "+1.6:+1.7:+1.8" "test,"
+                 ;; "with-profile" "+test" "cljsbuild" "test"
+                 ]
    "build-once" ["do" "cljx" "once," "cljsbuild" "once"]
    "deploy-lib" ["do" "build-once," "deploy" "clojars," "install"]
    "start-dev"  ["with-profile" "+server-jvm" "repl" ":headless"]}
