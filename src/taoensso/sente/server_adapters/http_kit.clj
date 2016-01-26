@@ -6,9 +6,9 @@
 
 (extend-type org.httpkit.server.AsyncChannel
   i/IServerChan
-  (open?  [hk-ch] (http-kit/open? hk-ch))
-  (close! [hk-ch] (http-kit/close hk-ch))
-  (-send! [hk-ch msg close-after-send?]
+  (sch-open?  [hk-ch] (http-kit/open? hk-ch))
+  (sch-close! [hk-ch] (http-kit/close hk-ch))
+  (-sch-send! [hk-ch msg close-after-send?]
     (http-kit/send! hk-ch msg close-after-send?)))
 
 (deftype HttpKitServerChanAdapter []

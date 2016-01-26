@@ -20,19 +20,19 @@
 (defprotocol IServerChan
   ;; Wraps a web server's own async channel/comms interface to abstract away
   ;; implementation differences
-  (open?  [server-ch] "Returns true iff the server channel is currently open")
-  (close! [server-ch]
+  (sch-open?  [server-ch] "Returns true iff the server channel is currently open")
+  (sch-close! [server-ch]
     "Closes the server channel and returns true iff the channel was open when
     called.")
-  (-send! [server-ch msg close-after-send?]
+  (-sch-send! [server-ch msg close-after-send?]
     "Sends a message to server channel. Returns true iff the channel was open
     when called."))
 
-(defn send!
+(defn sch-send!
   "Sends a message to server channel. Returns true iff the channel was open
    when called."
-  ([server-ch msg                  ] (-send! server-ch msg false))
-  ([server-ch msg close-after-send?] (-send! server-ch msg close-after-send?)))
+  ([server-ch msg                  ] (-sch-send! server-ch msg false))
+  ([server-ch msg close-after-send?] (-sch-send! server-ch msg close-after-send?)))
 
 (defprotocol IServerChanAdapter
   ;; Wraps a web server's own Ring-request->async-channel-response interface to

@@ -6,9 +6,9 @@
 
 (extend-type org.projectodd.wunderboss.web.async.Channel
   i/IServerChan
-  (open?  [im-ch] (immutant/open? im-ch))
-  (close! [im-ch] (immutant/close im-ch))
-  (-send! [im-ch msg close-after-send?]
+  (sch-open?  [im-ch] (immutant/open? im-ch))
+  (sch-close! [im-ch] (immutant/close im-ch))
+  (-sch-send! [im-ch msg close-after-send?]
     (immutant/send! im-ch msg {:close? close-after-send?})))
 
 (deftype ImmutantServerChanAdapter

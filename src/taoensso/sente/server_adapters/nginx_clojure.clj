@@ -9,9 +9,9 @@
 
 (extend-type nginx.clojure.NginxHttpServerChannel
   i/IServerChan
-  (open?  [nc-ch] (not (ncc/closed? nc-ch)))
-  (close! [nc-ch] (ncc/close! nc-ch))
-  (-send! [nc-ch msg close-after-send?]
+  (sch-open?  [nc-ch] (not (ncc/closed? nc-ch)))
+  (sch-close! [nc-ch] (ncc/close! nc-ch))
+  (-sch-send! [nc-ch msg close-after-send?]
     (let [closed? (ncc/closed? nc-ch)]
       (ncc/send! nc-ch msg true (boolean close-after-send?))
       (not closed?))))

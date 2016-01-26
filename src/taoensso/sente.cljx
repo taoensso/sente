@@ -13,6 +13,7 @@
     * chsk      - Channel socket (Sente's own pseudo \"socket\")
     * server-ch - Underlying web server's async channel that implement Sente's
                   server channel interface
+    * sch       - server-ch alias
     * uid       - User-id. An application-level user identifier used for async
                   push. May have semantic meaning (e.g. username, email address),
                   may not (e.g. client/random id) - app's discretion.
@@ -367,11 +368,11 @@
                     (flush-buffer! type)))
 
                 (doseq [server-ch (vals (get-in @conns_ [:ws uid]))]
-                  (interfaces/close! server-ch))
+                  (interfaces/sch-close! server-ch))
 
                 (doseq [[?server-ch _] (vals (get-in @conns_ [:ajax uid]))]
                   (when-let [server-ch ?server-ch]
-                    (interfaces/close! server-ch))))
+                    (interfaces/sch-close! server-ch))))
 
               (do
                 ;; Buffer event
@@ -431,13 +432,13 @@
                      (fn reply-fn [resp-clj] ; Any clj form
                        (tracef "Chsk send (ajax reply): %s" resp-clj)
                        ;; true iff apparent success:
-                       (interfaces/send! server-ch
+                       (interfaces/sch-send! server-ch
                          (pack packer (meta resp-clj) resp-clj)
                          :close-after-send)))}))
 
               (when-not has-cb?
                 (tracef "Chsk send (ajax reply): dummy-cb-200")
-                (interfaces/send! server-ch
+                (interfaces/sch-send! server-ch
                   (pack packer nil :chsk/dummy-cb-200)
                   :close-after-send))))}))
 
@@ -467,7 +468,7 @@
                      (if-not (nil? ?handshake-data) ; Micro optimization
                        [:chsk/handshake [uid csrf-token ?handshake-data]]
                        [:chsk/handshake [uid csrf-token]])]
-                 (interfaces/send! server-ch
+                 (interfaces/sch-send! server-ch
                    (pack packer nil handshake-ev)
                    (not websocket?))))]
 
@@ -510,7 +511,7 @@
                       (fn reply-fn [resp-clj] ; Any clj form
                         (tracef "Chsk send (ws reply): %s" resp-clj)
                         ;; true iff apparent success:
-                        (interfaces/send! server-ch
+                        (interfaces/sch-send! server-ch
                           (pack packer (meta resp-clj) resp-clj ?cb-uuid)))))))
 
               :on-close ; We rely on `on-close` to trigger for _every_ conn!
@@ -572,7 +573,7 @@
   [conns_ uid buffered-evs-pstr]
   (tracef "send-buffered-server-evs>ws-clients!: %s" buffered-evs-pstr)
   (doseq [server-ch (vals (get-in @conns_ [:ws uid]))]
-    (interfaces/send! server-ch buffered-evs-pstr)))
+    (interfaces/sch-send! server-ch buffered-evs-pstr)))
 
 (defn- send-buffered-server-evs>ajax-clients!
   "Actually pushes buffered events (as packed-str) to all uid's Ajax conns.
@@ -610,7 +611,7 @@
                    (fn [s client-id [?server-ch _]]
                      (if (or (nil? ?server-ch)
                              ;; server-ch may have closed already (`send!` will noop):
-                             (not (interfaces/send! ?server-ch buffered-evs-pstr
+                             (not (interfaces/sch-send! ?server-ch buffered-evs-pstr
                                     :close-after-send)))
                        s
                        (conj s client-id))) #{} ?pulled))
