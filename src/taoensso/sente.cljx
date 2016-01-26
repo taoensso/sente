@@ -5,26 +5,26 @@
     * WebSockets:       ✓              [1]                           ✓
     * Ajax:            [2]              ✓                           [3]
 
-    [1] Emulate with cb-uuid wrapping.
-    [2] Emulate with dummy-cb wrapping.
-    [3] Emulate with long-polling.
+    [1] Emulate with cb-uuid wrapping
+    [2] Emulate with dummy-cb wrapping
+    [3] Emulate with long-polling
 
   Abbreviations:
-    * chsk   - Channel socket. Sente's own pseudo \"socket\".
-    * net-ch - Network channel. Underlying web server's channel. Must implement
-               Sente's async net channel interface.
-    * uid    - User-id. An application-level user identifier used for async push.
-               May have semantic meaning (e.g. username, email address), or not
-               (e.g. client/random id) - app's discretion.
-    * cb     - Callback.
-    * tout   - Timeout.
-    * ws     - WebSocket/s.
-    * pstr   - Packed string. Arbitrary Clojure data serialized as a string (e.g.
-               edn) for client<->server comms.
+    * chsk      - Channel socket (Sente's own pseudo \"socket\")
+    * server-ch - Underlying web server's async channel that implement Sente's
+                  server channel interface
+    * uid       - User-id. An application-level user identifier used for async
+                  push. May have semantic meaning (e.g. username, email address),
+                  may not (e.g. client/random id) - app's discretion.
+    * cb        - Callback
+    * tout      - Timeout
+    * ws        - WebSocket/s
+    * pstr      - Packed string. Arbitrary Clojure data serialized as a string
+                  (e.g. edn) for client<->server comms.
 
   Special messages:
-    * Callback wrapping: [<clj> <?cb-uuid>] for [1],[2].
-    * Callback replies: :chsk/closed, :chsk/timeout, :chsk/error.
+    * Callback wrapping: [<clj> <?cb-uuid>] for [1],[2]
+    * Callback replies: :chsk/closed, :chsk/timeout, :chsk/error
     * Client-side events:
         [:chsk/handshake [<?uid> <?csrf-token> <?handshake-data>]],
         [:chsk/state <new-state>],
@@ -246,7 +246,7 @@
       (slow) reconnecting poller. Actual event dispatch may occur <= given ms
       after send call (larger values => larger batch windows)."
 
-  [web-server-adapter ; Actually a net-ch-adapter, but that may be confusing
+  [web-server-adapter ; Actually a server-ch-adapter, but that may be confusing
    & [{:keys [recv-buf-or-n send-buf-ms-ajax send-buf-ms-ws
               user-id-fn csrf-token-fn handshake-data-fn packer]
        :or   {recv-buf-or-n (async/sliding-buffer 1000)
@@ -261,13 +261,13 @@
               packer :edn}}]]
 
   {:pre [(have? enc/pos-int? send-buf-ms-ajax send-buf-ms-ws)
-         (have? #(satisfies? interfaces/IAsyncNetworkChannelAdapter %)
+         (have? #(satisfies? interfaces/IServerChanAdapter %)
            web-server-adapter)]}
 
   (let [packer  (interfaces/coerce-packer packer)
         ch-recv (chan recv-buf-or-n)
-        conns_  (atom {:ws   {} ; {<uid> {<client-id> <net-ch>}}
-                       :ajax {} ; {<uid> {<client-id> [<?net-ch> <udt-last-connected>]}}
+        conns_  (atom {:ws   {} ; {<uid> {<client-id> <server-ch>}}
+                       :ajax {} ; {<uid> {<client-id> [<?server-ch> <udt-last-connected>]}}
                        })
         connected-uids_ (atom {:ws #{} :ajax #{} :any #{}})
         send-buffers_   (atom {:ws  {} :ajax  {}}) ; {<uid> [<buffered-evs> <#{ev-uuids}>]}
@@ -368,12 +368,12 @@
                   (doseq [type [:ws :ajax]]
                     (flush-buffer! type)))
 
-                (doseq [net-ch (vals (get-in @conns_ [:ws uid]))]
-                  (interfaces/close! net-ch))
+                (doseq [server-ch (vals (get-in @conns_ [:ws uid]))]
+                  (interfaces/close! server-ch))
 
-                (doseq [[?net-ch _] (vals (get-in @conns_ [:ajax uid]))]
-                  (when-let [net-ch ?net-ch]
-                    (interfaces/close! net-ch))))
+                (doseq [[?server-ch _] (vals (get-in @conns_ [:ajax uid]))]
+                  (when-let [server-ch ?server-ch]
+                    (interfaces/close! server-ch))))
 
               (do
                 ;; Buffer event
@@ -410,9 +410,9 @@
 
      :ajax-post-fn ; Does not participate in `conns_` (has specific req->resp)
      (fn [ring-req]
-       (interfaces/ring-req->net-ch-resp web-server-adapter ring-req
+       (interfaces/ring-req->server-ch-resp web-server-adapter ring-req
          {:on-open
-          (fn [net-ch]
+          (fn [server-ch]
             (let [params        (get ring-req :params)
                   ppstr         (get params   :ppstr)
                   client-id     (get params   :client-id)
@@ -433,13 +433,13 @@
                      (fn reply-fn [resp-clj] ; Any clj form
                        (tracef "Chsk send (ajax reply): %s" resp-clj)
                        ;; true iff apparent success:
-                       (interfaces/send! net-ch
+                       (interfaces/send! server-ch
                          (pack packer (meta resp-clj) resp-clj)
                          :close-after-send)))}))
 
               (when-not has-cb?
                 (tracef "Chsk send (ajax reply): dummy-cb-200")
-                (interfaces/send! net-ch
+                (interfaces/send! server-ch
                   (pack packer nil :chsk/dummy-cb-200)
                   :close-after-send))))}))
 
@@ -462,14 +462,14 @@
                     :uid       uid})))
 
              handshake!
-             (fn [net-ch]
+             (fn [server-ch]
                (tracef "Handshake!")
                (let [?handshake-data (handshake-data-fn ring-req)
                      handshake-ev
                      (if-not (nil? ?handshake-data) ; Micro optimization
                        [:chsk/handshake [uid csrf-token ?handshake-data]]
                        [:chsk/handshake [uid csrf-token]])]
-                 (interfaces/send! net-ch
+                 (interfaces/send! server-ch
                    (pack packer nil handshake-ev)
                    (not websocket?))))]
 
@@ -478,22 +478,22 @@
              (errorf (str err-msg ": %s") ring-req)
              (throw (ex-info err-msg {:ring-req ring-req})))
 
-           (interfaces/ring-req->net-ch-resp web-server-adapter ring-req
+           (interfaces/ring-req->server-ch-resp web-server-adapter ring-req
              {:on-open
-              (fn [net-ch]
+              (fn [server-ch]
                 (if websocket?
                   (do ; WebSocket handshake
                     (tracef "New WebSocket channel: %s (%s)"
-                      uid (str net-ch)) ; _Must_ call `str` on net-ch
-                    (reset-in! conns_ [:ws uid client-id] net-ch)
+                      uid (str server-ch)) ; _Must_ call `str` on server-ch
+                    (reset-in! conns_ [:ws uid client-id] server-ch)
                     (when (connect-uid! :ws uid)
                       (receive-event-msg! [:chsk/uidport-open]))
-                    (handshake! net-ch))
+                    (handshake! server-ch))
 
                   ;; Ajax handshake/poll connection:
                   (let [initial-conn-from-client?
                         (swap-in! conns_ [:ajax uid client-id]
-                          (fn [?v] (swapped [net-ch (enc/now-udt)] (nil? ?v))))
+                          (fn [?v] (swapped [server-ch (enc/now-udt)] (nil? ?v))))
 
                         handshake? (or initial-conn-from-client?
                                        (:handshake? params))]
@@ -502,21 +502,21 @@
                       (receive-event-msg! [:chsk/uidport-open]))
 
                     ;; Client will immediately repoll:
-                    (when handshake? (handshake! net-ch)))))
+                    (when handshake? (handshake! server-ch)))))
 
               :on-msg ; Only for WebSockets
-              (fn [net-ch req-ppstr]
+              (fn [server-ch req-ppstr]
                 (let [[clj ?cb-uuid] (unpack packer req-ppstr)]
                   (receive-event-msg! clj ; Should be ev
                     (when ?cb-uuid
                       (fn reply-fn [resp-clj] ; Any clj form
                         (tracef "Chsk send (ws reply): %s" resp-clj)
                         ;; true iff apparent success:
-                        (interfaces/send! net-ch
+                        (interfaces/send! server-ch
                           (pack packer (meta resp-clj) resp-clj ?cb-uuid)))))))
 
               :on-close ; We rely on `on-close` to trigger for _every_ conn!
-              (fn [net-ch status]
+              (fn [server-ch status]
                 ;; `status` is currently unused; its form varies depending on
                 ;; the underlying web server
 
@@ -545,7 +545,7 @@
 
                   (do ; Ajax close
                     (swap-in! conns_ [uid :ajax client-id]
-                      (fn [[net-ch udt-last-connected]] [nil udt-last-connected]))
+                      (fn [[server-ch udt-last-connected]] [nil udt-last-connected]))
 
                     (let [udt-disconnected (enc/now-udt)]
                       (go
@@ -574,8 +574,8 @@
   "Actually pushes buffered events (as packed-str) to all uid's WebSocket conns."
   [conns_ uid buffered-evs-pstr]
   (tracef "send-buffered-evs>ws-clients!: %s" buffered-evs-pstr)
-  (doseq [net-ch (vals (get-in @conns_ [:ws uid]))]
-    (interfaces/send! net-ch buffered-evs-pstr)))
+  (doseq [server-ch (vals (get-in @conns_ [:ws uid]))]
+    (interfaces/send! server-ch buffered-evs-pstr)))
 
 #+clj
 (defn- send-buffered-evs>ajax-clients!
@@ -592,9 +592,9 @@
     (when-not (empty? client-ids-unsatisfied)
       ;; (tracef "client-ids-unsatisfied: %s" client-ids-unsatisfied)
       (go-loop [n 0 client-ids-satisfied #{}]
-        (let [?pulled ; nil or {<client-id> [<?net-ch> <udt-last-connected>]}
+        (let [?pulled ; nil or {<client-id> [<?server-ch> <udt-last-connected>]}
               (swap-in! conns_ [:ajax uid]
-                (fn [m] ; {<client-id> [<?net-ch> <udt-last-connected>]}
+                (fn [m] ; {<client-id> [<?server-ch> <udt-last-connected>]}
                   (let [ks-to-pull (remove client-ids-satisfied (keys m))]
                     ;; (tracef "ks-to-pull: %s" ks-to-pull)
                     (if (empty? ks-to-pull)
@@ -602,7 +602,7 @@
                       (swapped
                         (reduce
                           (fn [m k]
-                            (let [[?net-ch udt-last-connected] (get m k)]
+                            (let [[?server-ch udt-last-connected] (get m k)]
                               (assoc m k [nil udt-last-connected])))
                           m ks-to-pull)
                         (select-keys m ks-to-pull))))))]
@@ -610,10 +610,10 @@
           (let [?newly-satisfied
                 (when ?pulled
                   (reduce-kv
-                   (fn [s client-id [?net-ch _]]
-                     (if (or (nil? ?net-ch)
-                             ;; net-ch may have closed already (`send!` will noop):
-                             (not (interfaces/send! ?net-ch buffered-evs-pstr
+                   (fn [s client-id [?server-ch _]]
+                     (if (or (nil? ?server-ch)
+                             ;; server-ch may have closed already (`send!` will noop):
+                             (not (interfaces/send! ?server-ch buffered-evs-pstr
                                     :close-after-send)))
                        s
                        (conj s client-id))) #{} ?pulled))

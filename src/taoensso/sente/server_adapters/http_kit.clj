@@ -1,20 +1,19 @@
 (ns taoensso.sente.server-adapters.http-kit
-  "Experimental- subject to change!
-  Optional http-kit adapter for use with Sente."
+  "Optional http-kit adapter for use with Sente."
   {:author "Peter Taoussanis (@ptaoussanis)"}
   (:require [taoensso.sente.interfaces :as i]
             [org.httpkit.server :as http-kit]))
 
 (extend-type org.httpkit.server.AsyncChannel
-  i/IAsyncNetworkChannel
+  i/IServerChan
   (open?  [hk-ch] (http-kit/open? hk-ch))
   (close! [hk-ch] (http-kit/close hk-ch))
-  (send!* [hk-ch msg close-after-send?]
+  (-send! [hk-ch msg close-after-send?]
     (http-kit/send! hk-ch msg close-after-send?)))
 
-(deftype HttpKitAsyncNetworkChannelAdapter []
-  i/IAsyncNetworkChannelAdapter
-  (ring-req->net-ch-resp [net-ch-adapter ring-req callbacks-map]
+(deftype HttpKitServerChanAdapter []
+  i/IServerChanAdapter
+  (ring-req->server-ch-resp [server-ch-adapter ring-req callbacks-map]
     (let [{:keys [on-open on-msg on-close]} callbacks-map]
       ;; Returns {:body <http-kit-implementation-channel>}:
       (http-kit/with-channel ring-req hk-ch
@@ -31,5 +30,7 @@
         (when on-open (on-open hk-ch)) ; Place last (racey side effects)
         ))))
 
-(def http-kit-adapter (HttpKitAsyncNetworkChannelAdapter.))
-(def sente-web-server-adapter http-kit-adapter) ; Alias for ns import convenience
+(def http-kit-adapter (HttpKitServerChanAdapter.))
+(def sente-web-server-adapter
+  "Alias for ns import convenience"
+  http-kit-adapter)

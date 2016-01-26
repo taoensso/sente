@@ -1,37 +1,53 @@
 (ns taoensso.sente.interfaces
-  "Experimental - subject to change!
+  "Alpha, subject to change.
   Public interfaces / extension points."
-  #+clj  (:require [taoensso.encore :as enc])
-  #+cljs (:require [taoensso.encore :as enc]))
+  (:require [taoensso.encore :as enc]))
 
-;;;; Network channels
+;;;; Server channels
 
-#+clj
-(defprotocol IAsyncNetworkChannel
+;; For use with Sente, a web server must implement the 2 protocols here.
+;;
+;; Some assumptions made by Sente:
+;; - Server will set `{:websocket? true}` in the Ring request map of
+;;   WebSocket handshakes.
+;; - If the client closes a connection, the server will detect and close
+;;   as well, without any interaction from Sente itself.
+;;
+;; Please see the `taoensso.sente.server-adapters.*` namespaces for
+;; examples. Ref. https://github.com/ptaoussanis/sente/issues/102 for more
+;; info and/or questions.
+
+(defprotocol IServerChan
   ;; Wraps a web server's own async channel/comms interface to abstract away
   ;; implementation differences
-  (send!* [net-ch msg close-after-send?] "Sends a message to channel.")
-  (open?  [net-ch] "Returns true iff the channel is currently open.")
-  (close! [net-ch] "Closes the channel."))
+  (open?  [server-ch] "Returns true iff the server channel is currently open")
+  (close! [server-ch]
+    "Closes the server channel and returns true iff the channel was open when
+    called.")
+  (-send! [server-ch msg close-after-send?]
+    "Sends a message to server channel. Returns true iff the channel was open
+    when called."))
 
-#+clj (defn send! [net-ch msg & [close-after-send?]]
-        (send!* net-ch msg close-after-send?))
+(defn send!
+  "Sends a message to server channel. Returns true iff the channel was open
+   when called."
+  ([server-ch msg                  ] (-send! server-ch msg false))
+  ([server-ch msg close-after-send?] (-send! server-ch msg close-after-send?)))
 
-#+clj
-(defprotocol IAsyncNetworkChannelAdapter
+(defprotocol IServerChanAdapter
   ;; Wraps a web server's own Ring-request->async-channel-response interface to
   ;; abstract away implementation differences
-  (ring-req->net-ch-resp [net-ch-adapter ring-req callbacks-map]
+  (ring-req->server-ch-resp [server-ch-adapter ring-req callbacks-map]
     "Given a Ring request (WebSocket handshake or Ajax GET/POST), returns a Ring
     response map with a web-server-specific channel :body that implements
-    Sente's IAsyncNetworkChannel protocol.
+    Sente's IServerChan protocol.
 
     Configures channel callbacks with a callbacks map using keys:
-      :on-open  - (fn [net-ch]) called exactly once after channel is available
-                  for sending.
-      :on-close - (fn [net-ch status]) called exactly once after channel is
+      :on-open  - (fn [server-ch]) called exactly once after channel is
+                  available for sending.
+      :on-close - (fn [server-ch status]) called exactly once after channel is
                   closed for ANY cause, incl. a call to `close!`.
-      :on-msg   - (fn [net-ch msg]) called for each String or byte[] message
+      :on-msg   - (fn [server-ch msg]) called for each String or byte[] message
                   received from client. Currently only used for WebSocket clients."))
 
 ;;;; Packers
@@ -47,6 +63,11 @@
   (pack   [_ x] (enc/pr-edn   x))
   (unpack [_ s] (enc/read-edn s)))
 
-(def     edn-packer "Default Edn packer." (->EdnPacker))
-(defn coerce-packer [x] (if (= x :edn) edn-packer
-                          (do (assert (satisfies? IPacker x)) x)))
+(def edn-packer "Default Edn packer" (->EdnPacker))
+
+(defn coerce-packer [x]
+  (if (= x :edn)
+    edn-packer
+    (do (assert (satisfies? IPacker x)
+                (str "Given packer doesn't satisfy IPacker protocol?"))
+        x)))
