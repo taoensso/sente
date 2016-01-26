@@ -62,7 +62,7 @@
   (:require
    [clojure.string     :as str]
    [clojure.core.async :as async  :refer (<! <!! >! >!! put! chan go go-loop)]
-   [taoensso.encore    :as enc    :refer (swap-in! reset-in! swapped have? have)]
+   [taoensso.encore    :as enc    :refer (swap-in! reset-in! swapped have have! have?)]
    [taoensso.timbre    :as timbre :refer (tracef debugf infof warnf errorf)]
    [taoensso.sente.interfaces :as interfaces])
 
@@ -71,7 +71,7 @@
    [clojure.string  :as str]
    [cljs.core.async :as async  :refer (<! >! put! chan)]
    [taoensso.encore :as enc    :refer (format swap-in! reset-in! swapped)
-                               :refer-macros (have? have)]
+                               :refer-macros (have have! have?)]
    [taoensso.timbre :as timbre :refer-macros (tracef debugf infof warnf errorf)]
    [taoensso.sente.interfaces :as interfaces])
 
@@ -84,7 +84,9 @@
   (enc/assert-min-encore-version  2.11))
 
 ;;;; Events
-;; * Clients & server both send `event`s and receive (i.e. route) `event-msg`s.
+;; Clients & server both send `event`s and receive (i.e. route) `event-msg`s:
+;;   - `event`s have the same form client+server side,
+;;   - `event-msg`s have a similar but not identical form
 
 (defn- validate-event [x]
   (cond
@@ -112,8 +114,7 @@
            " Event should be of `[ev-id ?ev-data]` form: %s")]
       (throw (ex-info (format err-fmt (str x)) {:malformed-event x})))))
 
-(defn event-msg? [x]
-  #+cljs
+(defn client-event-msg? [x]
   (and
     (map? x)
     (enc/keys= x #{:ch-recv :send-fn :state :event :id :?data})
@@ -122,9 +123,9 @@
         (enc/chan? ch-recv)
         (ifn?      send-fn)
         (enc/atom? state)
-        (event?    event))))
+        (event?    event)))))
 
-  #+clj
+(defn server-event-msg? [x]
   (and
     (map? x)
     (enc/keys= x #{:ch-recv :send-fn :connected-uids
@@ -143,16 +144,15 @@
         (or (nil? ?reply-fn)
             (ifn? ?reply-fn))))))
 
-#+clj
-(defn- put-event-msg>ch-recv!
-  "All server-side `event-msg`s go through this."
+(defn- put-server-event-msg>ch-recv!
+  "All server `event-msg`s go through this"
   [ch-recv {:as ev-msg :keys [event ?reply-fn]}]
   (let [[ev-id ev-?data :as valid-event] (as-event event)
         ev-msg* (merge ev-msg {:event     valid-event
                                :?reply-fn ?reply-fn
                                :id        ev-id
                                :?data     ev-?data})]
-    (if-not (event-msg? ev-msg*)
+    (if-not (server-event-msg? ev-msg*)
       (warnf "Bad ev-msg: %s" ev-msg) ; Log 'n drop
       (put! ch-recv ev-msg*))))
 
@@ -170,9 +170,7 @@
     (interfaces/unpack packer (have string? pstr))
     (catch #+clj Throwable #+cljs :default t
       (debugf "Bad package: %s (%s)" pstr t)
-      #+clj  [:chsk/bad-package pstr]
-      #+cljs (throw t) ; Let client rethrow on bad pstr from server
-      )))
+      [:chsk/bad-package pstr])))
 
 (defn- with-?meta [x ?m] (if (seq ?m) (with-meta x ?m) x))
 (defn- pack* "clj->prefixed-pstr"
@@ -216,11 +214,11 @@
 
 ;;;; Server API
 
-#+clj (declare ^:private send-buffered-evs>ws-clients!
-               ^:private send-buffered-evs>ajax-clients!)
+(declare
+  ^:private send-buffered-server-evs>ws-clients!
+  ^:private send-buffered-server-evs>ajax-clients!)
 
-#+clj
-(defn make-channel-socket!
+(defn make-channel-socket-server!
   "Takes a web server adapter[1] and returns a map with keys:
     :ch-recv ; core.async channel to receive `event-msg`s (internal or from clients).
     :send-fn ; (fn [user-id ev] for server>user push.
@@ -356,9 +354,9 @@
                         (tracef "buffered-evs-ppstr: %s (with meta %s)"
                           buffered-evs-ppstr combined-packer-meta)
                         (case type
-                          :ws   (send-buffered-evs>ws-clients!   conns_
+                          :ws   (send-buffered-server-evs>ws-clients!   conns_
                                   uid buffered-evs-ppstr)
-                          :ajax (send-buffered-evs>ajax-clients! conns_
+                          :ajax (send-buffered-server-evs>ajax-clients! conns_
                                   uid buffered-evs-ppstr))))))]
 
             (if (= ev [:chsk/close]) ; Currently undocumented
@@ -418,7 +416,7 @@
                   client-id     (get params   :client-id)
                   [clj has-cb?] (unpack packer ppstr)]
 
-              (put-event-msg>ch-recv! ch-recv
+              (put-server-event-msg>ch-recv! ch-recv
                 (merge ev-msg-const
                   {;; Note that the client-id is provided here just for the
                    ;; user's convenience. non-lp-POSTs don't actually need a
@@ -453,7 +451,7 @@
 
              receive-event-msg! ; Partial
              (fn [event & [?reply-fn]]
-               (put-event-msg>ch-recv! ch-recv
+               (put-server-event-msg>ch-recv! ch-recv
                  (merge ev-msg-const
                    {:client-id client-id
                     :ring-req  ring-req
@@ -569,16 +567,14 @@
                             (when (upd-connected-uid! uid)
                               (receive-event-msg! [:chsk/uidport-close])))))))))}))))}))
 
-#+clj
-(defn- send-buffered-evs>ws-clients!
+(defn- send-buffered-server-evs>ws-clients!
   "Actually pushes buffered events (as packed-str) to all uid's WebSocket conns."
   [conns_ uid buffered-evs-pstr]
-  (tracef "send-buffered-evs>ws-clients!: %s" buffered-evs-pstr)
+  (tracef "send-buffered-server-evs>ws-clients!: %s" buffered-evs-pstr)
   (doseq [server-ch (vals (get-in @conns_ [:ws uid]))]
     (interfaces/send! server-ch buffered-evs-pstr)))
 
-#+clj
-(defn- send-buffered-evs>ajax-clients!
+(defn- send-buffered-server-evs>ajax-clients!
   "Actually pushes buffered events (as packed-str) to all uid's Ajax conns.
   Allows some time for possible Ajax poller reconnects."
   [conns_ uid buffered-evs-pstr & [{:keys [nmax-attempts ms-base ms-rand]
@@ -587,6 +583,7 @@
                                            ms-base       90
                                            ms-rand       90}}]]
   (comment (* 7 (+ 90 (/ 90 2.0))))
+  (tracef "send-buffered-server-evs>ajax-clients!: %s" buffered-evs-pstr)
   (let [;; All connected/possibly-reconnecting client uuids:
         client-ids-unsatisfied (keys (get-in @conns_ [:ajax uid]))]
     (when-not (empty? client-ids-unsatisfied)
@@ -741,8 +738,8 @@
 
         :handled))))
 
-#+cljs ;; Handles reconnects, keep-alives, callbacks:
-(defrecord ChWebSocket
+#+cljs
+(defrecord ChWebSocket ; Handles (re)connections, keep-alives, cbs, etc.
     [client-id chs params packer url
      state_ ; {:type _ :open? _ :uid _ :csrf-token _}
      cbs-waiting_ ; {<cb-uuid> <fn> ...}
@@ -873,7 +870,7 @@
         chsk))))
 
 #+cljs
-(defrecord ChAjaxSocket
+(defrecord ChAjaxSocket ; Handles (re)polling, etc.
     [client-id chs params packer url state_
      timeout-ms ajax-opts curr-xhr_
      active-retry-id_
@@ -1006,7 +1003,7 @@
     (str protocol "//" (enc/path chsk-host chsk-path))))
 
 #+cljs
-(defn make-channel-socket!
+(defn make-channel-socket-client!
   "Returns a map with keys:
     :ch-recv ; core.async channel to receive `event-msg`s (internal or from clients).
              ; May `put!` (inject) arbitrary `event`s to this channel.
@@ -1030,7 +1027,7 @@
       need to provide the same timeout value to
       `taoensso.sente.server-adapters.immutant/make-immutant-adapter` and use
       the result of that function as the web server adapter to your server-side
-      `make-channel-socket!`."
+      `make-channel-socket-server!`."
   [path &
    [{:keys [type host params recv-buf-or-n ws-kalive-ms lp-timeout-ms packer
             client-id ajax-opts wrap-recv-evs? backoff-ms-fn]
@@ -1054,7 +1051,7 @@
          (have? enc/nblank-str?          client-id)]}
 
   (when (not (nil? _deprecated-more-opts))
-    (warnf "`make-channel-socket!` fn signature CHANGED with Sente v0.10.0."))
+    (warnf "`make-channel-socket-client!` fn signature CHANGED with Sente v0.10.0."))
   (when (contains? opts :lp-timeout)
     (warnf ":lp-timeout opt has CHANGED; please use :lp-timout-ms."))
 
@@ -1162,12 +1159,11 @@
 
 ;;;; Router wrapper
 
-(defn start-chsk-router!
-  "Creates a go-loop to call `(event-msg-handler <event-msg>)` and returns a
-  `(fn stop! [])`. Catches & logs errors. Advanced users may choose to instead
-  write their own loop against `ch-recv`."
-  [ch-recv event-msg-handler & [{:as opts :keys [trace-evs? error-handler]}]]
-  (let [ch-ctrl (chan)]
+(defn- -start-chsk-router!
+  [server? ch-recv event-msg-handler opts]
+  (let [{:keys [trace-evs? error-handler]} opts
+        ch-ctrl (chan)]
+
     (go-loop []
       (let [[v p] (async/alts! [ch-recv ch-ctrl])
             stop? (enc/kw-identical? p  ch-ctrl)]
@@ -1177,7 +1173,10 @@
                 [_ ?error]
                 (enc/catch-errors
                   (when trace-evs? (tracef "Pre-handler event: %s" event))
-                  (event-msg-handler (have :! event-msg? event-msg)))]
+                  (event-msg-handler
+                    (if server?
+                      (have! server-event-msg? event-msg)
+                      (have! client-event-msg? event-msg))))]
 
             (when-let [e ?error]
               (let [[_ ?error2]
@@ -1192,13 +1191,49 @@
 
     (fn stop! [] (async/close! ch-ctrl))))
 
+(defn start-server-chsk-router!
+  "Creates a go-loop to call `(event-msg-handler <server-event-msg>)` and
+  returns a `(fn stop! [])`. Catches & logs errors.
+
+  Advanced users may instead prefer to write their own loop against `ch-recv`."
+  [ch-recv event-msg-handler & [{:as opts :keys [trace-evs? error-handler]}]]
+  (-start-chsk-router! :server ch-recv event-msg-handler opts))
+
+(defn start-client-chsk-router!
+  "Creates a go-loop to call `(event-msg-handler <client-event-msg>)` and
+  returns a `(fn stop! [])`. Catches & logs errors.
+
+  Advanced users may instead prefer to write their own loop against `ch-recv`."
+  [ch-recv event-msg-handler & [{:as opts :keys [trace-evs? error-handler]}]]
+  (-start-chsk-router! (not :server) ch-recv event-msg-handler opts))
+
 ;;;; Deprecated
+
+#+clj
+(defn make-channel-socket!
+  "DEPRECATED: Please use `make-channel-socket-server! instead."
+  [& args] (apply make-channel-socket-server! args))
+
+#+cljs
+(defn make-channel-socket!
+  "DEPRECATED: Please use `make-channel-socket-client! instead."
+  [& args] (apply make-channel-socket-client! args))
+
+#+clj
+(defn start-chsk-router!
+  "DEPRECATED: Please use `start-server-chsk-router!` instead."
+  [& args] (apply start-server-chsk-router! args))
+
+#+cljs
+(defn start-chsk-router!
+  "DEPRECATED: Please use `start-client-chsk-router!` instead."
+  [& args] (apply start-client-chsk-router! args))
 
 #+clj
 (defn start-chsk-router-loop!
   "DEPRECATED: Please use `start-chsk-router!` instead."
   [event-msg-handler ch-recv]
-  (start-chsk-router! ch-recv
+  (start-server-chsk-router! ch-recv
     ;; Old handler form: (fn [ev-msg ch-recv])
     (fn [ev-msg] (event-msg-handler ev-msg (:ch-recv ev-msg)))))
 
@@ -1206,16 +1241,19 @@
 (defn start-chsk-router-loop!
   "DEPRECATED: Please use `start-chsk-router!` instead."
   [event-handler ch-recv]
-  (start-chsk-router! ch-recv
+  (start-client-chsk-router! ch-recv
     ;; Old handler form: (fn [ev ch-recv])
     (fn [ev-msg] (event-handler (:event ev-msg) (:ch-recv ev-msg)))))
 
-(defn set-logging-level! "DEPRECATED. Please use `timbre/set-level!` instead."
+(defn set-logging-level!
+  "DEPRECATED. Please use `timbre/set-level!` instead."
   [level] (timbre/set-level! level))
 
 ;; (set-logging-level! :trace) ; For debugging
 
-#+cljs (def ajax-call "DEPRECATED"  enc/ajax-lite)
+#+cljs
+(def ajax-call "DEPRECATED: Please use `ajax-lite` instead."
+  enc/ajax-lite)
 
 #+cljs
 (def default-chsk-url-fn "DEPRECATED"
