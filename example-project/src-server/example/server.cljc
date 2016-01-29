@@ -1,4 +1,4 @@
-(ns example.my-app
+(ns example.server
   "Sente client+server reference example
   ---------------------------------------------------------------------------
   This example dives into Sente's full functionality quickly; it's probably
@@ -90,52 +90,52 @@
 ;;;; Server-side setup
 
 #?(:clj
-(let [{:keys [ch-recv send-fn ajax-post-fn ajax-get-or-ws-handshake-fn
-              connected-uids]}
-      (sente/make-channel-socket! sente-web-server-adapter {:packer packer})]
-  (def ring-ajax-post                ajax-post-fn)
-  (def ring-ajax-get-or-ws-handshake ajax-get-or-ws-handshake-fn)
-  (def ch-chsk                       ch-recv) ; ChannelSocket's receive channel
-  (def chsk-send!                    send-fn) ; ChannelSocket's send API fn
-  (def connected-uids                connected-uids) ; Watchable, read-only atom
-  ))
+   (let [{:keys [ch-recv send-fn ajax-post-fn ajax-get-or-ws-handshake-fn
+                 connected-uids]}
+         (sente/make-channel-socket! sente-web-server-adapter {:packer packer})]
+     (def ring-ajax-post                ajax-post-fn)
+     (def ring-ajax-get-or-ws-handshake ajax-get-or-ws-handshake-fn)
+     (def ch-chsk                       ch-recv) ; ChannelSocket's receive channel
+     (def chsk-send!                    send-fn) ; ChannelSocket's send API fn
+     (def connected-uids                connected-uids) ; Watchable, read-only atom
+     ))
 
 #?(:clj
-(defn landing-pg-handler [req]
-  (hiccup/html
-    [:h1 "Sente reference example"]
-    [:p "An Ajax/WebSocket" [:strong " (random choice!)"] " has been configured for this example"]
-    [:hr]
-    [:p [:strong "Step 1: "] " try hitting the buttons:"]
-    [:button#btn1 {:type "button"} "chsk-send! (w/o reply)"]
-    [:button#btn2 {:type "button"} "chsk-send! (with reply)"]
-    ;;
-    [:p [:strong "Step 2: "] " observe std-out (for server output) and below (for client output):"]
-    [:textarea#output {:style "width: 100%; height: 200px;"}]
-    ;;
-    [:hr]
-    [:h2 "Step 3: try login with a user-id"]
-    [:p  "The server can use this id to send events to *you* specifically."]
-    [:p
-     [:input#input-login {:type :text :placeholder "User-id"}]
-     [:button#btn-login {:type "button"} "Secure login!"]]
-    ;;
-    [:hr]
-    [:h2 "Step 4: want to re-randomize Ajax/WebSocket connection type?"]
-    [:p "Hit your browser's reload/refresh button"]
-    [:script {:src "main.js"}] ; Include our cljs target
-    )))
+   (defn landing-pg-handler [req]
+     (hiccup/html
+      [:h1 "Sente reference example"]
+      [:p "An Ajax/WebSocket" [:strong " (random choice!)"] " has been configured for this example"]
+      [:hr]
+      [:p [:strong "Step 1: "] " try hitting the buttons:"]
+      [:button#btn1 {:type "button"} "chsk-send! (w/o reply)"]
+      [:button#btn2 {:type "button"} "chsk-send! (with reply)"]
+      ;;
+      [:p [:strong "Step 2: "] " observe std-out (for server output) and below (for client output):"]
+      [:textarea#output {:style "width: 100%; height: 200px;"}]
+      ;;
+      [:hr]
+      [:h2 "Step 3: try login with a user-id"]
+      [:p  "The server can use this id to send events to *you* specifically."]
+      [:p
+       [:input#input-login {:type :text :placeholder "User-id"}]
+       [:button#btn-login {:type "button"} "Secure login!"]]
+      ;;
+      [:hr]
+      [:h2 "Step 4: want to re-randomize Ajax/WebSocket connection type?"]
+      [:p "Hit your browser's reload/refresh button"]
+      [:script {:src "main.js"}] ; Include our cljs target
+      )))
 
 #?(:clj
-(defn login!
-  "Here's where you'll add your server-side login/auth procedure (Friend, etc.).
+   (defn login!
+     "Here's where you'll add your server-side login/auth procedure (Friend, etc.).
   In our simplified example we'll just always successfully authenticate the user
   with whatever user-id they provided in the auth request."
-  [ring-request]
-  (let [{:keys [session params]} ring-request
-        {:keys [user-id]} params]
-    (debugf "Login request: %s" params)
-    {:status 200 :session (assoc session :uid user-id)})))
+     [ring-request]
+     (let [{:keys [session params]} ring-request
+           {:keys [user-id]} params]
+       (debugf "Login request: %s" params)
+       {:status 200 :session (assoc session :uid user-id)})))
 
 #?(:clj
 (defroutes my-routes
@@ -161,31 +161,6 @@
     ;;
     (ring.middleware.defaults/wrap-defaults my-routes ring-defaults-config))))
 
-;;;; Client-side setup
-
-#?(:cljs (def output-el (.getElementById js/document "output")))
-#?(:cljs
-(defn ->output! [fmt & args]
-  (let [msg (apply encore/format fmt args)]
-    (timbre/debug msg)
-    (aset output-el "value" (str "• " (.-value output-el) "\n" msg))
-    (aset output-el "scrollTop" (.-scrollHeight output-el)))))
-
-#?(:cljs (->output! "ClojureScript appears to have loaded correctly."))
-#?(:cljs
-(let [rand-chsk-type (if (>= (rand) 0.5) :ajax :auto)
-
-      {:keys [chsk ch-recv send-fn state]}
-      (sente/make-channel-socket! "/chsk" ; Note the same URL as before
-        {:type   rand-chsk-type
-         :packer packer})]
-  (->output! "Randomly selected chsk type: %s" rand-chsk-type)
-  (def chsk       chsk)
-  (def ch-chsk    ch-recv) ; ChannelSocket's receive channel
-  (def chsk-send! send-fn) ; ChannelSocket's send API fn
-  (def chsk-state state)   ; Watchable, read-only atom
-  ))
-
 ;;;; Routing handlers
 
 ;; So you'll want to define one server-side and one client-side
@@ -201,93 +176,21 @@
 (defn event-msg-handler* [{:as ev-msg :keys [id ?data event]}]
   (event-msg-handler ev-msg))
 
-#?(:clj
-(do ; Server-side methods
-  (defmethod event-msg-handler :default ; Fallback
-    [{:as ev-msg :keys [event id ?data ring-req ?reply-fn send-fn]}]
-    (let [session (:session ring-req)
-          uid     (:uid     session)]
-      (debugf "Unhandled event: %s" event)
-      (when ?reply-fn
-        (?reply-fn {:umatched-event-as-echoed-from-from-server event}))))
+; Server-side methods
+(defmethod event-msg-handler :default ; Fallback
+  [{:as ev-msg :keys [event id ?data ring-req ?reply-fn send-fn]}]
+  (let [session (:session ring-req)
+        uid     (:uid     session)]
+    (debugf "Unhandled event: %s" event)
+    (when ?reply-fn
+      (?reply-fn {:umatched-event-as-echoed-from-from-server event}))))
 
-  ;; Add your (defmethod event-msg-handler <event-id> [ev-msg] <body>)s here...
-  ))
-
-#?(:cljs
-(do ; Client-side methods
-  (defmethod event-msg-handler :default ; Fallback
-    [{:as ev-msg :keys [event]}]
-    (->output! "Unhandled event: %s" event))
-
-  (defmethod event-msg-handler :chsk/state
-    [{:as ev-msg :keys [?data]}]
-    (if (= ?data {:first-open? true})
-      (->output! "Channel socket successfully established!")
-      (->output! "Channel socket state change: %s" ?data)))
-
-  (defmethod event-msg-handler :chsk/recv
-    [{:as ev-msg :keys [?data]}]
-    (->output! "Push event from server: %s" ?data))
-
-  (defmethod event-msg-handler :chsk/handshake
-    [{:as ev-msg :keys [?data]}]
-    (let [[?uid ?csrf-token ?handshake-data] ?data]
-      (->output! "Handshake: %s" ?data)))
-
-  ;; Add your (defmethod handle-event-msg! <event-id> [ev-msg] <body>)s here...
-  ))
-
-;;;; Client-side UI
-
-#?(:cljs
-(do
-  (when-let [target-el (.getElementById js/document "btn1")]
-    (.addEventListener target-el "click"
-      (fn [ev]
-        (->output! "Button 1 was clicked (won't receive any reply from server)")
-        (chsk-send! [:example/button1 {:had-a-callback? "nope"}]))))
-
-  (when-let [target-el (.getElementById js/document "btn2")]
-    (.addEventListener target-el "click"
-      (fn [ev]
-        (->output! "Button 2 was clicked (will receive reply from server)")
-        (chsk-send! [:example/button2 {:had-a-callback? "indeed"}] 5000
-          (fn [cb-reply] (->output! "Callback reply: %s" cb-reply))))))
-
-  (when-let [target-el (.getElementById js/document "btn-login")]
-    (.addEventListener target-el "click"
-      (fn [ev]
-        (let [user-id (.-value (.getElementById js/document "input-login"))]
-          (if (str/blank? user-id)
-            (js/alert "Please enter a user-id first")
-            (do
-              (->output! "Logging in with user-id %s" user-id)
-
-              ;;; Use any login procedure you'd like. Here we'll trigger an Ajax
-              ;;; POST request that resets our server-side session. Then we ask
-              ;;; our channel socket to reconnect, thereby picking up the new
-              ;;; session.
-
-              (sente/ajax-lite "/login"
-                {:method :post
-                 :params {:user-id    (str user-id)
-                          :csrf-token (:csrf-token @chsk-state)}}
-                (fn [ajax-resp]
-                  (->output! "Ajax login response: %s" ajax-resp)
-                  (let [login-successful? true ; Your logic here
-                        ]
-                    (if-not login-successful?
-                      (->output! "Login failed")
-                      (do
-                        (->output! "Login successful")
-                        (sente/chsk-reconnect! chsk))))))))))))))
+;; Add your (defmethod event-msg-handler <event-id> [ev-msg] <body>)s here...
 
 ;;;; Example: broadcast server>user
 
 ;; As an example of push notifications, we'll setup a server loop to broadcast
 ;; an event to _all_ possible user-ids every 10 seconds:
-#?(:clj
 (defn start-broadcaster! []
   (let [broadcast!
         (fn [i]
@@ -303,22 +206,20 @@
     (go-loop [i 0]
       (<! (async/timeout 10000))
       (broadcast! i)
-      (recur (inc 1))))))
+      (recur (inc 1)))))
 
-#?(:clj
 ;; Note that this'll be fast+reliable even over Ajax!:
 (defn test-fast-server>user-pushes []
   (doseq [uid (:any @connected-uids)]
     (doseq [i (range 100)]
-      (chsk-send! uid [:fast-push/is-fast (str "hello " i "!!")])))))
+      (chsk-send! uid [:fast-push/is-fast (str "hello " i "!!")]))))
 
 (comment (test-fast-server>user-pushes))
 
 ;;;; Init
 
-#?(:clj (defonce web-server_ (atom nil))) ; {:server _ :port _ :stop-fn (fn [])}
-#?(:clj (defn stop-web-server! [] (when-let [m @web-server_] ((:stop-fn m)))))
-#?(:clj
+(defonce web-server_ (atom nil)) ; {:server _ :port _ :stop-fn (fn [])}
+(defn stop-web-server! [] (when-let [m @web-server_] ((:stop-fn m))))
 (defn start-web-server! [& [port]]
   (stop-web-server!)
   (let [{:keys [stop-fn port] :as server-map}
@@ -327,10 +228,11 @@
           )
         uri (format "http://localhost:%s/" port)]
     (debugf "Web server is running at `%s`" uri)
-    (try
-      (.browse (java.awt.Desktop/getDesktop) (java.net.URI. uri))
-      (catch java.awt.HeadlessException _))
-    (reset! web-server_ server-map))))
+    #?(:clj
+       (try
+         (.browse (java.awt.Desktop/getDesktop) (java.net.URI. uri))
+         (catch java.awt.HeadlessException _)))
+    (reset! web-server_ server-map)))
 
 (defonce router_ (atom nil))
 (defn  stop-router! [] (when-let [stop-f @router_] (stop-f)))
@@ -344,10 +246,9 @@
      (do (start-web-server!)
          (start-broadcaster!))))
 
-#?(:cljs   (defonce _start-once (start!)))
 ;; #?(:clj (defonce _start-once (start!)))
 
-#?(:clj (defn -main "For `lein run`, etc." [] (start!)))
+(defn -main "For `lein run`, etc." [] (start!))
 
 (comment
   (start!)
