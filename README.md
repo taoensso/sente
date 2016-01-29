@@ -27,7 +27,7 @@
  * **Bidirectional a/sync comms** over both **WebSockets** and **Ajax** (auto-fallback)
  * **It just works**: auto keep-alives, buffering, protocol selection, reconnects
  * Efficient design incl. transparent event batching for **low-bandwidth use, even over Ajax**
- * Send **arbitrary Clojure vals** over [edn] or [Transit] (JSON, MessagePack, etc.)
+ * Send **arbitrary Clojure vals** over [edn] or [Transit][] (JSON, MessagePack, etc.)
  * **Tiny API**: `make-channel-socket!` and you're good to go
  * Automatic, sensible support for users connected with **multiple clients** and/or devices simultaneously
  * Realtime info on **which users are connected** over which protocols (v0.10.0+)
