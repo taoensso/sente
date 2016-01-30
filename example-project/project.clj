@@ -45,23 +45,21 @@
    [cider/cider-nrepl   "0.10.1"] ; Optional, for use with Emacs
    ]
 
-  :profiles
-  {:clj-server {:source-paths ["src-server"]
-                :main example.server}}
-
   :cljsbuild
-  {:builds ; Compiled in parallel
+  {:builds
    [{:id :cljs-client
-     :source-paths ["src-client"]
+     :source-paths ["src"]
      :compiler {:output-to "resources/public/main.js"
                 :optimizations :whitespace #_:advanced
                 :pretty-print true}}]}
 
-  ;; Call `lein start-dev` to get a (headless) development repl that you can
+  :main example.server
+
+  ;; Call `lein start-repl` to get a (headless) development repl that you can
   ;; connect to with Cider+emacs or your IDE of choice:
   :aliases
-  {"start-repl" ["with-profile" "+clj-server" "do" "cljsbuild" "once," "repl" ":headless"]
-   "start"      ["with-profile" "+clj-server" "do" "cljsbuild" "once," "run"]}
+  {"start-repl" ["do" "cljsbuild" "once," "repl" ":headless"]
+   "start"      ["do" "cljsbuild" "once," "run"]}
 
   :repositories
   {"sonatype-oss-public" "https://oss.sonatype.org/content/groups/public/"})

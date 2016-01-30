@@ -208,12 +208,9 @@ Some important differences to note:
 
 ### Example projects
 
-There's a full [reference example project] in the repo. Call `lein start` in that dir to get a (headless) development repl that you can connect to with [Cider] (emacs) or your IDE.
-
-There's also some **user-submitted** examples which may be handy:
-
 Link                     | Description
 ------------------------ | --------------------------------------------------------------------
+**[Official example]** | **Official Sente reference example**, always up-to-date
 [@danielsz/sente-boot]   | Reference example adapted for [boot]
 [@danielsz/sente-system] | Reference example adapted for [@danielsz/system]
 [@seancorfield/om-sente] | ??
@@ -368,6 +365,7 @@ Copyright &copy; 2014-2016 [Peter Taoussanis].
 [nginx-clojure]: https://github.com/nginx-clojure/nginx-clojure
 [example projects]: #example-projects
 [Compojure]: https://github.com/weavejester/compojure
+[Official example]: https://github.com/ptaoussanis/sente/tree/master/example-project
 [reference example project]: https://github.com/ptaoussanis/sente/tree/master/example-project
 [Cider]: https://github.com/clojure-emacs/cider
 
