@@ -1,5 +1,5 @@
 (ns taoensso.sente.server-adapters.immutant
-  "Optional Immutant v2+ adapter for use with Sente."
+  "Sente server adapter for Immutant v2+ (http://immutant.org/)"
   {:author "Toby Crawley (@tobias)"}
   (:require [taoensso.sente.interfaces :as i]
             [immutant.web.async :as immutant]))

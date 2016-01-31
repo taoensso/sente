@@ -1,67 +1,73 @@
 (ns taoensso.sente.server-adapters.express
-  "Sente on node.js with express"
-  {:author "Andrew Phillips <theasp@gmail.com>"}
-  (:require 
-   [taoensso.sente     :as sente]
+  "Sente server adapter for Node.js with Express
+  (http://expressjs.com/)
+
+  This adapter works differently that the others as Sente is
+  expecting Ring requests but Express uses http.IncomingMessage.
+  While most of this adapter could be used for similar
+  implementations there will be assumptions here that the following
+  express middleware (or equivalents) are in place:
+    - cookie-parser
+    - body-parser
+    - csurf
+    - express-session
+    - express-ws
+
+  See the example project at https://goo.gl/lnkiqS for an
+  implementation (it's a bit different than something built on Ring)."
+  {:author "Andrew Phillips <@theasp>"}
+  (:require
+   [taoensso.sente :as sente]
    [taoensso.sente.server-adapters.generic-node :as generic-node]
-   [taoensso.timbre :as timbre :refer-macros (tracef debugf infof warnf errorf)]))
+   [taoensso.timbre :as timbre
+    :refer-macros (tracef debugf infof warnf errorf)]))
 
-;; This adapter works differently that the others as sente is
-;; expecting ring requests but express uses http.IncomingMessage.
-;; While most of this adapter could be used for similar
-;; implementations there will be assumptions here that the following
-;; express middleware, or equivalents, ae in place:
-;; - cookie-parser
-;; - body-parser
-;; - csurf
-;; - express-session
-;; - express-ws
+(defn- ->ring-req
+  [req ; TODO (from @ptaoussanis): what is this exactly? An Express request?
+       ; Can we call it `exp-req` to help disambiguate?
+   resp
+   ring-req ; TODO (from @ptaoussanis): what is this? Are we not trying to
+            ; produce a Ring request as output? Maybe we can find a clearer
+            ; name for this?
+   ]
+  (let [;; TODO (from @ptaoussanis): could I ask for a comment re: what
+        ;; these are for / why they're being called fake?
+        fake-params
+        (merge
+          (js->clj (.-params req) :keywordize-keys true)
+          (js->clj (.-body   req) :keywordize-keys true)
+          (js->clj (.-query  req) :keywordize-keys true)
+          (:query ring-req))
 
-;; See example-project for an implementation, as it's a bit
-;; different than something built on ring.
+        ring-req
+        (merge ring-req
+          {:response resp
+           :body     req
+           :params   fake-params})]
 
-(defn- make-ring-req [req res ring-req]
-  "Emulate req as used by the ring library by processing the "
-  (let [fake-params (merge (js->clj (.-params req) :keywordize-keys true)
-                           (js->clj (.-body req) :keywordize-keys true)
-                           (js->clj (.-query req) :keywordize-keys true)
-                           (:query ring-req))
-        ring-req (assoc ring-req
-                        :response res
-                        :body req
-                        :params fake-params)]
-    (tracef "Emulated ring request: %s" ring-req)
+    (tracef "Emulated Ring request: %s" ring-req)
     ring-req))
 
+(defn- default-csrf-token-fn [ring-req] (.csrfToken (:body ring-req)))
 
-(defn wrap-ring-req [ring-fn req res ring-req]
-  "Run a function that takes a ring request by converting a
-  req, res, and fake ring-req map"
-  (let [ring-req (make-ring-req req res ring-req)]
-    (ring-fn ring-req)))
+(defn make-express-channel-socket-server!
+  "A customized `make-channel-socket-server!` that uses Node.js with
+  Express as the web server"
+  [& [opts]]
+  (tracef "Making express chsk")
+  (let [default-opts {:csrf-token-fn default-csrf-token-fn}
+        ch (sente/make-channel-socket-server!
+             (generic-node/GenericNodeServerChanAdapter.)
+             (merge default-opts opts))
 
-(defn csrf-token [ring-req]
-  "Get a valid token from csurf"
-  (.csrfToken (:body ring-req)))
+        {:keys [ajax-get-or-ws-handshake-fn
+                ajax-post-fn]} cn]
 
-(def default-options {:csrf-token-fn csrf-token})
+    (merge ch
+      {:ajax-get-or-ws-handshake-fn
+       (fn [req resp & [_ ring-req]]
+         (ajax-get-or-ws-handshake-fn (->ring-req req resp ring-req)))
 
-(defn make-express-adapter
-  "Provide a custom make-channel-socket-server! that wraps calls with
-  wrap-ring-req as the functions from the real
-  make-channel-socket-server! require ring-reqs.  As a bonus you don't
-  need to specify the adapter."
-  [options]
-  (tracef "Making express adapter")
-  (let [ch (sente/make-channel-socket-server!
-            (generic-node/GenericNodeServerChanAdapter.)
-            (merge default-options options))]
-
-    (assoc ch
-           :ajax-get-or-ws-handshake-fn
-           (fn [req res & [next ring-req]]
-             (wrap-ring-req (:ajax-get-or-ws-handshake-fn ch) req res ring-req))
-           
-           :ajax-post-fn
-           (fn [req res & [next ring-req]]
-             (wrap-ring-req (:ajax-post-fn ch) req res ring-req)))))
+       :ajax-post-fn
+       (fn [req resp & [_ ring-req]]
+         (ajax-post-fn (->ring-req req resp ring-req)))})))
