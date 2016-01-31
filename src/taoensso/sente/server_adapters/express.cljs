@@ -23,32 +23,36 @@
     :refer-macros (tracef debugf infof warnf errorf)]))
 
 (defn- ->ring-req
-  [req ; TODO (from @ptaoussanis): what is this exactly? An Express request?
-       ; Can we call it `exp-req` to help disambiguate?
-   resp
-   ring-req ; TODO (from @ptaoussanis): what is this? Are we not trying to
-            ; produce a Ring request as output? Maybe we can find a clearer
-            ; name for this?
+  "Transform the express request `exp-req` and response `exp-resp`
+  into a map similar to what ring would produce, merged ontop of the
+  map `base-ring-req` which is used to pass in information from the
+  route.  This map does not contain all the fields that a normal
+  `ring-req` would."
+  [exp-req ;; Express request object
+   exp-resp ;; Express response object
+   base-ring-req ;; Map the ring request will be based on
    ]
-  (let [;; TODO (from @ptaoussanis): could I ask for a comment re: what
-        ;; these are for / why they're being called fake?
-        fake-params
-        (merge
-          (js->clj (.-params req) :keywordize-keys true)
-          (js->clj (.-body   req) :keywordize-keys true)
-          (js->clj (.-query  req) :keywordize-keys true)
-          (:query ring-req))
+  (let [;; Query params from `express`
+        query-params (js->clj (.-query exp-req) :keywordize-keys true)
+        ;; POST params from `body-parser` middleware
+        form-params (js->clj (.-body exp-req) :keywordize-keys true)
 
         ring-req
-        (merge ring-req
-          {:response resp
-           :body     req
-           :params   fake-params})]
+        (merge base-ring-req
+          {:response     exp-resp
+           :body         exp-req
+           :query-params query-params
+           :form-params  form-params
+           ;; Ring exposes a merged view of params
+           :params       (merge query-params form-params)})]
 
     (tracef "Emulated Ring request: %s" ring-req)
     ring-req))
 
-(defn- default-csrf-token-fn [ring-req] (.csrfToken (:body ring-req)))
+(defn- default-csrf-token-fn
+  "Generate a CSRF token using the `csurf` middleware."
+  [ring-req]
+  (.csrfToken (:body ring-req)))
 
 (defn make-express-channel-socket-server!
   "A customized `make-channel-socket-server!` that uses Node.js with
@@ -61,13 +65,13 @@
              (merge default-opts opts))
 
         {:keys [ajax-get-or-ws-handshake-fn
-                ajax-post-fn]} cn]
+                ajax-post-fn]} ch]
 
     (merge ch
       {:ajax-get-or-ws-handshake-fn
-       (fn [req resp & [_ ring-req]]
-         (ajax-get-or-ws-handshake-fn (->ring-req req resp ring-req)))
+       (fn [req resp & [_ base-ring-req]]
+         (ajax-get-or-ws-handshake-fn (->ring-req req resp base-ring-req)))
 
        :ajax-post-fn
-       (fn [req resp & [_ ring-req]]
-         (ajax-post-fn (->ring-req req resp ring-req)))})))
+       (fn [req resp & [_ base-ring-req]]
+         (ajax-post-fn (->ring-req req resp base-ring-req)))})))
