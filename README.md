@@ -35,7 +35,7 @@
  * Standard **Ring security model**: auth as you like, HTTPS when available, CSRF support, etc.
  * **Fully documented, with examples**
  * **Small codebase**: ~1k lines for the entire client+server implementation
- * **Supported servers**: [http-kit], [Immutant v2+], [nginx-clojure]
+ * **Supported servers**: [http-kit], [Immutant v2+], [nginx-clojure], node.js
 
 ### Capabilities
 
@@ -211,10 +211,11 @@ Some important differences to note:
 Link                     | Description
 ------------------------ | --------------------------------------------------------------------
 **[Official example]** | **Official Sente reference example**, always up-to-date
-[@danielsz/sente-boot]   | Reference example adapted for [boot]
-[@danielsz/sente-system] | Reference example adapted for [@danielsz/system]
+[@danielsz/sente-boot]   | Ref example adapted for [boot]
+[@danielsz/sente-system] | Ref example adapted for [@danielsz/system]
 [@seancorfield/om-sente] | ??
 [@ebellani/carpet]       | Web+mobile interface for a remmitance application
+[@theasp/sente-nodejs-example] | Ref. example adapted for Node.js servers ([Express], [Dog Fort])
 Your link here?          | **PR's welcome!**
 
 ### FAQ
@@ -373,6 +374,9 @@ Copyright &copy; 2014-2016 [Peter Taoussanis].
 [@danielsz/sente-system]: https://github.com/danielsz/sente-system
 [@seancorfield/om-sente]: https://github.com/seancorfield/om-sente
 [@ebellani/carpet]: https://github.com/ebellani/carpet
+[@theasp/sente-nodejs-example]: https://github.com/theasp/sente-nodejs-example
+[Express]: http://expressjs.com/
+[Dog Fort]: https://github.com/whamtet/dogfort
 
 [boot]: http://boot-clj.com/
 [@danielsz/system]: https://github.com/danielsz/system

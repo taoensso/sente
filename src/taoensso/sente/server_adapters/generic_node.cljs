@@ -1,31 +1,29 @@
 (ns taoensso.sente.server-adapters.generic-node
-  "Sente on node.js using ws and http libraries"
-  {:author "Andrew Phillips <theasp@gmail.com> & Matthew Molloy <whamtet@gmail.com>"}
+  "Sente server adapter for Node.js using the `ws` and `http`
+  libraries"
+  {:author "Andrew Phillips <@theasp>, Matthew Molloy <@whamtet>"}
   (:require
    [taoensso.sente.interfaces :as i]
-   [taoensso.timbre :as timbre :refer-macros (tracef debugf infof warnf errorf)]))
+   [taoensso.timbre :as timbre
+    :refer-macros (tracef debugf infof warnf errorf)]))
 
-(defn- is-ws-open? [ws]
-  (= (.-readyState ws)
-     (.-OPEN ws)))
+(defn- is-ws-open? [ws] (= (.-readyState ws) (.-OPEN ws)))
 
 (deftype GenericNodeWsAdapter [callbacks-map ws]
   i/IServerChan
-  (-sch-send! [this msg close-after-send?]
+  (sch-open?  [sch] (is-ws-open? ws))
+  (sch-close! [sch]
+    (let [pre-open? (is-ws-open? ws)]
+      (.close ws)
+      pre-open?))
+
+  (-sch-send! [sch msg close-after-send?]
     (let [pre-open? (is-ws-open? ws)]
       (try
         (.send ws msg)
-        (catch :default e))
-      (when close-after-send?
-        (.close ws))
-      pre-open?))
+        (catch :default e nil))
 
-  (sch-open? [server-ch]
-    (is-ws-open? ws))
-
-  (sch-close! [server-ch]
-    (let [pre-open? (is-ws-open? ws)]
-      (.close ws)
+      (when close-after-send? (.close ws))
       pre-open?)))
 
 (defn- make-ws-chan
@@ -33,15 +31,18 @@
   (tracef "Making websocket adapter")
   (let [chan (new GenericNodeWsAdapter callbacks-map ws)]
     (on-open chan)
-    (.on ws "message"
-         (fn [data flags]
-           (on-msg chan data)))
-    (.onclose ws
-              (fn [code message]
-                (on-close chan code)))))
+    (.on      ws "message" (fn [data flags]   (on-msg   chan data)))
+    (.onclose ws           (fn [code message] (on-close chan code)))))
 
 (deftype GenericNodeAjaxAdapter [response-open? response]
   i/IServerChan
+  (sch-open?  [this] @response-open?)
+  (sch-close! [this]
+    (when @response-open?
+      (.end response)
+      (reset! response-open? false)
+      true))
+
   (-sch-send! [this msg close-after-send?]
     (let [pre-open? @response-open?]
       (if close-after-send?
@@ -50,35 +51,26 @@
           (.end response msg))
         (try
           (.write response msg)
-          (catch :default e)))
-      pre-open?))
-
-  (sch-open? [this]
-    @response-open?)
-
-  (sch-close! [this]
-    (if @response-open?
-      (.end response))
-    (reset! response-open? false)))
+          (catch :default e nil)))
+      pre-open?)))
 
 (defn- make-ajax-chan
   [{:keys [on-open on-close on-msg] :as callbacks-map} response body]
   (tracef "Making ajax adapter")
   (let [response-open? (atom true)
-        chan (new GenericNodeAjaxAdapter response-open? response)]
+        chan (GenericNodeAjaxAdapter. response-open? response)]
     (on-open chan)
-    (.on body "data"
-         (fn [data]
-           (on-msg chan data)))
-    ;; TODO: If this is bad, bad, what should we do?
-    #_(.on response ;bad, bad!
+    (.on body "data" (fn [data] (on-msg chan data)))
+
+    ;; TODO: If this is bad, what should we do?
+    #_(.on response ; Bad
            "finish"
            #(on-close chan)))
-  ;; For AJAX connections, if we reply blank then the route
-  ;; matcher will fail. dogfort will send a 404 response and
-  ;; close the connection.  to keep it open we just send this
-  ;; instead of a ring response.  This should have no
-  ;; detrimental effect on other servers.
+
+  ;; If we reply blank for Ajax conns then the route matcher will fail.
+  ;; Dog Fort will send a 404 resp and close the conn. To keep it open
+  ;; we just send this instead of a Ring resp. Shouldn't have a bad
+  ;; effect on other servers.
   {:keep-alive true})
 
 (deftype GenericNodeServerChanAdapter []
@@ -90,3 +82,7 @@
         (make-ajax-chan callbacks-map response body)))))
 
 (def generic-node-adapter (GenericNodeServerChanAdapter.))
+
+(def sente-web-server-adapter
+  "Alias for ns import convenience"
+  generic-node-adapter)
