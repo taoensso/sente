@@ -4,7 +4,8 @@
 **[CHANGELOG]** | [API] | current [Break Version]:
 
 ```clojure
-[com.taoensso/sente "1.7.0"] ; Stable
+[com.taoensso/sente "1.7.0"]       ; Stable
+[com.taoensso/sente "1.8.0-beta1"] ; Dev, see CHANGELOG for details
 ```
 
 # Sente
@@ -58,9 +59,7 @@ Add the necessary dependency to your project:
 
 ### On the server (Clojure) side
 
-First, make sure you're using a **supported Ring-compatible async web server**. These are currently: [http-kit], [Immutant v2+], and [nginx-clojure].
-
-> [Welcoming PRs](https://github.com/ptaoussanis/sente/issues/102) to support additional servers, btw.
+First make sure that you're using one of the [supported web servers] (PRs for additional server adapters welcome!).
 
 Somewhere in your web app's code you'll already have a routing mechanism in place for handling Ring requests by request URL. If you're using [Compojure] for example, you'll have something that looks like this:
 
@@ -365,6 +364,9 @@ Copyright &copy; 2014-2016 [Peter Taoussanis].
 [Immutant v2+]: http://immutant.org/
 [nginx-clojure]: https://github.com/nginx-clojure/nginx-clojure
 [example projects]: #example-projects
+
+[supported web servers]: https://github.com/ptaoussanis/sente/issues/102
+
 [Compojure]: https://github.com/weavejester/compojure
 [Official example]: https://github.com/ptaoussanis/sente/tree/master/example-project
 [reference example project]: https://github.com/ptaoussanis/sente/tree/master/example-project

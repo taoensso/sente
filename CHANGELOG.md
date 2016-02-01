@@ -1,5 +1,23 @@
 > This project uses [Break Versioning](https://github.com/ptaoussanis/encore/blob/master/BREAK-VERSIONING.md) as of **Aug 16, 2014**.
 
+## v1.8.0-beta1 - 2016 Feb 1
+
+> This is a major **non-breaking** feature release, enjoy! :-)
+
+* **Change**: `chsk-reconnect!` calls now always attempt reconnection immediately [#167]
+* **Change**: Ref example has been refactored, simplified
+* **Change**: Ref example has been split into client+server namespaces [#192 @theasp]
+* **New**: Added server adapters for Node.js (generic, Express, Dog Fort) [#194 @theasp @whamtet]
+* **New**: Added official `ajax-lite` alias (Sente Ajax req util)
+* **New**: Added "carpet" example [#187 @ebellani]
+* **Impl.**: Decoupled notion that clj<=>server, cljs<=>client [thanks to @theasp for assistance]
+* **Impl.**: Refactor web-server adapter interfaces
+
+```clojure
+[com.taoensso/sente "1.8.0-beta1"]
+```
+
+
 ## v1.7.0 - 2015 Dec 8
 
 > As v1.7.0-RC1 with some updated dependencies, improved reference example
