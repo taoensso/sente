@@ -1,4 +1,4 @@
-(defproject com.taoensso.examples/sente "1.8.0-alpha1"
+(defproject com.taoensso.examples/sente "1.8.0-beta1"
   :description "Sente, reference web-app example project"
   :url "https://github.com/ptaoussanis/sente"
   :license {:name "Eclipse Public License"
@@ -17,7 +17,7 @@
    [org.clojure/core.async    "0.2.374"]
    [org.clojure/tools.nrepl   "0.2.12"] ; Optional, for Cider
 
-   [com.taoensso/sente        "1.8.0-alpha1"] ; <--- Sente
+   [com.taoensso/sente        "1.8.0-beta1"] ; <--- Sente
    [com.taoensso/timbre       "4.2.1"]
 
    ;;; ---> Choose (uncomment) a supported web server <---
@@ -42,20 +42,20 @@
    [lein-ancient        "0.6.8"]
    [com.cemerick/austin "0.1.6"]
    [lein-cljsbuild      "1.1.2"]
-   [cider/cider-nrepl   "0.10.1"] ; Optional, for use with Emacs
+   [cider/cider-nrepl   "0.10.2"] ; Optional, for use with Emacs
    ]
 
   :cljsbuild
-  {:builds ; Compiled in parallel
-   [{:id :main
+  {:builds
+   [{:id :cljs-client
      :source-paths ["src"]
      :compiler {:output-to "resources/public/main.js"
                 :optimizations :whitespace #_:advanced
                 :pretty-print true}}]}
 
-  :main example.my-app
+  :main example.server
 
-  ;; Call `lein start-dev` to get a (headless) development repl that you can
+  ;; Call `lein start-repl` to get a (headless) development repl that you can
   ;; connect to with Cider+emacs or your IDE of choice:
   :aliases
   {"start-repl" ["do" "cljsbuild" "once," "repl" ":headless"]

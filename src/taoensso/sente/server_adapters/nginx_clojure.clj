@@ -1,5 +1,6 @@
 (ns taoensso.sente.server-adapters.nginx-clojure
-  "Optional Nginx-Clojure v0.4.2+ adapter for use with Sente."
+  "Sente server adapter for Nginx-Clojure v0.4.2+
+  (http://nginx-clojure.github.io/)"
   {:author "Zhang Yuexiang (@xfeep)"}
   (:require [taoensso.sente.interfaces :as i]
             [nginx.clojure.core :as ncc]))

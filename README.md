@@ -4,7 +4,8 @@
 **[CHANGELOG]** | [API] | current [Break Version]:
 
 ```clojure
-[com.taoensso/sente "1.7.0"] ; Stable
+[com.taoensso/sente "1.7.0"]       ; Stable
+[com.taoensso/sente "1.8.0-beta1"] ; Dev, see CHANGELOG for details
 ```
 
 # Sente
@@ -35,7 +36,7 @@
  * Standard **Ring security model**: auth as you like, HTTPS when available, CSRF support, etc.
  * **Fully documented, with examples**
  * **Small codebase**: ~1k lines for the entire client+server implementation
- * **Supported servers**: [http-kit], [Immutant v2+], [nginx-clojure]
+ * **Supported servers**: [http-kit], [Immutant v2+], [nginx-clojure], node.js
 
 ### Capabilities
 
@@ -58,9 +59,7 @@ Add the necessary dependency to your project:
 
 ### On the server (Clojure) side
 
-First, make sure you're using a **supported Ring-compatible async web server**. These are currently: [http-kit], [Immutant v2+], and [nginx-clojure].
-
-> [Welcoming PRs](https://github.com/ptaoussanis/sente/issues/102) to support additional servers, btw.
+First make sure that you're using one of the [supported web servers] (PRs for additional server adapters welcome!).
 
 Somewhere in your web app's code you'll already have a routing mechanism in place for handling Ring requests by request URL. If you're using [Compojure] for example, you'll have something that looks like this:
 
@@ -208,16 +207,14 @@ Some important differences to note:
 
 ### Example projects
 
-There's a full [reference example project] in the repo. Call `lein start` in that dir to get a (headless) development repl that you can connect to with [Cider] (emacs) or your IDE.
-
-There's also some **user-submitted** examples which may be handy:
-
 Link                     | Description
 ------------------------ | --------------------------------------------------------------------
-[@danielsz/sente-boot]   | Reference example adapted for [boot]
-[@danielsz/sente-system] | Reference example adapted for [@danielsz/system]
+**[Official example]** | **Official Sente reference example**, always up-to-date
+[@danielsz/sente-boot]   | Ref example adapted for [boot]
+[@danielsz/sente-system] | Ref example adapted for [@danielsz/system]
 [@seancorfield/om-sente] | ??
 [@ebellani/carpet]       | Web+mobile interface for a remmitance application
+[@theasp/sente-nodejs-example] | Ref. example adapted for Node.js servers ([Express], [Dog Fort])
 Your link here?          | **PR's welcome!**
 
 ### FAQ
@@ -367,7 +364,11 @@ Copyright &copy; 2014-2016 [Peter Taoussanis].
 [Immutant v2+]: http://immutant.org/
 [nginx-clojure]: https://github.com/nginx-clojure/nginx-clojure
 [example projects]: #example-projects
+
+[supported web servers]: https://github.com/ptaoussanis/sente/issues/102
+
 [Compojure]: https://github.com/weavejester/compojure
+[Official example]: https://github.com/ptaoussanis/sente/tree/master/example-project
 [reference example project]: https://github.com/ptaoussanis/sente/tree/master/example-project
 [Cider]: https://github.com/clojure-emacs/cider
 
@@ -375,6 +376,9 @@ Copyright &copy; 2014-2016 [Peter Taoussanis].
 [@danielsz/sente-system]: https://github.com/danielsz/sente-system
 [@seancorfield/om-sente]: https://github.com/seancorfield/om-sente
 [@ebellani/carpet]: https://github.com/ebellani/carpet
+[@theasp/sente-nodejs-example]: https://github.com/theasp/sente-nodejs-example
+[Express]: http://expressjs.com/
+[Dog Fort]: https://github.com/whamtet/dogfort
 
 [boot]: http://boot-clj.com/
 [@danielsz/system]: https://github.com/danielsz/system

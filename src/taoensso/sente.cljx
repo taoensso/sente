@@ -84,6 +84,8 @@
   (enc/assert-min-encore-version [2 11 0])
   (enc/assert-min-encore-version  2.11))
 
+;; (timbre/set-level! :trace) ; For debugging
+
 ;;;; Events
 ;; Clients & server both send `event`s and receive (i.e. route) `event-msg`s:
 ;;   - `event`s have the same form client+server side,
@@ -1158,7 +1160,7 @@
        :send-fn send-fn
        :state   (:state_ chsk)})))
 
-;;;; Router wrapper
+;;;; Event-msg routers (handler loops)
 
 (defn- -start-chsk-router!
   [server? ch-recv event-msg-handler opts]
@@ -1208,27 +1210,25 @@
   [ch-recv event-msg-handler & [{:as opts :keys [trace-evs? error-handler]}]]
   (-start-chsk-router! (not :server) ch-recv event-msg-handler opts))
 
-;;;; Deprecated
+;;;; Platform aliases
 
 #+clj
-(defn make-channel-socket!
-  "DEPRECATED: Please use `make-channel-socket-server! instead."
+(defn make-channel-socket! "Alias for `make-channel-socket-server!`"
   [& args] (apply make-channel-socket-server! args))
 
 #+cljs
-(defn make-channel-socket!
-  "DEPRECATED: Please use `make-channel-socket-client! instead."
+(defn make-channel-socket! "Alias for `make-channel-socket-client!`"
   [& args] (apply make-channel-socket-client! args))
 
 #+clj
-(defn start-chsk-router!
-  "DEPRECATED: Please use `start-server-chsk-router!` instead."
+(defn start-chsk-router! "Alias for `start-server-chsk-router!`"
   [& args] (apply start-server-chsk-router! args))
 
 #+cljs
-(defn start-chsk-router!
-  "DEPRECATED: Please use `start-client-chsk-router!` instead."
+(defn start-chsk-router! "Alias for `start-client-chsk-router!`"
   [& args] (apply start-client-chsk-router! args))
+
+;;;; Deprecated
 
 #+clj
 (defn start-chsk-router-loop!
@@ -1249,8 +1249,6 @@
 (defn set-logging-level!
   "DEPRECATED. Please use `timbre/set-level!` instead."
   [level] (timbre/set-level! level))
-
-;; (set-logging-level! :trace) ; For debugging
 
 #+cljs
 (def ajax-call "DEPRECATED: Please use `ajax-lite` instead."
