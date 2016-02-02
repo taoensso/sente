@@ -236,6 +236,12 @@
     :send-buf-ms-ajax  ; [2]
     :send-buf-ms-ws    ; [2]
     :packer            ; :edn (default), or an IPacker implementation (experimental).
+    :csrf-path         ; [:params :csrf-token] (default), or a path into an
+                       ; ajax-request for the client to store the CSRF token into.
+                       ; `csrf-path` is passed to the client during handshake, along
+                       ; with the `csrf-token`.  The default value requires
+                       ; configuring your middleware, whereas [:headers :X-CSRF-Token]
+                       ; usually does not.
 
   [1] e.g. `taoensso.sente.server-adapters.http-kit/http-kit-adapter` or
            `taoensso.sente.server-adapters.immutant/immutant-adapter`.
@@ -249,7 +255,7 @@
 
   [web-server-adapter ; Actually a server-ch-adapter, but that may be confusing
    & [{:keys [recv-buf-or-n send-buf-ms-ajax send-buf-ms-ws
-              user-id-fn csrf-token-fn handshake-data-fn packer]
+              user-id-fn csrf-token-fn handshake-data-fn packer csrf-path]
        :or   {recv-buf-or-n (async/sliding-buffer 1000)
               send-buf-ms-ajax 100
               send-buf-ms-ws   30
@@ -259,7 +265,8 @@
                                   (get-in ring-req [:session :ring.middleware.anti-forgery/anti-forgery-token])
                                   (get-in ring-req [:session "__anti-forgery-token"])))
               handshake-data-fn (fn [ring-req] nil)
-              packer :edn}}]]
+              packer :edn
+              csrf-path [:params :csrf-token]}}]]
 
   {:pre [(have? enc/pos-int? send-buf-ms-ajax send-buf-ms-ws)
          (have? #(satisfies? interfaces/IServerChanAdapter %)
@@ -468,8 +475,8 @@
                (let [?handshake-data (handshake-data-fn ring-req)
                      handshake-ev
                      (if-not (nil? ?handshake-data) ; Micro optimization
-                       [:chsk/handshake [uid csrf-token ?handshake-data]]
-                       [:chsk/handshake [uid csrf-token]])]
+                       [:chsk/handshake [uid csrf-token csrf-path ?handshake-data]]
+                       [:chsk/handshake [uid csrf-token csrf-path]])]
                  (interfaces/sch-send! server-ch
                    (pack packer nil handshake-ev)
                    (not websocket?))))]
@@ -714,7 +721,7 @@
       (if handshake? :handshake :non-handshake) clj)
 
     (when handshake?
-      (let [[_ [?uid ?csrf-token ?handshake-data] :as handshake-ev] clj
+      (let [[_ [?uid ?csrf-token ?csrf-path ?handshake-data] :as handshake-ev] clj
             ;; Another idea? Not fond of how this places restrictions on the
             ;; form and content of ?handshake-data:
             ;; handshake-ev [:chsk/handshake
@@ -730,6 +737,7 @@
           {:open?      true
            :uid        ?uid
            :csrf-token ?csrf-token
+           :csrf-path ?csrf-path
 
            ;; Could also just merge ?handshake-data into chsk state here, but
            ;; it seems preferable (?) to instead register a unique
@@ -889,37 +897,41 @@
 
         ;; TODO Buffer before sending (but honor `:flush?`)
         (do
-          (ajax-lite url
-            (merge ajax-opts
-              {:method :post :timeout-ms ?timeout-ms
-               :resp-type :text ; We'll do our own pstr decoding
-               :params
-               (let [ppstr (pack packer (meta ev) ev (when ?cb-fn :ajax-cb))]
-                 (merge
-                   params ; User params first (don't clobber impl. params):
-                   {:_           (enc/now-udt) ; Force uncached resp
-                    :csrf-token  (:csrf-token @state_)
+          (let [csrf-token  (:csrf-token @state_)
+                csrf-path   (or (:csrf-path @state_) [:params :csrf-token])
+                ajax-req
+                (-> ajax-opts
+                  ;; User params first (don't clobber impl. params):
+                  (update   :params merge params)
+                  (assoc    :method :post
+                            :timeout-ms ?timeout-ms
+                            :resp-type :text) ; We'll do our own pstr decoding
+                  (update   :params merge
+                    (let [ppstr (pack packer (meta ev) ev (when ?cb-fn :ajax-cb))]
+                       {:_           (enc/now-udt) ; Force uncached resp
 
-                    ;; Just for user's convenience here. non-lp-POSTs don't
-                    ;; actually need a client-id for Sente's own implementation:
-                    :client-id   client-id
+                        ;; Just for user's convenience here. non-lp-POSTs don't
+                        ;; actually need a client-id for Sente's own implementation:
+                        :client-id   client-id
 
-                    :ppstr       ppstr}))})
+                        :ppstr       ppstr}))
+                  ;; Set the CSRF token using the path provided from the server
+                  (assoc-in csrf-path csrf-token))]
+          (ajax-lite url ajax-req
+             (fn ajax-cb [{:keys [?error ?content]}]
+               (if ?error
+                 (if (= ?error :timeout)
+                   (when ?cb-fn (?cb-fn :chsk/timeout))
+                   (do (merge>chsk-state! chsk {:open? false})
+                       (when ?cb-fn (?cb-fn :chsk/error))))
 
-           (fn ajax-cb [{:keys [?error ?content]}]
-             (if ?error
-               (if (= ?error :timeout)
-                 (when ?cb-fn (?cb-fn :chsk/timeout))
-                 (do (merge>chsk-state! chsk {:open? false})
-                     (when ?cb-fn (?cb-fn :chsk/error))))
-
-               (let [content      ?content
-                     resp-ppstr   content
-                     [resp-clj _] (unpack packer resp-ppstr)]
-                 (if ?cb-fn (?cb-fn resp-clj)
-                   (when (not= resp-clj :chsk/dummy-cb-200)
-                     (warnf "Cb reply w/o local cb-fn: %s" resp-clj)))
-                 (merge>chsk-state! chsk {:open? true})))))
+                 (let [content      ?content
+                       resp-ppstr   content
+                       [resp-clj _] (unpack packer resp-ppstr)]
+                   (if ?cb-fn (?cb-fn resp-clj)
+                     (when (not= resp-clj :chsk/dummy-cb-200)
+                       (warnf "Cb reply w/o local cb-fn: %s" resp-clj)))
+                   (merge>chsk-state! chsk {:open? true}))))))
 
           :apparent-success))))
 
