@@ -60,7 +60,8 @@
       {:keys [ch-recv send-fn ajax-post-fn ajax-get-or-ws-handshake-fn
               connected-uids]}
       (sente/make-channel-socket-server! sente-web-server-adapter
-        {:packer packer})]
+        {:packer packer
+         :csrf-path [:headers :X-CSRF-Token]})]
 
   (def ring-ajax-post                ajax-post-fn)
   (def ring-ajax-get-or-ws-handshake ajax-get-or-ws-handshake-fn)
@@ -115,17 +116,12 @@
   (route/not-found "<h1>Page not found</h1>"))
 
 (def main-ring-handler
-  (let [ring-defaults-config
-        (assoc-in ring.middleware.defaults/site-defaults
-          [:security :anti-forgery]
-          {:read-token (fn [req] (-> req :params :csrf-token))})]
-
-    ;; NB: Sente requires the Ring `wrap-params` + `wrap-keyword-params`
-    ;; middleware to work. These are included with
-    ;; `ring.middleware.defaults/wrap-defaults` - but you'll need to ensure
-    ;; that they're included yourself if you're not using `wrap-defaults`.
-    (ring.middleware.defaults/wrap-defaults
-      ring-routes ring-defaults-config)))
+  ;; NB: Sente requires the Ring `wrap-params` + `wrap-keyword-params`
+  ;; middleware to work. These are included with
+  ;; `ring.middleware.defaults/wrap-defaults` - but you'll need to ensure
+  ;; that they're included yourself if you're not using `wrap-defaults`.
+  (ring.middleware.defaults/wrap-defaults
+   ring-routes ring.middleware.defaults/site-defaults))
 
 ;;;; Sente event handlers
 

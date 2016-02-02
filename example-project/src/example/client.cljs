@@ -122,20 +122,21 @@
             ;;; POST request that resets our server-side session. Then we ask
             ;;; our channel socket to reconnect, thereby picking up the new
             ;;; session.
-
-            (sente/ajax-lite "/login"
-              {:method :post
-               :params {:user-id    (str user-id)
-                        :csrf-token (:csrf-token @chsk-state)}}
-              (fn [ajax-resp]
-                (->output! "Ajax login response: %s" ajax-resp)
-                (let [login-successful? true ; Your logic here
-                      ]
-                  (if-not login-successful?
-                    (->output! "Login failed")
-                    (do
-                      (->output! "Login successful")
-                      (sente/chsk-reconnect! chsk))))))))))))
+            (let [{:keys [csrf-path csrf-token]} @chsk-state
+                  ajax-req {:method :post
+                            :params  {:user-id      (str user-id)}}
+                  ajax-req (assoc-in ajax-req csrf-path csrf-token)]
+              (tracef "Req: %s ajax-req" ajax-req)
+              (sente/ajax-lite "/login" ajax-req
+                (fn [ajax-resp]
+                  (->output! "Ajax login response: %s" ajax-resp)
+                  (let [login-successful? (nil? (:error? ajax-resp)) ; Your logic here
+                        ]
+                    (if-not login-successful?
+                      (->output! "Login failed")
+                      (do
+                        (->output! "Login successful")
+                        (sente/chsk-reconnect! chsk)))))))))))))
 
 ;;;; Init stuff
 
