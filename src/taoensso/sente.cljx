@@ -714,15 +714,7 @@
       (if handshake? :handshake :non-handshake) clj)
 
     (when handshake?
-      (let [[_ [?uid ?csrf-token ?handshake-data] :as handshake-ev] clj
-            ;; Another idea? Not fond of how this places restrictions on the
-            ;; form and content of ?handshake-data:
-            ;; handshake-ev [:chsk/handshake
-            ;;               (merge
-            ;;                 (have [:or nil? map?] ?handshake-data)
-            ;;                 {:?uid        ?uid
-            ;;                  :?csrf-token ?csrf-token})]
-            ]
+      (let [[_ [?uid ?csrf-token ?handshake-data] :as handshake-ev] clj]
         (when (str/blank? ?csrf-token)
           (warnf "SECURITY WARNING: no CSRF token available for use by Sente"))
 
@@ -813,8 +805,8 @@
                     (try
                       (WebSocket.
                         (enc/merge-url-with-query-string url
-                          ;; User params first (don't clobber impl. params):
-                          (merge params {:client-id client-id})))
+                          (merge params ; 1st (don't clobber impl.):
+                            {:client-id client-id})))
                       (catch js/Error e
                         (errorf e "WebSocket js/Error")
                         nil))]
@@ -888,17 +880,23 @@
             (when ?cb-fn (?cb-fn :chsk/closed)))
 
         ;; TODO Buffer before sending (but honor `:flush?`)
-        (do
+        (let [csrf-token (:csrf-token @state_)]
           (ajax-lite url
             (merge ajax-opts
               {:method :post :timeout-ms ?timeout-ms
                :resp-type :text ; We'll do our own pstr decoding
+               :headers
+               (merge (:headers ajax-opts) ; 1st (don't clobber impl.):
+                 {:X-CSRF-Token csrf-token})
+
                :params
                (let [ppstr (pack packer (meta ev) ev (when ?cb-fn :ajax-cb))]
-                 (merge
-                   params ; User params first (don't clobber impl. params):
+                 (merge params ; 1st (don't clobber impl.):
                    {:_           (enc/now-udt) ; Force uncached resp
-                    :csrf-token  (:csrf-token @state_)
+
+                    ;; A duplicate of X-CSRF-Token for user's convenience and
+                    ;; for back compatibility with earlier CSRF docs:
+                    :csrf-token  csrf-token
 
                     ;; Just for user's convenience here. non-lp-POSTs don't
                     ;; actually need a client-id for Sente's own implementation:
@@ -962,7 +960,7 @@
                        ;; Note that user params here are actually POST params for
                        ;; convenience. Contrast: WebSocket params sent as query
                        ;; params since there's no other choice there.
-                       params ; User params first (don't clobber impl. params)
+                       params ; 1st (don't clobber impl.):
 
                        {:_          (enc/now-udt) ; Force uncached resp
                         :client-id  client-id}
