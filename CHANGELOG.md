@@ -1,6 +1,6 @@
 > This project uses [Break Versioning](https://github.com/ptaoussanis/encore/blob/master/BREAK-VERSIONING.md) as of **Aug 16, 2014**.
 
-## v1.8.0-beta1 - 2016 Feb 1
+## v1.8.0 - 2016 Feb 16
 
 > This is a major **non-breaking** feature release, enjoy! :-)
 
@@ -10,13 +10,13 @@
 * **New**: Added server adapters for Node.js (generic, Express, Dog Fort) [#194 @theasp @whamtet]
 * **New**: Added official `ajax-lite` alias (Sente Ajax req util)
 * **New**: Added "carpet" example [#187 @ebellani]
+* **New**: CSRF token header is now compatible with ring.middleware defaults [#198 @theasp]
 * **Impl.**: Decoupled notion that clj<=>server, cljs<=>client [thanks to @theasp for assistance]
 * **Impl.**: Refactor web-server adapter interfaces
 
 ```clojure
-[com.taoensso/sente "1.8.0-beta1"]
+[com.taoensso/sente "1.8.0"]
 ```
-
 
 ## v1.7.0 - 2015 Dec 8
 
@@ -25,7 +25,6 @@
 ```clojure
 [com.taoensso/sente "1.7.0"]
 ```
-
 
 ## v1.7.0-RC1 - 2015 Sep 28
 
