@@ -13,9 +13,9 @@
   :dependencies
   [[org.clojure/clojure      "1.5.1"]
    [org.clojure/core.async   "0.2.374"]
-   [com.taoensso/encore      "2.33.0"]
+   [com.taoensso/encore      "2.36.2"]
    [org.clojure/tools.reader "0.10.0"]
-   [com.taoensso/timbre      "4.2.1"]]
+   [com.taoensso/timbre      "4.3.0"]]
 
   :profiles
   {;; :default [:base :system :user :provided :dev]
@@ -46,7 +46,7 @@
       [lein-ancient                    "0.6.8"]
       ;; [com.cemerick/austin          "0.1.4"]
       [com.cemerick/clojurescript.test "0.3.3"]
-      [lein-codox                      "0.9.1"]]}]}
+      [lein-codox                      "0.9.4"]]}]}
 
   :cljx
   {:builds
