@@ -18,7 +18,7 @@
    [org.clojure/tools.nrepl   "0.2.12"] ; Optional, for Cider
 
    [com.taoensso/sente        "1.8.0"] ; <--- Sente
-   [com.taoensso/timbre       "4.3.0"]
+   [com.taoensso/timbre       "4.3.1"]
 
    ;;; ---> Choose (uncomment) a supported web server <---
    [http-kit                  "2.1.21-alpha2"]

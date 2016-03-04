@@ -15,7 +15,7 @@
    [org.clojure/core.async   "0.2.374"]
    [com.taoensso/encore      "2.36.2"]
    [org.clojure/tools.reader "0.10.0"]
-   [com.taoensso/timbre      "4.3.0"]]
+   [com.taoensso/timbre      "4.3.1"]]
 
   :profiles
   {;; :default [:base :system :user :provided :dev]
