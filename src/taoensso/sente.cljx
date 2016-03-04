@@ -1210,21 +1210,15 @@
 
 ;;;; Platform aliases
 
-#+clj
-(defn make-channel-socket! "Alias for `make-channel-socket-server!`"
-  [& args] (apply make-channel-socket-server! args))
+(def event-msg? #+clj server-event-msg? #+cljs client-event-msg?)
 
-#+cljs
-(defn make-channel-socket! "Alias for `make-channel-socket-client!`"
-  [& args] (apply make-channel-socket-client! args))
+(def make-channel-socket!
+  #+clj  make-channel-socket-server!
+  #+cljs make-channel-socket-client!)
 
-#+clj
-(defn start-chsk-router! "Alias for `start-server-chsk-router!`"
-  [& args] (apply start-server-chsk-router! args))
-
-#+cljs
-(defn start-chsk-router! "Alias for `start-client-chsk-router!`"
-  [& args] (apply start-client-chsk-router! args))
+(def start-chsk-router!
+  #+clj  start-server-chsk-router!
+  #+cljs start-client-chsk-router!)
 
 ;;;; Deprecated
 
