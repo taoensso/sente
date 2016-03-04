@@ -1,5 +1,13 @@
 > This project uses [Break Versioning](https://github.com/ptaoussanis/encore/blob/master/BREAK-VERSIONING.md) as of **Aug 16, 2014**.
 
+## v1.8.1 - 2016 Mar 4
+
+```clojure
+[com.taoensso/sente "1.8.1"]
+```
+
+* **Hotfix**: add missing `event?` alias
+
 ## v1.8.0 - 2016 Feb 16
 
 > This is a major **non-breaking** feature release, enjoy! :-)
