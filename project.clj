@@ -13,7 +13,7 @@
   :dependencies
   [[org.clojure/clojure      "1.5.1"]
    [org.clojure/core.async   "0.2.374"]
-   [com.taoensso/encore      "2.36.2"]
+   [com.taoensso/encore      "2.44.0"]
    [org.clojure/tools.reader "0.10.0"]
    [com.taoensso/timbre      "4.3.1"]]
 
@@ -34,13 +34,13 @@
    :dev
    [:1.7 :test
     {:dependencies
-     [[http-kit                        "2.1.21-alpha2"]
-      [org.immutant/web                "2.1.2"]
-      [nginx-clojure                   "0.4.3"]]
+     [[http-kit         "2.2.0-alpha1"]
+      [org.immutant/web "2.1.3"]
+      [nginx-clojure    "0.4.4"]]
      :plugins
      [;;; These must be in :dev, Ref. https://github.com/lynaghk/cljx/issues/47:
       [com.keminglabs/cljx             "0.6.0"]
-      [lein-cljsbuild                  "1.1.2"]
+      [lein-cljsbuild                  "1.1.3"]
       ;;
       [lein-pprint                     "1.1.2"]
       [lein-ancient                    "0.6.8"]

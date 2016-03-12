@@ -21,15 +21,15 @@
    [com.taoensso/timbre       "4.3.1"]
 
    ;;; ---> Choose (uncomment) a supported web server <---
-   [http-kit                  "2.1.21-alpha2"]
+   [http-kit                  "2.2.0-alpha1"]
    ;; [org.immutant/web       "2.1.0"] ; v2.1+ recommended
    ;; [nginx-clojure/nginx-clojure-embed "0.4.2"] ; Needs v0.4.2+
 
    [ring                      "1.4.0"]
-   [ring/ring-defaults        "0.1.5"] ; Includes `ring-anti-forgery`, etc.
+   [ring/ring-defaults        "0.2.0"] ; Includes `ring-anti-forgery`, etc.
    ;; [ring-anti-forgery      "1.0.0"]
 
-   [compojure                 "1.4.0"] ; Or routing lib of your choice
+   [compojure                 "1.5.0"] ; Or routing lib of your choice
    [hiccup                    "1.0.5"] ; Optional, just for HTML
 
    ;;; Transit deps optional; may be used to aid perf. of larger data payloads
@@ -41,8 +41,8 @@
   [[lein-pprint         "1.1.2"]
    [lein-ancient        "0.6.8"]
    [com.cemerick/austin "0.1.6"]
-   [lein-cljsbuild      "1.1.2"]
-   [cider/cider-nrepl   "0.10.2"] ; Optional, for use with Emacs
+   [lein-cljsbuild      "1.1.3"]
+   [cider/cider-nrepl   "0.11.0"] ; Optional, for use with Emacs
    ]
 
   :cljsbuild
