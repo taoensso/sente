@@ -216,6 +216,7 @@ Link                     | Description
 [@seancorfield/om-sente] | ??
 [@ebellani/carpet]       | Web+mobile interface for a remmitance application
 [@theasp/sente-nodejs-example] | Ref. example adapted for Node.js servers ([Express], [Dog Fort])
+[@timothypratley/snakelake] | Multiplayer snake game with screencast walkthrough
 Your link here?          | **PR's welcome!**
 
 ### FAQ
@@ -336,7 +337,7 @@ Otherwise, you can reach me at [Taoensso.com]. Happy hacking!
 
 ## License
 
-Distributed under the [EPL v1.0] \(same as Clojure).  
+Distributed under the [EPL v1.0] \(same as Clojure).
 Copyright &copy; 2014-2016 [Peter Taoussanis].
 
 <!--- Standard links -->
@@ -379,6 +380,7 @@ Copyright &copy; 2014-2016 [Peter Taoussanis].
 [@seancorfield/om-sente]: https://github.com/seancorfield/om-sente
 [@ebellani/carpet]: https://github.com/ebellani/carpet
 [@theasp/sente-nodejs-example]: https://github.com/theasp/sente-nodejs-example
+[@timothypratley/snakelake]: https://github.com/timothypratley/snakelake
 [Express]: http://expressjs.com/
 [Dog Fort]: https://github.com/whamtet/dogfort
 
