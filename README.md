@@ -190,9 +190,9 @@ client event-msg | `{:keys [event id ?data send-fn]}`
   [:some/request-id {:name "Rich Hickey" :type "Awesome"}] ; Event
   8000 ; Timeout
   ;; Optional callback:
-  (fn [edn-reply]
-    (if (sente/cb-success? edn-reply) ; Checks for :chsk/closed, :chsk/timeout, :chsk/error
-      (do-something! edn-reply)
+  (fn [reply] ; Reply is arbitrary Clojure data
+    (if (sente/cb-success? reply) ; Checks for :chsk/closed, :chsk/timeout, :chsk/error
+      (do-something! reply)
       (error-handler!))))
 ```
 
@@ -204,7 +204,7 @@ Some important differences to note:
 ### Ajax/Sente comparison: server>user push
 
  * Ajax would require clumsy long-polling setup, and wouldn't easily support users connected with multiple clients simultaneously
- * Sente: `(chsk-send! "destination-user-id" [:some/alert-id <edn-payload>])`
+ * Sente: `(chsk-send! "destination-user-id" [:some/alert-id <arb-clj-data-payload>])`
 
 ### Example projects
 
