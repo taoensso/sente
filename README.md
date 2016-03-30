@@ -60,7 +60,7 @@ Add the necessary dependency to your project:
 
 ### On the server (Clojure) side
 
-First make sure that you're using one of the [supported web servers] (PRs for additional server adapters welcome!).
+First make sure that you're using one of the [supported web servers][] (PRs for additional server adapters welcome!).
 
 Somewhere in your web app's code you'll already have a routing mechanism in place for handling Ring requests by request URL. If you're using [Compojure] for example, you'll have something that looks like this:
 
