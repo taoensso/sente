@@ -11,3 +11,8 @@
 /pom.xml*
 /.env
 .DS_Store
+/dev-resources/public/js/compiled
+figwheel_server.log
+/.idea
+*.iml
+
