@@ -1058,7 +1058,7 @@
 
   (let [packer (interfaces/coerce-packer packer)
 
-        win-location (enc/get-window-location)
+        win-location (and (.-location js/window) (enc/get-window-location))
         win-protocol      (:protocol win-location)
         host     (or host (:host     win-location))
         path     (or path (:pathname win-location))
