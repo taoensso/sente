@@ -31,7 +31,7 @@
                          [ring/ring-defaults         "0.2.0"]
                          [doo                        "0.1.6"]
                          [devcards                   "0.2.1-6"]]
-          :plugins [[lein-figwheel                   "0.5.0-6"
+          :plugins [[lein-figwheel                   "0.5.2"
                      :exclusions [org.clojure/clojure]]
                     [lein-doo                        "0.1.6"]]}
 
@@ -51,13 +51,13 @@
       [lein-pprint                     "1.1.2"]
       [lein-ancient                    "0.6.8"]
       ;; [com.cemerick/austin          "0.1.4"]
-      [com.cemerick/clojurescript.test "0.3.3"]
       [lein-codox                      "0.9.4"]]
      :source-paths ["src" "target/classes" "test"]
      :test-paths   ["src" "test"]
      :figwheel {:ring-handler taoensso.sente.test-server/relay-app}
      :clean-targets ^{:protect false} [:target-path "dev-resources"]
-     :cljsbuild {:builds
+     :cljsbuild {:test-commands  {}
+                 :builds
                  [{:id           "devcards"
                    :source-paths ["src" "test" "target/classes"]
                    :figwheel     {:devcards true}
@@ -90,14 +90,8 @@
 
   :aliases
   {"build-once" ["do" "cljx" "once," "cljsbuild" "once"]
-   "test-all"   ["do"
-                 "clean,"
-                 "build-once,"
-                 "test,"]
-   "devcards"   ["do"
-                 "clean,"
-                 "cljx" "once,"
-                 "figwheel,"]
+   "test-all"   ["do" "clean," "build-once," "test,"]
+   "devcards"   ["do" "clean," "cljx" "once," "figwheel,"]
    "deploy-lib" ["do" "build-once," "deploy" "clojars," "install"]
    "start-dev"  ["with-profile" "+server-jvm" "repl" ":headless"]}
 
