@@ -776,6 +776,8 @@
   (chsk-destroy!    [chsk] (chsk-disconnect! chsk))
   (chsk-disconnect! [chsk]
     (reset! active-retry-id_ "disconnected")
+    (when @kalive-timer_
+      (.clearInterval js/window @kalive-timer_))
     (merge>chsk-state! chsk {:open? false})
     (when-let [s @socket_] (.close s 1000 "CLOSE_NORMAL")))
 
