@@ -13,7 +13,7 @@
   :dependencies
   [[org.clojure/clojure      "1.5.1"]
    [org.clojure/core.async   "0.2.374"]
-   [com.taoensso/encore      "2.44.0"]
+   [com.taoensso/encore      "2.49.0"]
    [org.clojure/tools.reader "0.10.0"]
    [com.taoensso/timbre      "4.3.1"]]
 
@@ -43,7 +43,7 @@
       [lein-cljsbuild                  "1.1.3"]
       ;;
       [lein-pprint                     "1.1.2"]
-      [lein-ancient                    "0.6.8"]
+      [lein-ancient                    "0.6.10"]
       ;; [com.cemerick/austin          "0.1.4"]
       [com.cemerick/clojurescript.test "0.3.3"]
       [lein-codox                      "0.9.4"]]}]}
