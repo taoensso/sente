@@ -39,7 +39,7 @@
 
   :plugins
   [[lein-pprint         "1.1.2"]
-   [lein-ancient        "0.6.8"]
+   [lein-ancient        "0.6.10"]
    [com.cemerick/austin "0.1.6"]
    [lein-cljsbuild      "1.1.3"]
    [cider/cider-nrepl   "0.11.0"] ; Optional, for use with Emacs
