@@ -1022,7 +1022,7 @@
 
 #+cljs
 (defn make-channel-socket-client!
-  "Returns a map with keys:
+  "Returns nil on failure, or a map with keys:
     :ch-recv ; core.async channel to receive `event-msg`s (internal or from clients).
              ; May `put!` (inject) arbitrary `event`s to this channel.
     :send-fn ; (fn [event & [?timeout-ms ?cb-fn]]) for client>server send.
@@ -1111,7 +1111,7 @@
           ;; recv-buf-or-n ; Seems to be malfunctioning
           )
 
-        chsk
+        ?chsk
         (or
          (and (not= type :ajax)
               (-chsk-connect!
@@ -1150,30 +1150,30 @@
                    :ajax-opts        ajax-opts
                    :curr-xhr_        (atom nil)
                    :backoff-ms-fn    backoff-ms-fn
-                   :active-retry-id_ (atom "pending")}))))
+                   :active-retry-id_ (atom "pending")}))))]
 
-        _ (assert chsk "Failed to create channel socket")
-        send-fn (partial chsk-send! chsk)
+    (if-let [chsk ?chsk]
+      (let [send-fn (partial chsk-send! chsk)
+            public-ch-recv
+            (async/map<
+              ;; All client-side `event-msg`s go through this (allows client to
+              ;; inject arbitrary synthetic events into router for handling):
+              (fn ev->ev-msg [ev]
+                (let [[ev-id ev-?data :as ev] (as-event ev)]
+                  {:ch-recv  public-ch-recv
+                   :send-fn  send-fn
+                   :state    (:state_ chsk)
+                   :event    ev
+                   :id       ev-id
+                   :?data    ev-?data}))
+              public-ch-recv)]
 
-        public-ch-recv
-        (async/map<
-          ;; All client-side `event-msg`s go through this (allows client to
-          ;; inject arbitrary synthetic events into router for handling):
-          (fn ev->ev-msg [ev]
-            (let [[ev-id ev-?data :as ev] (as-event ev)]
-              {:ch-recv  public-ch-recv
-               :send-fn  send-fn
-               :state    (:state_ chsk)
-               :event    ev
-               :id       ev-id
-               :?data    ev-?data}))
-          public-ch-recv)]
+        {:chsk    chsk
+         :ch-recv public-ch-recv ; `ev`s->`ev-msg`s ch
+         :send-fn send-fn
+         :state   (:state_ chsk)})
 
-    (when chsk
-      {:chsk    chsk
-       :ch-recv public-ch-recv ; `ev`s->`ev-msg`s ch
-       :send-fn send-fn
-       :state   (:state_ chsk)})))
+      (warnf "Failed to create channel socket"))))
 
 ;;;; Event-msg routers (handler loops)
 
