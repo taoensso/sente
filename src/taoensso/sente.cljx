@@ -856,11 +856,29 @@
                       ;; Fires repeatedly (on each connection attempt) while
                       ;; server is down:
                       (aset "onclose"
-                        (fn [_ws-ev]
-                          ;; TODO http://goo.gl/G5BYbn needs investigation
-                          ;; code, reason, wasClean
-                          (merge>chsk-state! chsk {:open? false})
-                          (retry-fn))))))))]
+                        (fn [ws-ev]
+                          (let [code   (enc/oget ws-ev "code")
+                                reason (enc/oget ws-ev "reason")
+                                clean? (enc/oget ws-ev "wasClean")]
+
+                            ;; TODO http://goo.gl/G5BYbn debug
+                            (debugf "WebSocket/onclose event: %s"
+                              {:code   code
+                               :reason reason
+                               :clean? clean?})
+
+                            (if (and clean? (not= reason "SENTE_RECONNECT"))
+                              (debugf "Clean WebSocket close, will not attempt reconnect")
+                              (do
+                                (merge>chsk-state! chsk {:open? false})
+                                (retry-fn))))
+
+                          #_(.setTimeout js/window
+                            (fn []
+                              (debugf "WebSocket reconnect attempt")
+                              (merge>chsk-state! chsk {:open? false})
+                              (retry-fn))
+                            95))))))))]
 
         (reset! active-retry-id_ retry-id)
         (reset! retry-count_ 0)
