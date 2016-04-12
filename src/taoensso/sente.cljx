@@ -739,6 +739,7 @@
      state_ ; {:type _ :open? _ :uid _ :csrf-token _}
      cbs-waiting_ ; {<cb-uuid> <fn> ...}
      socket_ kalive-ms kalive-timer_ kalive-due?_
+     onerror-fn
      backoff-ms-fn ; (fn [nattempt]) -> msecs
      active-retry-id_ retry-count_]
 
@@ -817,8 +818,7 @@
 
                   (reset! socket_
                     (doto ?socket
-                      (aset "onerror"
-                        (fn [ws-ev] (errorf "WebSocket error: %s" ws-ev)))
+                      (aset "onerror" onerror-fn)
 
                       (aset "onmessage" ; Nb receives both push & cb evs!
                         (fn [ws-ev]
@@ -1048,6 +1048,7 @@
             ws-kalive-ms  25000 ; < Heroku 30s conn timeout
             lp-timeout-ms 25000 ; ''
             packer        :edn
+            onerror-fn    (fn [ws-ev] (errorf "WebSocket error: %s" ws-ev)) ; Only applies for type :ws
             client-id     (or (:client-uuid opts) ; Backwards compatibility
                                 (enc/uuid-str))
 
@@ -1123,6 +1124,7 @@
                    :kalive-ms        ws-kalive-ms
                    :kalive-timer_    (atom nil)
                    :kalive-due?_     (atom true)
+                   :onerror-fn       onerror-fn
                    :backoff-ms-fn    backoff-ms-fn
                    :active-retry-id_ (atom "pending")
                    :retry-count_     (atom 0)})))
