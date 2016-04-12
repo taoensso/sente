@@ -861,24 +861,13 @@
                                 reason (enc/oget ws-ev "reason")
                                 clean? (enc/oget ws-ev "wasClean")]
 
-                            ;; TODO http://goo.gl/G5BYbn debug
-                            (debugf "WebSocket/onclose event: %s"
-                              {:code   code
-                               :reason reason
-                               :clean? clean?})
-
+                            ;; Firefox calls "onclose" while unloading,
+                            ;; Ref. http://goo.gl/G5BYbn:
                             (if (and clean? (not= reason "SENTE_RECONNECT"))
                               (debugf "Clean WebSocket close, will not attempt reconnect")
                               (do
                                 (merge>chsk-state! chsk {:open? false})
-                                (retry-fn))))
-
-                          #_(.setTimeout js/window
-                            (fn []
-                              (debugf "WebSocket reconnect attempt")
-                              (merge>chsk-state! chsk {:open? false})
-                              (retry-fn))
-                            95))))))))]
+                                (retry-fn)))))))))))]
 
         (reset! active-retry-id_ retry-id)
         (reset! retry-count_ 0)
