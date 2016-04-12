@@ -1085,28 +1085,33 @@
                      :<server  (chan recv-buf-or-n)}
 
         ever-opened?_ (atom false)
-        state*        (fn [state]
-                        (if (or (not (:open? state)) @ever-opened?_) state
-                          (do (reset! ever-opened?_ true)
-                              (assoc state :first-open? true))))
+        state*
+        (fn [state]
+          (let [ever-opened? @ever-opened?_]
+            (if (or ever-opened? (not (:open? state)))
+              state
+              (do (reset! ever-opened?_ true)
+                  (assoc state :first-open? true)))))
 
-        ;; TODO map< is deprecated in favour of transducers (but needs Clojure 1.7+)
+        ;; TODO map< is deprecated in favour of transducers
+        ;; (but needs Clojure 1.7+)
 
         public-ch-recv
         (async/merge
           [(:internal private-chs)
-           (async/map< (fn [state] [:chsk/state (state* state)]) (:state private-chs))
+           (async/map<
+             (fn [state] [:chsk/state (state* state)])
+             (:state private-chs))
 
            (let [<server-ch (:<server private-chs)]
              (if wrap-recv-evs?
                (async/map< (fn [ev] [:chsk/recv ev]) <server-ch)
-               (async/map< (fn [ev]
-                             (let [[id ?data] ev]
-                               ;; Server shouldn't send :chsk/ events. As a
-                               ;; matter of hygiene, ensure no :chsk/_ evs are
-                               ;; received over <server-ch
-                               (have? #(not= % "chsk") (namespace id))
-                               ev))
+               (async/map<
+                 (fn [ev]
+                   (let [[id ?data] ev]
+                     ;; Server shouldn't send :chsk/ events:
+                     (have? #(not= % "chsk") (namespace id))
+                     ev))
                  <server-ch)))]
           ;; recv-buf-or-n ; Seems to be malfunctioning
           )
@@ -1151,6 +1156,18 @@
                    :curr-xhr_        (atom nil)
                    :backoff-ms-fn    backoff-ms-fn
                    :active-retry-id_ (atom "pending")}))))]
+
+    ;; TODO If we want to handle #201 (https://goo.gl/DrPsgJ), we'll need to
+    ;; substantially change our design here so that the underlying chsk
+    ;; implementation (ChWsSocket or ChAjaxSocket) becomes a property of a
+    ;; fixed chsk container.
+    ;;
+    ;; E.g. we could introduce a ChSocket [impl_] record to implement
+    ;; IChSocket, then a new IChSocketImpl protocol that we implement for
+    ;; ChWsSocket and ChAjaxSocket.
+    ;;
+    ;; IChSocket calls then go through @impl_, which can change w/o affecting
+    ;; the identity, stability, or API of the chsk.
 
     (if-let [chsk ?chsk]
       (let [send-fn (partial chsk-send! chsk)
