@@ -84,6 +84,8 @@
   (enc/assert-min-encore-version [2 11 0])
   (enc/assert-min-encore-version  2.11))
 
+(def sente-version "Handy for debugging build issues" [1 8 2 "alpha1"])
+
 ;; (timbre/set-level! :trace) ; For debugging
 
 ;;;; Events
