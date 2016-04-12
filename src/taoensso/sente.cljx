@@ -857,6 +857,8 @@
                       ;; server is down:
                       (aset "onclose"
                         (fn [_ws-ev]
+                          ;; TODO http://goo.gl/G5BYbn needs investigation
+                          ;; code, reason, wasClean
                           (merge>chsk-state! chsk {:open? false})
                           (retry-fn))))))))]
 
