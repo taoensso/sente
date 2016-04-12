@@ -27,16 +27,17 @@
     * Callback wrapping: [<clj> <?cb-uuid>] for [1],[2]
     * Callback replies: :chsk/closed, :chsk/timeout, :chsk/error
     * Client-side events:
-        [:chsk/handshake [<?uid> <?csrf-token> <?handshake-data>]],
-        [:chsk/state <new-state>],
+        [:chsk/handshake [<?uid> <?csrf-token> <?handshake-data>]]
+        [:chsk/state <new-state>]
         [:chsk/recv <[buffered-evs]>] ; server>user push
+        [:chsk/ws-error <error>] ; Experimental, subject to change
 
     * Server-side events:
-        [:chsk/ws-ping],
-        [:chsk/bad-package <packed-str>],
-        [:chsk/bad-event   <chsk-event>],
-        [:chsk/uidport-open],
-        [:chsk/uidport-close].
+        [:chsk/ws-ping]
+        [:chsk/bad-package <packed-str>]
+        [:chsk/bad-event   <chsk-event>]
+        [:chsk/uidport-open]
+        [:chsk/uidport-close]
 
   Notable implementation details:
     * core.async is used liberally where brute-force core.async allows for
@@ -820,7 +821,11 @@
                   (reset! socket_
                     (doto ?socket
                       (aset "onerror"
-                        (fn [ws-ev] (errorf "WebSocket error: %s" ws-ev)))
+                        (fn [ws-ev]
+                          (errorf "WebSocket error: %s" ws-ev)
+                          ;; Experimental, for #214;
+                          (put! (:internal chs) [:chsk/ws-error ws-ev])
+                          nil))
 
                       (aset "onmessage" ; Nb receives both push & cb evs!
                         (fn [ws-ev]
