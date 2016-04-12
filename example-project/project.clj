@@ -49,7 +49,7 @@
   {:builds
    [{:id :cljs-client
      :source-paths ["src"]
-     :compiler {:output-to "resources/public/main.js"
+     :compiler {:output-to "target/main.js"
                 :optimizations :whitespace #_:advanced
                 :pretty-print true}}]}
 
@@ -58,8 +58,8 @@
   ;; Call `lein start-repl` to get a (headless) development repl that you can
   ;; connect to with Cider+emacs or your IDE of choice:
   :aliases
-  {"start-repl" ["do" "cljsbuild" "once," "repl" ":headless"]
-   "start"      ["do" "cljsbuild" "once," "run"]}
+  {"start-repl" ["do" "clean," "cljsbuild" "once," "repl" ":headless"]
+   "start"      ["do" "clean," "cljsbuild" "once," "run"]}
 
   :repositories
   {"sonatype-oss-public" "https://oss.sonatype.org/content/groups/public/"})
