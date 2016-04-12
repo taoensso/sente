@@ -36,7 +36,7 @@
 
       ;; Serializtion format, must use same val for client + server:
       packer :edn ; Default packer, a good choice in most cases
-      ;; (sente-transit/get-flexi-packer :edn) ; Experimental, needs Transit dep
+      ;; (sente-transit/get-transit-packer) ; Needs Transit dep
 
       {:keys [chsk ch-recv send-fn state]}
       (sente/make-channel-socket-client!
@@ -108,6 +108,24 @@
       (->output! "Button 2 was clicked (will receive reply from server)")
       (chsk-send! [:example/button2 {:had-a-callback? "indeed"}] 5000
         (fn [cb-reply] (->output! "Callback reply: %s" cb-reply))))))
+
+(when-let [target-el (.getElementById js/document "btn3")]
+  (.addEventListener target-el "click"
+    (fn [ev]
+      (->output! "Button 3 was clicked (will ask server to test rapid async push)")
+      (chsk-send! [:example/test-rapid-push]))))
+
+(when-let [target-el (.getElementById js/document "btn4")]
+  (.addEventListener target-el "click"
+    (fn [ev]
+      (->output! "Button 4 was clicked (will toggle async broadcast loop)")
+      (chsk-send! [:example/toggle-broadcast] 5000
+        (fn [cb-reply]
+          (when (cb-success? cb-reply)
+            (let [loop-enabled? cb-reply]
+              (if loop-enabled?
+                (->output! "Async broadcast loop now enabled")
+                (->output! "Async broadcast loop now disabled")))))))))
 
 (when-let [target-el (.getElementById js/document "btn-login")]
   (.addEventListener target-el "click"

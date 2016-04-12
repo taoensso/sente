@@ -1,4 +1,4 @@
-(defproject com.taoensso/sente "1.8.2-alpha1"
+(defproject com.taoensso/sente "1.9.0-SNAPSHOT"
   :author "Peter Taoussanis <https://www.taoensso.com>"
   :description "Realtime web comms for Clojure/Script"
   :url "https://github.com/ptaoussanis/sente"
@@ -13,7 +13,7 @@
   :dependencies
   [[org.clojure/clojure      "1.5.1"]
    [org.clojure/core.async   "0.2.374"]
-   [com.taoensso/encore      "2.49.0"]
+   [com.taoensso/encore      "2.53.1"]
    [org.clojure/tools.reader "0.10.0"]
    [com.taoensso/timbre      "4.3.1"]]
 
@@ -24,18 +24,19 @@
    :1.6  {:dependencies [[org.clojure/clojure "1.6.0"]]}
    :1.7  {:dependencies [[org.clojure/clojure "1.7.0"]]}
    :1.8  {:dependencies [[org.clojure/clojure "1.8.0"]]}
+   :1.9  {:dependencies [[org.clojure/clojure "1.9.0-alpha5"]]}
    :test {:dependencies [[com.cognitect/transit-clj  "0.8.285"]
                          [com.cognitect/transit-cljs "0.8.237"]
                          [org.clojure/test.check     "0.9.0"]]
           :plugins []}
 
-   :provided {:dependencies [[org.clojure/clojurescript "1.7.170"]]}
+   :provided {:dependencies [[org.clojure/clojurescript "1.9.36"]]}
 
    :dev
-   [:1.7 :test
+   [:1.9 :test :server-jvm
     {:dependencies
-     [[http-kit         "2.2.0-alpha1"]
-      [org.immutant/web "2.1.3"]
+     [[http-kit         "2.2.0-alpha2"]
+      [org.immutant/web "2.1.4"]
       [nginx-clojure    "0.4.4"]]
      :plugins
      [;;; These must be in :dev, Ref. https://github.com/lynaghk/cljx/issues/47:
@@ -46,7 +47,7 @@
       [lein-ancient                    "0.6.10"]
       ;; [com.cemerick/austin          "0.1.4"]
       [com.cemerick/clojurescript.test "0.3.3"]
-      [lein-codox                      "0.9.4"]]}]}
+      [lein-codox                      "0.9.5"]]}]}
 
   :cljx
   {:builds
@@ -69,19 +70,17 @@
   {:language :clojure ; [:clojure :clojurescript] ; No support?
    :source-paths ["target/classes"]
    :source-uri
-   {#"target/classes"
-    "https://github.com/ptaoussanis/sente/blob/master/src/{classpath}x#L{line}"
-    #".*"
-    "https://github.com/ptaoussanis/sente/blob/master/{filepath}#L{line}"}}
+   {#"target/classes" "https://github.com/ptaoussanis/sente/blob/master/src/{classpath}x#L{line}"
+    #".*"             "https://github.com/ptaoussanis/sente/blob/master/{filepath}#L{line}"}}
 
   :aliases
   {"test-all"   ["do" "clean," "cljx" "once,"
-                 "with-profile" "+1.6:+1.7:+1.8" "test,"
+                 "with-profile" "+1.9:+1.8:+1.7:+1.6" "test,"
                  ;; "with-profile" "+test" "cljsbuild" "test"
                  ]
    "build-once" ["do" "cljx" "once," "cljsbuild" "once"]
    "deploy-lib" ["do" "build-once," "deploy" "clojars," "install"]
-   "start-dev"  ["with-profile" "+server-jvm" "repl" ":headless"]}
+   "start-dev"  ["with-profile" "+dev" "repl" ":headless"]}
 
   :repositories
   {"sonatype-oss-public" "https://oss.sonatype.org/content/groups/public/"})

@@ -20,13 +20,13 @@
 (defprotocol IServerChan
   ;; Wraps a web server's own async channel/comms interface to abstract away
   ;; implementation differences
-  (sch-open?  [server-ch] "Returns true iff the server channel is currently open")
+  (sch-open?  [server-ch] "Returns true iff the channel is currently open.")
   (sch-close! [server-ch]
-    "Closes the server channel and returns true iff the channel was open when
-    called.")
+    "If the channel is open when called: closes the channel and returns true.
+    Otherwise noops and returns false.")
   (-sch-send! [server-ch msg close-after-send?]
-    "Sends a message to server channel. Returns true iff the channel was open
-    when called."))
+    "If the channel is open when called: sends a message over channel and
+    returns true. Otherwise noops and returns false."))
 
 (defn sch-send!
   "Sends a message to server channel. Returns true iff the channel was open
@@ -57,17 +57,3 @@
   arbitrary Clojure data <-> serialized strings."
   (pack   [_ x])
   (unpack [_ x]))
-
-(deftype EdnPacker []
-  IPacker
-  (pack   [_ x] (enc/pr-edn   x))
-  (unpack [_ s] (enc/read-edn s)))
-
-(def edn-packer "Default Edn packer" (->EdnPacker))
-
-(defn coerce-packer [x]
-  (if (= x :edn)
-    edn-packer
-    (do (assert (satisfies? IPacker x)
-                (str "Given packer doesn't satisfy IPacker protocol?"))
-        x)))

@@ -1,4 +1,4 @@
-(defproject com.taoensso.examples/sente "1.8.2-alpha1"
+(defproject com.taoensso.examples/sente "1.9.0-SNAPSHOT"
   :description "Sente, reference web-app example project"
   :url "https://github.com/ptaoussanis/sente"
   :license {:name "Eclipse Public License"
@@ -10,23 +10,21 @@
                 *assert* true}
 
   :dependencies
-  [;; [org.clojure/clojure    "1.7.0"]
-   [org.clojure/clojure       "1.8.0"]
-
-   [org.clojure/clojurescript "1.7.170"]
+  [[org.clojure/clojure       "1.8.0"]
+   [org.clojure/clojurescript "1.9.36"]
    [org.clojure/core.async    "0.2.374"]
    [org.clojure/tools.nrepl   "0.2.12"] ; Optional, for Cider
 
-   [com.taoensso/sente        "1.8.2-alpha1"] ; <--- Sente
+   [com.taoensso/sente        "1.9.0-SNAPSHOT"] ; <--- Sente
    [com.taoensso/timbre       "4.3.1"]
 
    ;;; ---> Choose (uncomment) a supported web server <---
-   [http-kit                  "2.2.0-alpha1"]
-   ;; [org.immutant/web       "2.1.0"] ; v2.1+ recommended
+   [http-kit                  "2.2.0-alpha2"]
+   ;; [org.immutant/web       "2.1.4"]
    ;; [nginx-clojure/nginx-clojure-embed "0.4.2"] ; Needs v0.4.2+
 
-   [ring                      "1.4.0"]
-   [ring/ring-defaults        "0.2.0"] ; Includes `ring-anti-forgery`, etc.
+   [ring                      "1.5.0"]
+   [ring/ring-defaults        "0.2.1"] ; Includes `ring-anti-forgery`, etc.
    ;; [ring-anti-forgery      "1.0.0"]
 
    [compojure                 "1.5.0"] ; Or routing lib of your choice
@@ -42,7 +40,7 @@
    [lein-ancient        "0.6.10"]
    [com.cemerick/austin "0.1.6"]
    [lein-cljsbuild      "1.1.3"]
-   [cider/cider-nrepl   "0.11.0"] ; Optional, for use with Emacs
+   [cider/cider-nrepl   "0.12.0"] ; Optional, for use with Emacs
    ]
 
   :cljsbuild
