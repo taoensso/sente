@@ -70,7 +70,7 @@
 (defmethod -event-msg-handler :chsk/state
   [{:as ev-msg :keys [?data]}]
   (if (:first-open? ?data)
-    (->output! "Channel socket successfully established!")
+    (->output! "Channel socket successfully established!: %s" ?data)
     (->output! "Channel socket state change: %s" ?data)))
 
 (defmethod -event-msg-handler :chsk/recv
