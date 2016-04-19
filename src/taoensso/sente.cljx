@@ -1228,17 +1228,27 @@
 
 (defn start-server-chsk-router!
   "Creates a go-loop to call `(event-msg-handler <server-event-msg>)` and
-  returns a `(fn stop! [])`. Catches & logs errors.
+  log any errors. Returns a `(fn stop! [])`.
 
-  Advanced users may instead prefer to write their own loop against `ch-recv`."
+  For performance, you'll likely want your `event-msg-handler` fn to be
+  non-blocking (at least for slow handling operations). Clojure offers
+  a rich variety of tools here including futures, agents, core.async,
+  etc.
+
+  Advanced users may also prefer to write their own loop against `ch-recv`."
   [ch-recv event-msg-handler & [{:as opts :keys [trace-evs? error-handler]}]]
   (-start-chsk-router! :server ch-recv event-msg-handler opts))
 
 (defn start-client-chsk-router!
   "Creates a go-loop to call `(event-msg-handler <client-event-msg>)` and
-  returns a `(fn stop! [])`. Catches & logs errors.
+  log any errors. Returns a `(fn stop! [])`.
 
-  Advanced users may instead prefer to write their own loop against `ch-recv`."
+  For performance, you'll likely want your `event-msg-handler` fn to be
+  non-blocking (at least for slow handling operations). Clojure offers
+  a rich variety of tools here including futures, agents, core.async,
+  etc.
+
+  Advanced users may also prefer to write their own loop against `ch-recv`."
   [ch-recv event-msg-handler & [{:as opts :keys [trace-evs? error-handler]}]]
   (-start-chsk-router! (not :server) ch-recv event-msg-handler opts))
 
