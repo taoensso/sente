@@ -4,10 +4,9 @@
 
   (:require
    [clojure.string  :as str]
-   [cljs.core.async :as async  :refer (<! >! put! chan)]
-   [taoensso.encore :as encore :refer ()]
-   [taoensso.timbre :as timbre :refer-macros (tracef debugf infof warnf errorf)]
-   [taoensso.sente  :as sente  :refer (cb-success?)]
+   [taoensso.encore :as encore]
+   [taoensso.timbre :as timbre]
+   [taoensso.sente  :as sente]
 
    ;; Optional, for Transit encoding:
    [taoensso.sente.packers.transit :as sente-transit])
