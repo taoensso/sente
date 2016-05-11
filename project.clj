@@ -13,7 +13,7 @@
   :dependencies
   [[org.clojure/clojure      "1.5.1"]
    [org.clojure/core.async   "0.2.374"]
-   [com.taoensso/encore      "2.49.0"]
+   [com.taoensso/encore      "2.52.1"]
    [org.clojure/tools.reader "0.10.0"]
    [com.taoensso/timbre      "4.3.1"]]
 
@@ -35,7 +35,7 @@
    [:1.7 :test
     {:dependencies
      [[http-kit         "2.2.0-alpha1"]
-      [org.immutant/web "2.1.3"]
+      [org.immutant/web "2.1.4"]
       [nginx-clojure    "0.4.4"]]
      :plugins
      [;;; These must be in :dev, Ref. https://github.com/lynaghk/cljx/issues/47:
@@ -46,7 +46,7 @@
       [lein-ancient                    "0.6.10"]
       ;; [com.cemerick/austin          "0.1.4"]
       [com.cemerick/clojurescript.test "0.3.3"]
-      [lein-codox                      "0.9.4"]]}]}
+      [lein-codox                      "0.9.5"]]}]}
 
   :cljx
   {:builds
