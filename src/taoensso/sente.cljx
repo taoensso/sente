@@ -236,6 +236,7 @@
     :handshake-data-fn ; (fn [ring-req]) -> arb user data to append to handshake evs.
     :send-buf-ms-ajax  ; [2]
     :send-buf-ms-ws    ; [2]
+    :ws-conn-gc-ms     ; Should be > client's :ws-kalive-ms
     :packer            ; :edn (default), or an IPacker implementation (experimental).
 
   [1] e.g. `taoensso.sente.server-adapters.http-kit/http-kit-adapter` or
@@ -249,11 +250,12 @@
       after send call (larger values => larger batch windows)."
 
   [web-server-adapter ; Actually a server-ch-adapter, but that may be confusing
-   & [{:keys [recv-buf-or-n send-buf-ms-ajax send-buf-ms-ws
+   & [{:keys [recv-buf-or-n send-buf-ms-ajax send-buf-ms-ws ws-conn-gc-ms
               user-id-fn csrf-token-fn handshake-data-fn packer]
        :or   {recv-buf-or-n (async/sliding-buffer 1000)
               send-buf-ms-ajax 100
               send-buf-ms-ws   30
+              ws-conn-gc-ms    (enc/ms :secs 60)
               user-id-fn    (fn [ring-req] (get-in ring-req [:session :uid]))
               csrf-token-fn (fn [ring-req]
                               (or (get-in ring-req [:session :csrf-token])
@@ -273,6 +275,8 @@
                        })
         connected-uids_ (atom {:ws #{} :ajax #{} :any #{}})
         send-buffers_   (atom {:ws  {} :ajax  {}}) ; {<uid> [<buffered-evs> <#{ev-uuids}>]}
+
+        last-ws-msg-udts_ (atom {}) ; {<client-id> <udt>}, used for ws conn gc
 
         user-id-fn
         (fn [ring-req client-id]
@@ -485,12 +489,29 @@
               (fn [server-ch]
                 (if websocket?
                   (do ; WebSocket handshake
+
                     (tracef "New WebSocket channel: %s (%s)"
                       uid (str server-ch)) ; _Must_ call `str` on server-ch
                     (reset-in! conns_ [:ws uid client-id] server-ch)
                     (when (connect-uid! :ws uid)
                       (receive-event-msg! [:chsk/uidport-open]))
-                    (handshake! server-ch))
+                    (handshake! server-ch)
+
+                    ;; Start ws conn gc loop
+                    ;; Sudden abnormal disconnects (e.g. enabling airplane
+                    ;; mode) prevent the conn from firing the normal
+                    ;; :on-close event until only much later (determined by
+                    ;; TCP settings).
+                    (swap! last-ws-msg-udts_ (fn [m] (assoc m client-id (enc/now-udt))))
+                    (when-let [ms ws-conn-gc-ms]
+                      (go-loop []
+                        (when-let [last-ws-msg-udt* (get @last-ws-msg-udts_ client-id)]
+                          (<! (async/timeout ms))
+                          (when-let [last-ws-msg-udt (get @last-ws-msg-udts_ client-id)]
+                            (if (= last-ws-msg-udt last-ws-msg-udt*)
+                              ;; No activity since last timeout => conn dead
+                              (interfaces/sch-close! server-ch)
+                              (recur)))))))
 
                   ;; Ajax handshake/poll connection:
                   (let [initial-conn-from-client?
@@ -508,6 +529,7 @@
 
               :on-msg ; Only for WebSockets
               (fn [server-ch req-ppstr]
+                (swap! last-ws-msg-udts_ (fn [m] (assoc m client-id (enc/now-udt))))
                 (let [[clj ?cb-uuid] (unpack packer req-ppstr)]
                   (receive-event-msg! clj ; Should be ev
                     (when ?cb-uuid
@@ -524,6 +546,7 @@
 
                 (if websocket?
                   (do ; WebSocket close
+                    (swap! last-ws-msg-udts_ (fn [m] (dissoc m client-id)))
                     (swap-in! conns_ [:ws uid]
                       (fn [?m]
                         (let [new-m (dissoc ?m client-id)]
@@ -1050,8 +1073,8 @@
      :as   opts
      :or   {type          :auto
             recv-buf-or-n (async/sliding-buffer 2048) ; Mostly for buffered-evs
-            ws-kalive-ms  25000 ; < Heroku 30s conn timeout
-            lp-timeout-ms 25000 ; ''
+            ws-kalive-ms  (enc/ms :secs 25) ; < Heroku 30s conn timeout
+            lp-timeout-ms (enc/ms :secs 25) ; ''
             packer        :edn
             client-id     (or (:client-uuid opts) ; Backwards compatibility
                                 (enc/uuid-str))
