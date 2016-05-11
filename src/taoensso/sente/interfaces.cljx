@@ -23,7 +23,7 @@
   (sch-open?  [server-ch] "Returns true iff the server channel is currently open")
   (sch-close! [server-ch]
     "Closes the server channel and returns true iff the channel was open when
-    called.")
+    called. Noops if the server channel is already closed.")
   (-sch-send! [server-ch msg close-after-send?]
     "Sends a message to server channel. Returns true iff the channel was open
     when called."))

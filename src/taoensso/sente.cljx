@@ -237,6 +237,7 @@
     :send-buf-ms-ajax  ; [2]
     :send-buf-ms-ws    ; [2]
     :ws-conn-gc-ms     ; Should be > client's :ws-kalive-ms
+    :lp-conn-gc-ms     ; Should be > client's :lp-timeout-ms
     :packer            ; :edn (default), or an IPacker implementation (experimental).
 
   [1] e.g. `taoensso.sente.server-adapters.http-kit/http-kit-adapter` or
@@ -250,12 +251,14 @@
       after send call (larger values => larger batch windows)."
 
   [web-server-adapter ; Actually a server-ch-adapter, but that may be confusing
-   & [{:keys [recv-buf-or-n send-buf-ms-ajax send-buf-ms-ws ws-conn-gc-ms
+   & [{:keys [recv-buf-or-n send-buf-ms-ajax send-buf-ms-ws
+              ws-conn-gc-ms lp-conn-gc-ms
               user-id-fn csrf-token-fn handshake-data-fn packer]
        :or   {recv-buf-or-n (async/sliding-buffer 1000)
               send-buf-ms-ajax 100
               send-buf-ms-ws   30
               ws-conn-gc-ms    (enc/ms :secs 60)
+              lp-conn-gc-ms    (enc/ms :secs 60)
               user-id-fn    (fn [ring-req] (get-in ring-req [:session :uid]))
               csrf-token-fn (fn [ring-req]
                               (or (get-in ring-req [:session :csrf-token])
@@ -524,8 +527,17 @@
                     (when (connect-uid! :ajax uid)
                       (receive-event-msg! [:chsk/uidport-open]))
 
-                    ;; Client will immediately repoll:
-                    (when handshake? (handshake! server-ch)))))
+                    (if handshake?
+                      (handshake! server-ch) ; Client will immediately repoll
+
+                      ;; For #150, #159
+                      ;; Help clean up timed-out lp conns; http-kit doesn't
+                      ;; require this but other servers might benefit. Either
+                      ;; way doesn't hurt
+                      (when-let [ms lp-conn-gc-ms]
+                        (go
+                          (<! (async/timeout ms))
+                          (interfaces/sch-close! server-ch)))))))
 
               :on-msg ; Only for WebSockets
               (fn [server-ch req-ppstr]
