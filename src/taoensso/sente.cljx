@@ -257,8 +257,8 @@
        :or   {recv-buf-or-n (async/sliding-buffer 1000)
               send-buf-ms-ajax 100
               send-buf-ms-ws   30
-              ws-conn-gc-ms    (enc/ms :secs 60)
-              lp-conn-gc-ms    (enc/ms :secs 60)
+              ws-conn-gc-ms    (enc/ms :secs 40) ; > Client's :ws-kalive-ms
+              lp-conn-gc-ms    (enc/ms :secs 25) ; > Client's :lp-timeout-ms
               user-id-fn    (fn [ring-req] (get-in ring-req [:session :uid]))
               csrf-token-fn (fn [ring-req]
                               (or (get-in ring-req [:session :csrf-token])
@@ -1085,8 +1085,8 @@
      :as   opts
      :or   {type          :auto
             recv-buf-or-n (async/sliding-buffer 2048) ; Mostly for buffered-evs
-            ws-kalive-ms  (enc/ms :secs 25) ; < Heroku 30s conn timeout
-            lp-timeout-ms (enc/ms :secs 25) ; ''
+            ws-kalive-ms  (enc/ms :secs 35) ; < Heroku 55s timeout
+            lp-timeout-ms (enc/ms :secs 20) ; < Heroku 30s timeout
             packer        :edn
             client-id     (or (:client-uuid opts) ; Backwards compatibility
                                 (enc/uuid-str))
