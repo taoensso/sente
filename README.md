@@ -297,12 +297,13 @@ If you do want a lifecycle management lib, I'm personally fond of Leaven since i
 
 Here's some more unofficial/**user-submitted** examples for those interested! (**PRs welcome!**):
 
-Example          | Author           | Comments                                         |
----------------- | ---------------- | ------------------------------------------------ |
-[om-mouse]       | [@tf0054]        | Basic example: tracks mouse pos using Om+Sente.  |
-[om-sente]       | [@seancorfield]  | ??                                               |
-[sente-boot]     | [@danielsz]      | Same example app, different toolchain ([boot])   |
-[sente-system]   | [@danielsz]      | Same example app, adapted for [danielsz/system]  |
+Example             | Author           | Comments                                         |
+------------------- | ---------------- | ------------------------------------------------ |
+[om-mouse]          | [@tf0054]        | Basic example: tracks mouse pos using Om+Sente.  |
+[om-sente]          | [@seancorfield]  | ??                                               |
+[sente-boot]        | [@danielsz]      | Same example app, different toolchain ([boot])   |
+[sente-system]      | [@danielsz]      | Same example app, adapted for [danielsz/system]  |
+[system-websockets] | [@danielsz]      | Client-side UI, login and wiring of components   | 
 
 #### Any other questions?
 
@@ -350,6 +351,7 @@ Copyright &copy; 2012-2014 Peter Taoussanis. Distributed under the [Eclipse Publ
 [om-sente]: https://github.com/seancorfield/om-sente
 [sente-boot]: https://github.com/danielsz/sente-boot
 [sente-system]: https://github.com/danielsz/sente-system
+[system-websockets]: https://github.com/danielsz/system-websockets
 [@tf0054]: https://github.com/tf0054
 [@seancorfield]: https://github.com/seancorfield
 [@danielsz]: https://github.com/danielsz
