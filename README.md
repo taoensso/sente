@@ -211,12 +211,13 @@ Some important differences to note:
 Link                     | Description
 ------------------------ | --------------------------------------------------------------------
 **[Official example]** | **Official Sente reference example**, always up-to-date
-[@danielsz/sente-boot]   | Ref example adapted for [boot]
-[@danielsz/sente-system] | Ref example adapted for [@danielsz/system]
-[@seancorfield/om-sente] | ??
-[@ebellani/carpet]       | Web+mobile interface for a remmitance application
-[@theasp/sente-nodejs-example] | Ref. example adapted for Node.js servers ([Express], [Dog Fort])
+[@danielsz/system-websockets] | Client-side UI, login and wiring of components
 [@timothypratley/snakelake] | Multiplayer snake game with screencast walkthrough
+[@theasp/sente-nodejs-example] | Ref. example adapted for Node.js servers ([Express], [Dog Fort])
+[@ebellani/carpet]       | Web+mobile interface for a remmitance application
+[@danielsz/sente-system] | Ref example adapted for [@danielsz/system]
+[@danielsz/sente-boot]   | Ref example adapted for [boot]
+[@seancorfield/om-sente] | ??
 Your link here?          | **PR's welcome!**
 
 ### FAQ
@@ -377,6 +378,7 @@ Copyright &copy; 2014-2016 [Peter Taoussanis].
 
 [@danielsz/sente-boot]: https://github.com/danielsz/sente-boot
 [@danielsz/sente-system]: https://github.com/danielsz/sente-system
+[@danielsz/system-websockets]: https://github.com/danielsz/system-websockets
 [@seancorfield/om-sente]: https://github.com/seancorfield/om-sente
 [@ebellani/carpet]: https://github.com/ebellani/carpet
 [@theasp/sente-nodejs-example]: https://github.com/theasp/sente-nodejs-example
