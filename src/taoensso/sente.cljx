@@ -295,6 +295,8 @@
 
         last-ws-msg-udts_ (atom {}) ; {<client-id> <udt>}, used for ws conn gc
 
+        active-ajax-sch-uuids_ (atom #{}) ; TODO Temp debugging http-kit issue
+
         user-id-fn
         (fn [ring-req client-id]
           ;; Allow uid to depend (in part or whole) on client-id. Be cautious
@@ -456,13 +458,13 @@
                      (fn reply-fn [resp-clj] ; Any clj form
                        (tracef "Chsk send (ajax reply): %s" resp-clj)
                        ;; true iff apparent success:
-                       (interfaces/sch-send! server-ch
+                       (interfaces/-sch-send! server-ch
                          (pack packer (meta resp-clj) resp-clj)
                          :close-after-send)))}))
 
               (when-not has-cb?
                 (tracef "Chsk send (ajax reply): dummy-cb-200")
-                (interfaces/sch-send! server-ch
+                (interfaces/-sch-send! server-ch
                   (pack packer nil :chsk/dummy-cb-200)
                   :close-after-send))))}))
 
@@ -473,6 +475,7 @@
              client-id  (get params   :client-id)
              uid        (user-id-fn ring-req client-id)
              websocket? (:websocket? ring-req)
+             sch-uuid_  (delay (enc/uuid-str 6))
 
              receive-event-msg! ; Partial
              (fn [event & [?reply-fn]]
@@ -492,7 +495,7 @@
                      (if-not (nil? ?handshake-data) ; Micro optimization
                        [:chsk/handshake [uid csrf-token ?handshake-data]]
                        [:chsk/handshake [uid csrf-token]])]
-                 (interfaces/sch-send! server-ch
+                 (interfaces/-sch-send! server-ch
                    (pack packer nil handshake-ev)
                    (not websocket?))))]
 
@@ -538,20 +541,53 @@
                         handshake? (or initial-conn-from-client?
                                        (:handshake? params))]
 
+                    (swap! active-ajax-sch-uuids_ conj @sch-uuid_)
+                    (infof "** debug/on-open: %s/%s" client-id @sch-uuid_)
+
                     (when (connect-uid! :ajax uid)
                       (receive-event-msg! [:chsk/uidport-open]))
 
-                    (if handshake?
-                      (handshake! server-ch) ; Client will immediately repoll
+                    (when handshake?
+                      ;; Client will immediately repoll
+                      (handshake! server-ch))
 
-                      ;; For #150, #159
-                      ;; Help clean up timed-out lp conns; http-kit doesn't
-                      ;; require this but other servers might benefit. Either
-                      ;; way doesn't hurt
-                      (when-let [ms lp-conn-gc-ms]
-                        (go
-                          (<! (async/timeout ms))
-                          (interfaces/sch-close! server-ch)))))))
+                    ;; For #150, #159
+                    ;; Help clean up timed-out lp conns; http-kit doesn't
+                    ;; require this but other servers might benefit. Either
+                    ;; way doesn't hurt
+                    (when-let [ms lp-conn-gc-ms]
+                      (go
+                        (<! (async/timeout ms)) ; Default 25s gc vs 20s tout
+                        ;; (interfaces/sch-close! server-ch) ; Bug with http-kit?
+                        (infof "** %s" @active-ajax-sch-uuids_)
+                        (when (do
+                                (swap-in! active-ajax-sch-uuids_ []
+                                  (fn [s] (swapped (disj s @sch-uuid_) (s @sch-uuid_))))
+                                :debug/true)
+
+                          ;; TODO Debug
+                          ;; Seeing some unexpected behaviour with http-kit
+                          ;; here (bug?). If a server-ch is closed, my
+                          ;; expectation was that we could safely attempt
+                          ;; another close later and that it'd noop. In fact,
+                          ;; a later call to `(sch-close! server-ch)` seems
+                          ;; to close another random connection?
+
+                          ;; Requires modified version of http-kit:
+                          ;; [com.taoensso.forks/http-kit "2.2.0-debug1"]
+                          (let [sch server-ch]
+                            (infof "** Internal: %s"
+                              {:key            (.key            sch)
+                               :server         (.server         sch)
+                               :closedRan      (.closedRan      sch)
+                               :isHeaderSent   (.isHeaderSent   sch)
+                               :receiveHandler (.receiveHandler sch)
+                               :closeHandler   (.closeHandler   sch)
+                               :request        (.request        sch)}))
+
+                          (if-let [closed? (interfaces/sch-close! server-ch)]
+                            (warnf "** debug/gc (open sch): %s/%s"   client-id @sch-uuid_)
+                            (infof "** debug/gc (closed sch): %s/%s" client-id @sch-uuid_))))))))
 
               :on-msg ; Only for WebSockets
               (fn [server-ch req-ppstr]
@@ -562,8 +598,9 @@
                       (fn reply-fn [resp-clj] ; Any clj form
                         (tracef "Chsk send (ws reply): %s" resp-clj)
                         ;; true iff apparent success:
-                        (interfaces/sch-send! server-ch
-                          (pack packer (meta resp-clj) resp-clj ?cb-uuid)))))))
+                        (interfaces/-sch-send! server-ch
+                          (pack packer (meta resp-clj) resp-clj ?cb-uuid)
+                          (not :close-after-send)))))))
 
               :on-close ; We rely on `on-close` to trigger for _every_ conn!
               (fn [server-ch status]
@@ -594,38 +631,42 @@
                       (when (upd-connected-uid! uid)
                         (receive-event-msg! [:chsk/uidport-close]))))
 
-                  (do ; Ajax close
-                    (swap-in! conns_ [uid :ajax client-id]
+                  ;; Ajax close
+                  (let [udt-disconnected (enc/now-udt)]
+                    (swap-in! conns_ [:ajax uid client-id]
                       (fn [[server-ch udt-last-connected]] [nil udt-last-connected]))
 
-                    (let [udt-disconnected (enc/now-udt)]
-                      (go
-                        ;; Allow some time for possible poller reconnects:
-                        (<! (async/timeout 5000))
-                        (let [disconnected?
-                              (swap-in! conns_ [:ajax uid]
-                                (fn [?m]
-                                  (let [[_ ?udt-last-connected] (get ?m client-id)
-                                        disconnected?
-                                        (and ?udt-last-connected ; Not yet gc'd
-                                          (>= udt-disconnected
-                                              ?udt-last-connected))]
-                                    (if-not disconnected?
-                                      (swapped ?m (not :disconnected))
-                                      (let [new-m (dissoc ?m client-id)]
-                                        (swapped
-                                          (if (empty? new-m) :swap/dissoc new-m)
-                                          :disconnected))))))]
-                          (when disconnected?
-                            (when (upd-connected-uid! uid)
-                              (receive-event-msg! [:chsk/uidport-close])))))))))}))))}))
+                    (swap! active-ajax-sch-uuids_ disj @sch-uuid_)
+                    (infof "** debug/on-close: %s/%s (%s)" client-id @sch-uuid_ status) ; TODO Temp
+
+                    (go
+                      ;; Allow some time for possible poller reconnects:
+                      (<! (async/timeout 5000))
+                      (let [disconnected?
+                            (swap-in! conns_ [:ajax uid]
+                              (fn [?m]
+                                (let [[_ ?udt-last-connected] (get ?m client-id)
+                                      disconnected?
+                                      (and ?udt-last-connected ; Not yet gc'd
+                                        (>= udt-disconnected
+                                            ?udt-last-connected))]
+                                  (if-not disconnected?
+                                    (swapped ?m (not :disconnected))
+                                    (let [new-m (dissoc ?m client-id)]
+                                      (swapped
+                                        (if (empty? new-m) :swap/dissoc new-m)
+                                        :disconnected))))))]
+
+                        (when disconnected?
+                          (when (upd-connected-uid! uid)
+                            (receive-event-msg! [:chsk/uidport-close]))))))))}))))}))
 
 (defn- send-buffered-server-evs>ws-clients!
   "Actually pushes buffered events (as packed-str) to all uid's WebSocket conns."
   [conns_ uid buffered-evs-pstr]
   (tracef "send-buffered-server-evs>ws-clients!: %s" buffered-evs-pstr)
   (doseq [server-ch (vals (get-in @conns_ [:ws uid]))]
-    (interfaces/sch-send! server-ch buffered-evs-pstr)))
+    (interfaces/-sch-send! server-ch buffered-evs-pstr (not :close-after-send))))
 
 (defn- send-buffered-server-evs>ajax-clients!
   "Actually pushes buffered events (as packed-str) to all uid's Ajax conns.
@@ -663,7 +704,7 @@
                    (fn [s client-id [?server-ch _]]
                      (if (or (nil? ?server-ch)
                              ;; server-ch may have closed already (`send!` will noop):
-                             (not (interfaces/sch-send! ?server-ch buffered-evs-pstr
+                             (not (interfaces/-sch-send! ?server-ch buffered-evs-pstr
                                     :close-after-send)))
                        s
                        (conj s client-id))) #{} ?pulled))
