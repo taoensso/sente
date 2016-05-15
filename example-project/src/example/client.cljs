@@ -36,7 +36,7 @@
 
       ;; Serializtion format, must use same val for client + server:
       packer :edn ; Default packer, a good choice in most cases
-      ;; (sente-transit/get-flexi-packer :edn) ; Experimental, needs Transit dep
+      ;; (sente-transit/get-transit-packer) ; Needs Transit dep
 
       {:keys [chsk ch-recv send-fn state]}
       (sente/make-channel-socket-client!

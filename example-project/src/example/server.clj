@@ -55,7 +55,7 @@
 
 (let [;; Serializtion format, must use same val for client + server:
       packer :edn ; Default packer, a good choice in most cases
-      ;; (sente-transit/get-flexi-packer :edn) ; Experimental, needs Transit dep
+      ;; (sente-transit/get-transit-packer) ; Needs Transit dep
 
       {:keys [ch-recv send-fn ajax-post-fn ajax-get-or-ws-handshake-fn
               connected-uids]}

@@ -206,15 +206,30 @@
      (tracef "Packing (wrapped): %s -> %s" [?packer-meta clj ?cb-uuid] pstr)
      pstr)))
 
+(deftype EdnPacker []
+  interfaces/IPacker
+  (pack   [_ x] (enc/pr-edn   x))
+  (unpack [_ s] (enc/read-edn s)))
+
+(def ^:private default-edn-packer (EdnPacker.))
+
+(defn- coerce-packer [x]
+  (if (enc/kw-identical? x :edn)
+    default-edn-packer
+    (have #(satisfies? interfaces/IPacker %) x)))
+
 (comment
-  (do (require '[taoensso.sente.packers.transit :as transit])
-      (def edn-packer   interfaces/edn-packer)
-      (def flexi-packer (transit/get-flexi-packer)))
-  (unpack edn-packer   (pack edn-packer   nil          "hello"))
-  (unpack flexi-packer (pack flexi-packer nil          "hello"))
-  (unpack flexi-packer (pack flexi-packer {}           [:foo/bar {}] "my-cb-uuid"))
-  (unpack flexi-packer (pack flexi-packer {:json true} [:foo/bar {}] "my-cb-uuid"))
-  (unpack flexi-packer (pack flexi-packer {}           [:foo/bar {}] :ajax-cb)))
+  (do
+    (require '[taoensso.sente.packers.transit :as transit])
+    (def ^:private default-transit-json-packer (transit/get-transit-packer)))
+
+  (let [pack   interfaces/pack
+        unpack interfaces/unpack
+        data   {:a :A :b :B :c "hello world"}]
+
+    (enc/qb 10000
+      (let [pk default-edn-packer]          (unpack pk (pack pk data)))
+      (let [pk default-transit-json-packer] (unpack pk (pack pk data))))))
 
 ;;;; Server API
 
@@ -270,7 +285,7 @@
   (have? enc/pos-int? send-buf-ms-ajax send-buf-ms-ws)
   (have? #(satisfies? interfaces/IServerChanAdapter %) web-server-adapter)
 
-  (let [packer  (interfaces/coerce-packer packer)
+  (let [packer  (coerce-packer packer)
         ch-recv (chan recv-buf-or-n)
         conns_  (atom {:ws   {} ; {<uid> {<client-id> <server-ch>}}
                        :ajax {} ; {<uid> {<client-id> [<?server-ch> <udt-last-connected>]}}
@@ -1219,7 +1234,7 @@
   (when (not (nil? _deprecated-more-opts)) (warnf "`make-channel-socket-client!` fn signature CHANGED with Sente v0.10.0."))
   (when (contains? opts :lp-timeout)       (warnf ":lp-timeout opt has CHANGED; please use :lp-timout-ms."))
 
-  (let [packer (interfaces/coerce-packer packer)
+  (let [packer (coerce-packer packer)
 
         win-loc         (enc/get-win-loc)
         win-protocol  (:protocol win-loc)

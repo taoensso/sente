@@ -57,17 +57,3 @@
   arbitrary Clojure data <-> serialized strings."
   (pack   [_ x])
   (unpack [_ x]))
-
-(deftype EdnPacker []
-  IPacker
-  (pack   [_ x] (enc/pr-edn   x))
-  (unpack [_ s] (enc/read-edn s)))
-
-(def edn-packer "Default Edn packer" (->EdnPacker))
-
-(defn coerce-packer [x]
-  (if (= x :edn)
-    edn-packer
-    (do (assert (satisfies? IPacker x)
-                (str "Given packer doesn't satisfy IPacker protocol?"))
-        x)))
