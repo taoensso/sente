@@ -252,7 +252,6 @@
     :send-buf-ms-ajax  ; [2]
     :send-buf-ms-ws    ; [2]
     :ws-conn-gc-ms     ; Should be > client's :ws-kalive-ms
-    :lp-conn-gc-ms     ; Should be > client's :lp-timeout-ms
     :packer            ; :edn (default), or an IPacker implementation (experimental).
 
   [1] e.g. `taoensso.sente.server-adapters.http-kit/http-kit-adapter` or
@@ -265,15 +264,17 @@
       (slow) reconnecting poller. Actual event dispatch may occur <= given ms
       after send call (larger values => larger batch windows)."
 
+  ;; :lp-conn-gc-ms ; Should be > client's :lp-timeout-ms ; TODO Maybe later
+
   [web-server-adapter ; Actually a server-ch-adapter, but that may be confusing
    & [{:keys [recv-buf-or-n send-buf-ms-ajax send-buf-ms-ws
-              ws-conn-gc-ms lp-conn-gc-ms
+              ws-conn-gc-ms #_lp-conn-gc-ms
               user-id-fn csrf-token-fn handshake-data-fn packer]
        :or   {recv-buf-or-n (async/sliding-buffer 1000)
               send-buf-ms-ajax 100
               send-buf-ms-ws   30
               ws-conn-gc-ms    (enc/ms :secs 40) ; > Client's :ws-kalive-ms
-              lp-conn-gc-ms    (enc/ms :secs 25) ; > Client's :lp-timeout-ms
+              ;; lp-conn-gc-ms (enc/ms :secs 25) ; > Client's :lp-timeout-ms
               user-id-fn    (fn [ring-req] (get-in ring-req [:session :uid]))
               csrf-token-fn (fn [ring-req]
                               (or (get-in ring-req [:session :csrf-token])
@@ -290,12 +291,10 @@
         conns_  (atom {:ws   {} ; {<uid> {<client-id> <server-ch>}}
                        :ajax {} ; {<uid> {<client-id> [<?server-ch> <udt-last-connected>]}}
                        })
-        connected-uids_ (atom {:ws #{} :ajax #{} :any #{}})
-        send-buffers_   (atom {:ws  {} :ajax  {}}) ; {<uid> [<buffered-evs> <#{ev-uuids}>]}
 
+        connected-uids_   (atom {:ws #{} :ajax #{} :any #{}})
+        send-buffers_     (atom {:ws  {} :ajax  {}}) ; {<uid> [<buffered-evs> <#{ev-uuids}>]}
         last-ws-msg-udts_ (atom {}) ; {<client-id> <udt>}, used for ws conn gc
-
-        active-ajax-sch-uuids_ (atom #{}) ; TODO Temp debugging http-kit issue
 
         user-id-fn
         (fn [ring-req client-id]
@@ -541,9 +540,6 @@
                         handshake? (or initial-conn-from-client?
                                        (:handshake? params))]
 
-                    (swap! active-ajax-sch-uuids_ conj @sch-uuid_)
-                    (infof "** debug/on-open: %s/%s" client-id @sch-uuid_)
-
                     (when (connect-uid! :ajax uid)
                       (receive-event-msg! [:chsk/uidport-open]))
 
@@ -553,41 +549,12 @@
 
                     ;; For #150, #159
                     ;; Help clean up timed-out lp conns; http-kit doesn't
-                    ;; require this but other servers might benefit. Either
-                    ;; way doesn't hurt
-                    (when-let [ms lp-conn-gc-ms]
+                    ;; need this but other servers could possibly benefit.
+                    #_(when-let [ms lp-conn-gc-ms]
                       (go
                         (<! (async/timeout ms)) ; Default 25s gc vs 20s tout
-                        ;; (interfaces/sch-close! server-ch) ; Bug with http-kit?
-                        (infof "** %s" @active-ajax-sch-uuids_)
-                        (when (do
-                                (swap-in! active-ajax-sch-uuids_ []
-                                  (fn [s] (swapped (disj s @sch-uuid_) (s @sch-uuid_))))
-                                :debug/true)
-
-                          ;; TODO Debug
-                          ;; Seeing some unexpected behaviour with http-kit
-                          ;; here (bug?). If a server-ch is closed, my
-                          ;; expectation was that we could safely attempt
-                          ;; another close later and that it'd noop. In fact,
-                          ;; a later call to `(sch-close! server-ch)` seems
-                          ;; to close another random connection?
-
-                          ;; Requires modified version of http-kit:
-                          ;; [com.taoensso.forks/http-kit "2.2.0-debug1"]
-                          (let [sch server-ch]
-                            (infof "** Internal: %s"
-                              {:key            (.key            sch)
-                               :server         (.server         sch)
-                               :closedRan      (.closedRan      sch)
-                               :isHeaderSent   (.isHeaderSent   sch)
-                               :receiveHandler (.receiveHandler sch)
-                               :closeHandler   (.closeHandler   sch)
-                               :request        (.request        sch)}))
-
-                          (if-let [closed? (interfaces/sch-close! server-ch)]
-                            (warnf "** debug/gc (open sch): %s/%s"   client-id @sch-uuid_)
-                            (infof "** debug/gc (closed sch): %s/%s" client-id @sch-uuid_))))))))
+                        (when-let [closed? (interfaces/sch-close! server-ch)]
+                          #_(warnf "GC'ed an open lp conn: %s/%s" client-id @sch-uuid_)))))))
 
               :on-msg ; Only for WebSockets
               (fn [server-ch req-ppstr]
@@ -635,9 +602,6 @@
                   (let [udt-disconnected (enc/now-udt)]
                     (swap-in! conns_ [:ajax uid client-id]
                       (fn [[server-ch udt-last-connected]] [nil udt-last-connected]))
-
-                    (swap! active-ajax-sch-uuids_ disj @sch-uuid_)
-                    (infof "** debug/on-close: %s/%s (%s)" client-id @sch-uuid_ status) ; TODO Temp
 
                     (go
                       ;; Allow some time for possible poller reconnects:

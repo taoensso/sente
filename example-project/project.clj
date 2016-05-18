@@ -21,8 +21,7 @@
    [com.taoensso/timbre       "4.3.1"]
 
    ;;; ---> Choose (uncomment) a supported web server <---
-   ;; [http-kit                  "2.2.0-alpha1"]
-   [com.taoensso.forks/http-kit "2.2.0-debug1"]
+   [http-kit                  "2.2.0-alpha1"]
    ;; [org.immutant/web       "2.1.4"] ; v2.1+ recommended
    ;; [nginx-clojure/nginx-clojure-embed "0.4.2"] ; Needs v0.4.2+
 
