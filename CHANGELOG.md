@@ -1,5 +1,25 @@
 > This project uses [Break Versioning](https://github.com/ptaoussanis/encore/blob/master/BREAK-VERSIONING.md) as of **Aug 16, 2014**.
 
+## v1.9.0-beta1 - 2016 Jun 10
+
+```clojure
+[com.taoensso/sente "1.9.0-beta1"]
+```
+
+> This is a **major release** that should be non-breaking in most cases. Enjoy! :-)
+
+**PLEASE REPORT ANY PROBLEMS**, thank you!
+
+* **BREAKING**: `:ws-kalive-ms`, `:lp-timeout-ms` opts moved from client-side to server-side `make-channel-socket!` fn
+* **BREAKING**: Drop experimental (and rarely used) flexi packer
+* **New**: Add support for more flexible conn-type upgrade/downgrade [#201]
+* **New**: Add alpha `[:chsk/ws-error _]` client-side ev-msgs [#214]
+* **Impl**: Clojure-side Transit performance optimizations [#161]
+* **Impl**: Allow server to garbage collect long-polling conns [#150 #159]
+* **Fix**: Server-side ping to help gc non-terminating WebSocket conns [#230]
+* **Fix**: Fix for spurious Firefox unload->onclose calls [#224]
+* **Fix**: Clear the keep alive timer in `chsk-disconnect!` [#221 @theasp]
+
 ## v1.8.1 - 2016 Mar 4
 
 ```clojure

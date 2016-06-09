@@ -4,7 +4,8 @@
 **[CHANGELOG]** | [API] | current [Break Version]:
 
 ```clojure
-[com.taoensso/sente "1.8.1"] ; Stable
+[com.taoensso/sente "1.8.1"]       ; Stable
+[com.taoensso/sente "1.9.0-beta1"] ; Dev (unstable), see CHANGELOG for details
 ```
 
 Want to help [support taoensso/open-source]?
