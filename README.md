@@ -37,7 +37,7 @@ Want to help [support taoensso/open-source]?
  * **Flexible model**: use it anywhere you'd use WebSockets/Ajax/Socket.IO, etc.
  * Standard **Ring security model**: auth as you like, HTTPS when available, CSRF support, etc.
  * **Fully documented, with examples**
- * **Small codebase**: ~1k lines for the entire client+server implementation
+ * **Small codebase**: ~1.5k lines for the entire client+server implementation
  * **Supported servers**: [http-kit], [Immutant v2+], [nginx-clojure], node.js
 
 ### Capabilities
