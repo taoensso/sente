@@ -1,19 +1,19 @@
 body {
-   font-family: Helvetica, Arial, sans-serif;
-   font-size: 15px;
+    font-family: Helvetica, Arial, sans-serif;
+    font-size: 15px;
 }
 
 pre, code {
-   font-family: Monaco, DejaVu Sans Mono, Consolas, monospace;
-   font-size: 9pt;
-   margin: 15px 0;
+    font-family: Monaco, DejaVu Sans Mono, Consolas, monospace;
+    font-size: 9pt;
+    margin: 15px 0;
 }
 
 h1 {
-   font-weight: normal;
-   font-size: 28px;
-   margin: 10px 0 2px 0;
-   padding: 0;
+    font-weight: normal;
+    font-size: 29px;
+    margin: 10px 0 2px 0;
+    padding: 0;
 }
 
 h2 {
@@ -22,60 +22,60 @@ h2 {
 }
 
 .document h1, .namespace-index h1 {
-    font-size: 30px;
+    font-size: 32px;
     margin-top: 12px;
 }
 
 #header, #content, .sidebar {
-   position: fixed;
+    position: fixed;
 }
 
 #header {
-   top: 0;
-   left: 0;
-   right: 0;
-   height: 22px;
-   color: #f5f5f5;
-   padding: 5px 7px;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 22px;
+    color: #f5f5f5;
+    padding: 5px 7px;
 }
 
 #content {
-   top: 32px;
-   right: 0;
-   bottom: 0;
-   overflow: auto;
-   background: #fff;
-   color: #333;
-   padding: 0 18px;
+    top: 32px;
+    right: 0;
+    bottom: 0;
+    overflow: auto;
+    background: #fff;
+    color: #333;
+    padding: 0 18px;
 }
 
 .sidebar {
-   position: fixed;
-   top: 32px;
-   bottom: 0;
-   overflow: auto;
+    position: fixed;
+    top: 32px;
+    bottom: 0;
+    overflow: auto;
 }
 
 .sidebar.primary {
-   background: #e2e2e2;
-   border-right: solid 1px #cccccc;
-   left: 0;
-   width: 250px;
+    background: #e2e2e2;
+    border-right: solid 1px #cccccc;
+    left: 0;
+    width: 250px;
 }
 
 .sidebar.secondary {
-   background: #f2f2f2;
-   border-right: solid 1px #cccccc;
-   left: 251px;
-   width: 200px;
+    background: #f2f2f2;
+    border-right: solid 1px #d7d7d7;
+    left: 251px;
+    width: 200px;
 }
 
 #content.namespace-index, #content.document {
-   left: 251px;
+    left: 251px;
 }
 
 #content.namespace-docs {
-   left: 452px;
+    left: 452px;
 }
 
 #content.document {
@@ -89,11 +89,11 @@ h2 {
 }
 
 #header h1 {
-   margin: 0;
-   padding: 0;
-   font-size: 18px;
-   font-weight: lighter;
-   text-shadow: -1px -1px 0px #333;
+    margin: 0;
+    padding: 0;
+    font-size: 18px;
+    font-weight: lighter;
+    text-shadow: -1px -1px 0px #333;
 }
 
 #header h1 .project-version {
@@ -101,20 +101,20 @@ h2 {
 }
 
 .project-version {
-    padding-left: 5px;
+    padding-left: 0.15em;
 }
 
 #header a, .sidebar a {
-   display: block;
-   text-decoration: none;
+    display: block;
+    text-decoration: none;
 }
 
 #header a {
-   color: #f5f5f5;
+    color: #f5f5f5;
 }
 
 .sidebar a {
-   color: #333;
+    color: #333;
 }
 
 #header h2 {
@@ -131,20 +131,23 @@ h2 {
 }
 
 .sidebar h3 {
-   margin: 0;
-   padding: 10px 10px 0 10px;
-   font-size: 19px;
-   font-weight: normal;
+    margin: 0;
+    padding: 10px 13px 0 13px;
+    font-size: 19px;
+    font-weight: lighter;
+}
+
+.sidebar h3 a {
+    color: #444;
 }
 
 .sidebar h3.no-link {
     color: #636363;
-   font-weight: lighter;
 }
 
 .sidebar ul {
-   padding: 7px 0 6px 0;
-   margin: 0;
+    padding: 7px 0 6px 0;
+    margin: 0;
 }
 
 .sidebar ul.index-link {
@@ -152,13 +155,13 @@ h2 {
 }
 
 .sidebar li {
-   display: block;
-   vertical-align: middle;
+    display: block;
+    vertical-align: middle;
 }
 
 .sidebar li a, .sidebar li .no-link {
     border-left: 3px solid transparent;
-    padding: 0 7px;
+    padding: 0 10px;
     white-space: nowrap;
 }
 
@@ -220,13 +223,13 @@ h2 {
 }
 
 .sidebar.primary li.current a {
-   border-left: 3px solid #a33;
-   color: #a33;
+    border-left: 3px solid #a33;
+    color: #a33;
 }
 
 .sidebar.secondary li.current a {
-   border-left: 3px solid #33a;
-   color: #33a;
+    border-left: 3px solid #33a;
+    color: #33a;
 }
 
 .namespace-index h2 {
@@ -249,8 +252,8 @@ h2 {
 }
 
 .namespace-docs h3 {
-   font-size: 18px;
-   font-weight: bold;
+    font-size: 18px;
+    font-weight: bold;
 }
 
 .public h3 {
@@ -270,7 +273,7 @@ h2 {
 }
 
 .public:last-child {
-   margin-bottom: 20%;
+    margin-bottom: 20%;
 }
 
 .members .public:last-child {
@@ -384,6 +387,16 @@ h4.deprecated {
     padding-left: 0;
 }
 
+.type-sig {
+    clear: both;
+    color: #088;
+}
+
+.type-sig pre {
+    padding-top: 10px;
+    margin: 0;
+}
+
 .usage code {
     display: block;
     color: #008;
@@ -419,10 +432,6 @@ p {
     margin-bottom: 10px;
 }
 
-.markdown {
-    font-size: 14px;
-}
-
 .markdown p, .markdown li, .markdown dt, .markdown dd, .markdown td {
     line-height: 18px;
 }
@@ -451,17 +460,28 @@ p {
     border-radius: 2px;
 }
 
-.markdown pre {
+.markdown pre, pre.deps {
     background: #f4f4f4;
     border: 1px solid #e0e0e0;
     border-radius: 2px;
     padding: 5px 10px;
+    margin: 15px 10px;
+}
+
+pre.deps {
+    display: inline-block;
     margin: 0 10px;
 }
 
 .markdown pre code {
     background: transparent;
     border: none;
+}
+
+.markdown hr {
+    border-style: solid;
+    border-top: none;
+    color: #ccc;
 }
 
 .doc ul, .doc ol {
@@ -500,7 +520,7 @@ p {
 
 .doc abbr {
     border-bottom: 1px dotted #333;
-    font-variant: none
+    font-variant: none;
     cursor: help;
 }
 
