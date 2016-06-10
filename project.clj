@@ -37,7 +37,8 @@
     {:dependencies
      [[http-kit         "2.2.0-alpha2"]
       [org.immutant/web "2.1.4"]
-      [nginx-clojure    "0.4.4"]]
+      [nginx-clojure    "0.4.4"]
+      [aleph "0.4.1"]]
      :plugins
      [;;; These must be in :dev, Ref. https://github.com/lynaghk/cljx/issues/47:
       [com.keminglabs/cljx             "0.6.0"]
