@@ -235,6 +235,12 @@
 
 ;;;; Server API
 
+(defn ws-request? [ring-req]
+  (or
+   (:websocket? ring-req)
+   (when-let [s (get-in ring-req [:headers "upgrade"])]
+     (= "websocket" (str/lower-case s)))))
+
 (declare
   ^:private send-buffered-server-evs>ws-clients!
   ^:private send-buffered-server-evs>ajax-clients!
@@ -516,8 +522,8 @@
        (let [csrf-token (csrf-token-fn ring-req)
              params     (get ring-req :params)
              client-id  (get params   :client-id)
-             uid        (user-id-fn ring-req client-id)
-             websocket? (:websocket? ring-req)
+             uid        (user-id-fn  ring-req client-id)
+             websocket? (ws-request? ring-req)
              sch-uuid   (enc/uuid-str 6)
 
              receive-event-msg! ; Partial
