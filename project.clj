@@ -1,4 +1,4 @@
-(defproject com.taoensso/sente "1.9.0-beta1"
+(defproject com.taoensso/sente "1.9.0-SNAPSHOT"
   :author "Peter Taoussanis <https://www.taoensso.com>"
   :description "Realtime web comms for Clojure/Script"
   :url "https://github.com/ptaoussanis/sente"
@@ -15,7 +15,7 @@
    [org.clojure/core.async   "0.2.374"]
    [com.taoensso/encore      "2.53.1"]
    [org.clojure/tools.reader "0.10.0"]
-   [com.taoensso/timbre      "4.3.1"]]
+   [com.taoensso/timbre      "4.4.0"]]
 
   :profiles
   {;; :default [:base :system :user :provided :dev]
