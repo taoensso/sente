@@ -38,7 +38,7 @@ Want to help [support taoensso/open-source]?
  * Standard **Ring security model**: auth as you like, HTTPS when available, CSRF support, etc.
  * **Fully documented, with examples**
  * **Small codebase**: ~1.5k lines for the entire client+server implementation
- * **Supported servers**: [http-kit], [Immutant v2+], [nginx-clojure], node.js
+ * **Supported servers**: [http-kit], [Immutant v2+], [nginx-clojure], node.js, [Aleph]
 
 ### Capabilities
 
@@ -80,15 +80,17 @@ For Sente, we're going to add 2 new URLs and setup their handlers:
     [taoensso.sente :as sente] ; <--- Add this
 
     ;; Uncomment a web-server adapter --->
-    ;; [taoensso.sente.server-adapters.http-kit      :refer (sente-web-server-adapter)]
-    ;; [taoensso.sente.server-adapters.immutant      :refer (sente-web-server-adapter)]
-    ;; [taoensso.sente.server-adapters.nginx-clojure :refer (sente-web-server-adapter)]
+    ;; [taoensso.sente.server-adapters.http-kit      :refer (get-sch-adapter)]
+    ;; [taoensso.sente.server-adapters.immutant      :refer (get-sch-adapter)]
+    ;; [taoensso.sente.server-adapters.nginx-clojure :refer (get-sch-adapter)]
+    ;; [taoensso.sente.server-adapters.aleph         :refer (get-sch-adapter)]
   ))
 
 ;;; Add this: --->
-(let [{:keys [ch-recv send-fn ajax-post-fn ajax-get-or-ws-handshake-fn
-              connected-uids]}
-      (sente/make-channel-socket! sente-web-server-adapter {})]
+(let [{:keys [ch-recv send-fn connected-uids
+              ajax-post-fn ajax-get-or-ws-handshake-fn]}
+      (sente/make-channel-socket! (get-sch-adapter) {})]
+
   (def ring-ajax-post                ajax-post-fn)
   (def ring-ajax-get-or-ws-handshake ajax-get-or-ws-handshake-fn)
   (def ch-chsk                       ch-recv) ; ChannelSocket's receive channel
@@ -368,6 +370,7 @@ Copyright &copy; 2014-2016 [Peter Taoussanis].
 [http-kit]: https://github.com/http-kit/http-kit
 [Immutant v2+]: http://immutant.org/
 [nginx-clojure]: https://github.com/nginx-clojure/nginx-clojure
+[Aleph]: https://github.com/ztellman/aleph
 [example projects]: #example-projects
 
 [supported web servers]: https://github.com/ptaoussanis/sente/issues/102

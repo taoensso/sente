@@ -87,7 +87,7 @@
   (enc/assert-min-encore-version  2.53))
 
 ;; (timbre/set-level! :trace) ; Uncomment for debugging
-(def debug-mode?_ (atom false))
+(defonce debug-mode?_ (atom false))
 
 ;;;; Events
 ;; Clients & server both send `event`s and receive (i.e. route) `event-msg`s:

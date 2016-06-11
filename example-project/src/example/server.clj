@@ -13,7 +13,7 @@
    [taoensso.timbre    :as timbre :refer (tracef debugf infof warnf errorf)]
    [taoensso.sente     :as sente]
 
-   ;;; TODO: choose (uncomment) a supported web server and adapter
+   ;;; TODO Choose (uncomment) a supported web server + adapter -------------
    [org.httpkit.server :as http-kit]
    [taoensso.sente.server-adapters.http-kit :refer (get-sch-adapter)]
    ;;
@@ -22,35 +22,16 @@
    ;;
    ;; [nginx.clojure.embed :as nginx-clojure]
    ;; [taoensso.sente.server-adapters.nginx-clojure :refer (get-sch-adapter)]
+   ;;
+   ;; [aleph.http :as aleph]
+   ;; [taoensso.sente.server-adapters.aleph :refer (get-sch-adapter)]
+   ;; -----------------------------------------------------------------------
 
    ;; Optional, for Transit encoding:
    [taoensso.sente.packers.transit :as sente-transit]))
 
 ;; (timbre/set-level! :trace) ; Uncomment for more logging
-;; (reset! sente/debug-mode?_ true) ; Uncomment for extra debug info
-
-;;;; TODO: choose (uncomment) the relevant server fn
-
-(defn start-selected-web-server! [ring-handler port]
-  (infof "Starting http-kit...")
-  (let [stop-fn (http-kit/run-server ring-handler {:port port})]
-    {:server  nil ; http-kit doesn't expose this
-     :port    (:local-port (meta stop-fn))
-     :stop-fn (fn [] (stop-fn :timeout 100))}))
-
-;; (defn start-selected-web-server! [ring-handler port]
-;;   (infof "Starting Immutant...")
-;;   (let [server (immutant/run ring-handler :port port)]
-;;     {:server  server
-;;      :port    (:port server)
-;;      :stop-fn (fn [] (immutant/stop server))}))
-
-;; (defn start-selected-web-server! [ring-handler port]
-;;   (infof "Starting nginx-clojure...")
-;;   (let [port (nginx-clojure/run-server ring-handler {:port port})]
-;;     {:server  nil ; nginx-clojure doesn't expose this
-;;      :port    port
-;;      :stop-fn nginx-clojure/stop-server}))
+(reset! sente/debug-mode?_ true) ; Uncomment for extra debug info
 
 ;;;; Define our Sente channel socket (chsk) server
 
@@ -58,9 +39,13 @@
       packer :edn ; Default packer, a good choice in most cases
       ;; (sente-transit/get-transit-packer) ; Needs Transit dep
 
-      {:keys [ch-recv send-fn ajax-post-fn ajax-get-or-ws-handshake-fn
-              connected-uids]}
-      (sente/make-channel-socket-server! (get-sch-adapter) {:packer packer})]
+      chsk-server
+      (sente/make-channel-socket-server!
+       (get-sch-adapter) {:packer packer})
+
+      {:keys [ch-recv send-fn connected-uids
+              ajax-post-fn ajax-get-or-ws-handshake-fn]}
+      chsk-server]
 
   (def ring-ajax-post                ajax-post-fn)
   (def ring-ajax-get-or-ws-handshake ajax-get-or-ws-handshake-fn)
@@ -144,7 +129,7 @@
 
 (comment (test-fast-server>user-pushes))
 
-(def broadcast-enabled?_ (atom true))
+(defonce broadcast-enabled?_ (atom true))
 
 (defn start-example-broadcaster!
   "As an example of server>user async pushes, setup a loop to broadcast an
@@ -203,7 +188,7 @@
 ;;;; Sente event router (our `event-msg-handler` loop)
 
 (defonce router_ (atom nil))
-(defn  stop-router! [] (when-let [stop-f @router_] (stop-f)))
+(defn  stop-router! [] (when-let [stop-fn @router_] (stop-fn)))
 (defn start-router! []
   (stop-router!)
   (reset! router_
@@ -212,24 +197,43 @@
 
 ;;;; Init stuff
 
-(defonce    web-server_ (atom nil)) ; {:server _ :port _ :stop-fn (fn [])}
-(defn  stop-web-server! [] (when-let [m @web-server_] ((:stop-fn m))))
+(defonce    web-server_ (atom nil)) ; (fn stop [])
+(defn  stop-web-server! [] (when-let [stop-fn @web-server_] (stop-fn)))
 (defn start-web-server! [& [port]]
   (stop-web-server!)
-  (let [{:keys [stop-fn port] :as server-map}
-        (start-selected-web-server! (var main-ring-handler)
-          (or port 0) ; 0 => auto (any available) port
-          )
+  (let [port (or port 0) ; 0 => Choose any available port
+        ring-handler (var main-ring-handler)
+
+        [port stop-fn]
+        ;;; TODO Choose (uncomment) a supported web server ------------------
+        (let [stop-fn (http-kit/run-server ring-handler {:port port})]
+          [(:local-port (meta stop-fn)) (fn [] (stop-fn :timeout 100))])
+        ;;
+        ;; (let [server (immutant/run ring-handler :port port)]
+        ;;   [(:port server) (fn [] (immutant/stop server))])
+        ;;
+        ;; (let [port (nginx-clojure/run-server ring-handler {:port port})]
+        ;;   [port (fn [] (nginx-clojure/stop-server))])
+        ;;
+        ;; (let [server (aleph/start-server ring-handler {:port port})
+        ;;       p (promise)]
+        ;;   (future @p) ; Workaround for Ref. https://goo.gl/kLvced
+        ;;   ;; (aleph.netty/wait-for-close server)
+        ;;   [(aleph.netty/port server)
+        ;;    (fn [] (.close ^java.io.Closeable server) (deliver p nil))])
+        ;; ------------------------------------------------------------------
+
         uri (format "http://localhost:%s/" port)]
+
     (infof "Web server is running at `%s`" uri)
     (try
       (.browse (java.awt.Desktop/getDesktop) (java.net.URI. uri))
       (catch java.awt.HeadlessException _))
-    (reset! web-server_ server-map)))
+
+    (reset! web-server_ stop-fn)))
 
 (defn stop!  []  (stop-router!)  (stop-web-server!))
 (defn start! [] (start-router!) (start-web-server!) (start-example-broadcaster!))
-;; (defonce _start-once (start!))
 
 (defn -main "For `lein run`, etc." [] (start!))
 
