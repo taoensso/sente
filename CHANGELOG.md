@@ -1,5 +1,17 @@
 > This project uses [Break Versioning](https://github.com/ptaoussanis/encore/blob/master/BREAK-VERSIONING.md) as of **Aug 16, 2014**.
 
+## v1.9.0-beta2 - 2016 Jun 13
+
+```clojure
+[com.taoensso/sente "1.9.0-beta2"]
+```
+
+> Changes since `1.9.0-beta1`:
+
+* **New**: Add Aleph server adapter (@sorenmacbeth) [#236]
+* **Impl**: Servers now drive WebSocket identification (more robust, flexible)
+* **Fix**: Fixed faulty Nodejs Ajax adapter behaviour
+
 ## v1.9.0-beta1 - 2016 Jun 10
 
 ```clojure
