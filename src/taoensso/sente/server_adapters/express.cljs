@@ -21,17 +21,22 @@
    [taoensso.timbre :as timbre
     :refer-macros (tracef debugf infof warnf errorf)]))
 
+(defn- obj->map
+  "Workaround for `TypeError: Cannot convert object to primitive value`s
+  caused by `(js->clj (.-body  exp-req) :keywordize-keys true)` apparently
+  failing to correctly identify `(.-body exp-req)` as an object. Not sure
+  what's causing this problem."
+  [o]
+  (when-let [ks (js-keys o)]
+    (into {} (for [k ks] [(keyword k) (str (aget o k))]))))
+
 (defn- exp-req->ring-req
   "Transforms an Express req+resp to a ~standard Ring req map.
   `base-ring-req` is a partial Ring req map used to pass in route info."
   [base-ring-req exp-req exp-resp]
-  (let [;; Query params from `express`:
-        query-params (js->clj (.-query exp-req) :keywordize-keys true)
-        ;; POST params from `body-parser` middleware:
-        form-params  (js->clj (.-body  exp-req) :keywordize-keys true)
-        ;; Ring exposes a merged view of params:
+  (let [query-params (obj->map (.-query exp-req)) ; From `express`
+        form-params  (obj->map (.-body  exp-req)) ; From `body-parser`
         params (merge query-params form-params)
-
         ring-req
         (merge base-ring-req
           {:response     exp-resp
@@ -68,13 +73,5 @@
 
        :ajax-post-fn
        (fn [req resp & [_ base-ring-req]]
-
-         ;; TODO Fixme
-         ;; Sente version: v1.9.0-SNAPSHOT
-         ;; Error: `TypeError: Cannot convert object to primitive value`
-         ;; This error is consistently getting generated every time an Ajax
-         ;; client calls `chsk-send!` in the reference example. Suspect the
-         ;; issue may have something to do with the `body-parser` middleware?
-
          (ajax-post-fn
           (exp-req->ring-req base-ring-req req resp)))})))
