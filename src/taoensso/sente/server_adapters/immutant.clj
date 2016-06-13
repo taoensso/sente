@@ -1,34 +1,36 @@
 (ns taoensso.sente.server-adapters.immutant
-  "Sente server adapter for Immutant v2+ (http://immutant.org/)"
+  "Sente server adapter for Immutant v2+ (http://immutant.org/)."
   {:author "Toby Crawley (@tobias)"}
   (:require [taoensso.sente.interfaces :as i]
-            [immutant.web.async :as immutant]))
+            [immutant.web.async :as imm]))
 
 (extend-type org.projectodd.wunderboss.web.async.Channel
   i/IServerChan
-  (sch-open?  [im-ch] (immutant/open? im-ch))
-  (sch-close! [im-ch] (immutant/close im-ch))
-  (-sch-send! [im-ch msg close-after-send?]
-    (immutant/send! im-ch msg {:close? close-after-send?})))
+  (sch-open?  [sch] (imm/open? sch))
+  (sch-close! [sch] (imm/close sch))
+  (sch-send!  [sch websocket? msg]
+    (let [close-after-send? (if websocket? false true)]
+      (imm/send! sch msg {:close? close-after-send?}))))
 
 (deftype ImmutantServerChanAdapter []
   i/IServerChanAdapter
-  (ring-req->server-ch-resp [server-ch-adapter ring-req callbacks-map]
-    (let [{:keys [on-open on-msg on-close]} callbacks-map]
-      ;; Returns {:status 200 :body <immutant-implementation-channel>}:
-      (immutant/as-channel ring-req
-        :on-open     (when on-open (fn [im-ch] (on-open im-ch)))
-        ;; :on-error (fn [im-ch throwable]) ; Do we need/want this?
-        :on-close    (when on-close
-                       (fn [im-ch {:keys [code reason] :as status-map}]
-                         (on-close im-ch status-map)))
-        :on-message  (when on-msg (fn [im-ch message] (on-msg im-ch message)))
+  (ring-req->server-ch-resp [sch-adapter ring-req callbacks-map]
+    (let [{:keys [on-open on-close on-msg on-error]} callbacks-map
+          ws? (:websocket? ring-req)]
+
+      ;; Returns {:body <immutant-implementation-channel> ...}:
+      (imm/as-channel ring-req
         :timeout     0 ; Deprecated, Ref. https://goo.gl/t4RolO
-        ))))
+        :on-open     (when on-open  (fn [sch          ] (on-open  sch ws?)))
+        :on-error    (when on-error (fn [sch throwable] (on-error sch ws? throwable)))
+        :on-message  (when on-msg   (fn [sch msg      ] (on-msg   sch ws? msg)))
+        :on-close    (when on-close
+                       (fn [sch {:keys [code reason] :as status-map}]
+                         (on-close sch ws? status-map)))))))
 
-(defn make-immutant-adapter [_opts] (ImmutantServerChanAdapter.))
+(defn get-sch-adapter [] (ImmutantServerChanAdapter.))
 
-(def immutant-adapter (make-immutant-adapter nil))
-(def sente-web-server-adapter
-  "Alias for ns import convenience"
-  immutant-adapter)
+(do ; DEPRECATED
+  (defn make-immutant-adapter "Deprecated" [_opts] (get-sch-adapter))
+  (def immutant-adapter "Deprecated" (get-sch-adapter))
+  (def sente-web-server-adapter immutant-adapter))

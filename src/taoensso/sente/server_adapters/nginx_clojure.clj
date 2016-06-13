@@ -1,6 +1,6 @@
 (ns taoensso.sente.server-adapters.nginx-clojure
   "Sente server adapter for Nginx-Clojure v0.4.2+
-  (http://nginx-clojure.github.io/)"
+  (http://nginx-clojure.github.io/)."
   {:author "Zhang Yuexiang (@xfeep)"}
   (:require [taoensso.sente.interfaces :as i]
             [nginx.clojure.core :as ncc]))
@@ -10,41 +10,43 @@
 
 (extend-type nginx.clojure.NginxHttpServerChannel
   i/IServerChan
-  (sch-open?  [nc-ch] (not (ncc/closed? nc-ch)))
-  (sch-close! [nc-ch] (ncc/close! nc-ch))
-  (-sch-send! [nc-ch msg close-after-send?]
-    (let [closed? (ncc/closed? nc-ch)]
-      (ncc/send! nc-ch msg true (boolean close-after-send?))
-      (not closed?))))
+  (sch-open?  [sch] (not (ncc/closed? sch)))
+  (sch-close! [sch]       (ncc/close! sch))
+  (sch-send!  [sch websocket? msg]
+    (if (ncc/closed? sch)
+      false
+      (let [close-after-send? (if websocket? false true)]
+        (ncc/send! sch msg true (boolean close-after-send?))
+        true))))
 
 (deftype NginxServerChanAdapter []
   i/IServerChanAdapter
-  (ring-req->server-ch-resp [server-ch-adapter ring-req callbacks-map]
-    (let [{:keys [on-open on-msg on-close]} callbacks-map
-          nc-ch (ncc/hijack! ring-req true)
-          upgrade-ok? (ncc/websocket-upgrade! nc-ch false)]
+  (ring-req->server-ch-resp [sch-adapter ring-req callbacks-map]
+    (let [{:keys [on-open on-close on-msg _on-error]} callbacks-map
+          sch (ncc/hijack! ring-req true)
+          ws? (ncc/websocket-upgrade! sch false)]
+
       ;; Returns {:status 200 :body <nginx-clojure-implementation-channel>}:
-      (when (not upgrade-ok?) ; Send normal header for non-websocket requests
-        (.setIgnoreFilter nc-ch false)
+      (when-not ws? ; Send normal header for non-websocket requests
+        (.setIgnoreFilter sch false)
 
         ;; For Sente #150, give client a chance to set broken listener.
         ;; We could do this via `send-header!` with something like
-        ;; `(send-header! nc-ch 200, ..., true, false)`. Instead, we're
+        ;; `(send-header! sch 200, ..., true, false)`. Instead, we're
         ;; choosing this approach to match the behaviour of other adapters:
-        (ncc/send! nc-ch nil true false)
+        (ncc/send! sch nil true false)
+        (ncc/send-header! sch 200 {"Content-Type" "text/html"} false false))
 
-        (ncc/send-header! nc-ch 200
-          {"Content-Type" "text/html"} false false))
+      (ncc/add-aggregated-listener! sch *max-message-size*
+        {:on-open    (when on-open  (fn [sch]        (on-open  sch ws?)))
+         :on-message (when on-msg   (fn [sch msg]    (on-msg   sch ws? msg)))
+         :on-close   (when on-close (fn [sch reason] (on-close sch ws? reason)))
+         :on-error   nil})
 
-      (ncc/add-aggregated-listener! nc-ch *max-message-size*
-        {:on-open    (when on-open  (fn [nc-ch]        (on-open  nc-ch)))
-         :on-message (when on-msg   (fn [nc-ch msg]    (on-msg   nc-ch msg)))
-         :on-close   (when on-close (fn [nc-ch reason] (on-close nc-ch reason)))
-         :on-error   nil ; Do we need/want this?
-         })
-      {:status 200 :body nc-ch})))
+      {:status 200 :body sch})))
 
-(def nginx-clojure-adapter (NginxServerChanAdapter.))
-(def sente-web-server-adapter
-  "Alias for ns import convenience"
-  nginx-clojure-adapter)
+(defn get-sch-adapter [] (NginxServerChanAdapter.))
+
+(do ; DEPRECATED
+  (def nginx-clojure-adapter (get-sch-adapter))
+  (def sente-web-server-adapter nginx-clojure-adapter))

@@ -1,36 +1,34 @@
 (ns taoensso.sente.server-adapters.http-kit
-  "Sente server adapter for http-kit (http://www.http-kit.org/)"
+  "Sente server adapter for http-kit (http://www.http-kit.org/)."
   {:author "Peter Taoussanis (@ptaoussanis)"}
   (:require [taoensso.sente.interfaces :as i]
-            [org.httpkit.server :as http-kit]))
+            [org.httpkit.server :as hk]))
 
 (extend-type org.httpkit.server.AsyncChannel
   i/IServerChan
-  (sch-open?  [hk-ch] (http-kit/open? hk-ch))
-  (sch-close! [hk-ch] (http-kit/close hk-ch))
-  (-sch-send! [hk-ch msg close-after-send?]
-    (http-kit/send! hk-ch msg close-after-send?)))
+  (sch-open?  [sch] (hk/open? sch))
+  (sch-close! [sch] (hk/close sch))
+  (sch-send!  [sch websocket? msg]
+    (let [close-after-send? (if websocket? false true)]
+      (hk/send! sch msg close-after-send?))))
 
 (deftype HttpKitServerChanAdapter []
   i/IServerChanAdapter
-  (ring-req->server-ch-resp [server-ch-adapter ring-req callbacks-map]
-    (let [{:keys [on-open on-msg on-close]} callbacks-map]
-      ;; Returns {:body <http-kit-implementation-channel>}:
-      (http-kit/with-channel ring-req hk-ch
+  (ring-req->server-ch-resp [sch-adapter ring-req callbacks-map]
+    (let [{:keys [on-open on-close on-msg _on-error]} callbacks-map
+          ws? (:websocket? ring-req)]
 
-        (when on-close
-          (http-kit/on-close hk-ch
-            (fn [status-keyword] (on-close hk-ch status-keyword))))
-
-        (when (and on-msg (:websocket? ring-req))
-          (http-kit/on-receive hk-ch (fn [msg] (on-msg hk-ch msg))))
-
+      ;; Returns {:body <http-kit-implementation-channel> ...}:
+      (hk/with-channel ring-req sch
+        (when on-close (hk/on-close   sch (fn [status-kw] (on-close sch ws? status-kw))))
+        (when on-msg   (hk/on-receive sch (fn [msg]       (on-msg   sch ws? msg))))
         ;; http-kit channels are immediately open so don't have/need an
-        ;; on-open callback:
-        (when on-open (on-open hk-ch)) ; Place last (racey side effects)
-        ))))
+        ;; on-open callback. Do need to place this last though to avoid
+        ;; racey side effects:
+        (when on-open (on-open sch ws?))))))
 
-(def http-kit-adapter (HttpKitServerChanAdapter.))
-(def sente-web-server-adapter
-  "Alias for ns import convenience"
-  http-kit-adapter)
+(defn get-sch-adapter [] (HttpKitServerChanAdapter.))
+
+(do ; DEPRECATED
+  (def http-kit-adapter "Deprecated" (get-sch-adapter))
+  (def sente-web-server-adapter "Deprecated" http-kit-adapter))
