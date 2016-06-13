@@ -15,13 +15,13 @@
 
    ;;; TODO: choose (uncomment) a supported web server and adapter
    [org.httpkit.server :as http-kit]
-   [taoensso.sente.server-adapters.http-kit :refer (sente-web-server-adapter)]
+   [taoensso.sente.server-adapters.http-kit :refer (get-sch-adapter)]
    ;;
    ;; [immutant.web :as immutant]
-   ;; [taoensso.sente.server-adapters.immutant :refer (sente-web-server-adapter)]
+   ;; [taoensso.sente.server-adapters.immutant :refer (get-sch-adapter)]
    ;;
    ;; [nginx.clojure.embed :as nginx-clojure]
-   ;; [taoensso.sente.server-adapters.nginx-clojure :refer (sente-web-server-adapter)]
+   ;; [taoensso.sente.server-adapters.nginx-clojure :refer (get-sch-adapter)]
 
    ;; Optional, for Transit encoding:
    [taoensso.sente.packers.transit :as sente-transit]))
@@ -60,8 +60,7 @@
 
       {:keys [ch-recv send-fn ajax-post-fn ajax-get-or-ws-handshake-fn
               connected-uids]}
-      (sente/make-channel-socket-server! sente-web-server-adapter
-        {:packer packer})]
+      (sente/make-channel-socket-server! (get-sch-adapter) {:packer packer})]
 
   (def ring-ajax-post                ajax-post-fn)
   (def ring-ajax-get-or-ws-handshake ajax-get-or-ws-handshake-fn)

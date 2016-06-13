@@ -259,8 +259,8 @@
     :send-buf-ms-ws    ; [2]
     :packer            ; :edn (default), or an IPacker implementation.
 
-  [1] e.g. `taoensso.sente.server-adapters.http-kit/http-kit-adapter` or
-           `taoensso.sente.server-adapters.immutant/immutant-adapter`.
+  [1] e.g. `(taoensso.sente.server-adapters.http-kit/get-sch-adapter)` or
+           `(taoensso.sente.server-adapters.immutant/get-sch-adapter)`.
       You must have the necessary web-server dependency in your project.clj and
       the necessary entry in your namespace's `ns` form.
 
@@ -269,7 +269,7 @@
       (slow) reconnecting poller. Actual event dispatch may occur <= given ms
       after send call (larger values => larger batch windows)."
 
-  [web-server-adapter ; Actually a server-ch-adapter, but that may be confusing
+  [web-server-ch-adapter
    & [{:keys [recv-buf-or-n ws-kalive-ms lp-timeout-ms
               send-buf-ms-ajax send-buf-ms-ws
               user-id-fn csrf-token-fn handshake-data-fn packer]
@@ -287,7 +287,7 @@
               packer :edn}}]]
 
   (have? enc/pos-int? send-buf-ms-ajax send-buf-ms-ws)
-  (have? #(satisfies? interfaces/IServerChanAdapter %) web-server-adapter)
+  (have? #(satisfies? interfaces/IServerChanAdapter %) web-server-ch-adapter)
 
   (let [max-ms default-client-side-ajax-timeout-ms]
    (when (>= lp-timeout-ms max-ms)
@@ -475,11 +475,13 @@
      :send-fn        send-fn
      :connected-uids connected-uids_
 
-     :ajax-post-fn ; Does not participate in `conns_` (has specific req->resp)
+     ;; Does not participate in `conns_` (has specific req->resp)
+     :ajax-post-fn
      (fn [ring-req]
-       (interfaces/ring-req->server-ch-resp web-server-adapter ring-req
+       (interfaces/ring-req->server-ch-resp web-server-ch-adapter ring-req
          {:on-open
-          (fn [server-ch]
+          (fn [server-ch websocket?]
+            (assert (not websocket?))
             (let [params        (get ring-req :params)
                   ppstr         (get params   :ppstr)
                   client-id     (get params   :client-id)
@@ -489,9 +491,8 @@
                     (fn [resp-clj] ; Any clj form
                       (when (compare-and-set! replied?_ false true)
                         (tracef "Chsk send (ajax post reply): %s" resp-clj)
-                        (interfaces/-sch-send! server-ch
-                          (pack packer (meta resp-clj) resp-clj)
-                          :close-after-send))))]
+                        (interfaces/sch-send! server-ch websocket?
+                          (pack packer (meta resp-clj) resp-clj)))))]
 
               (put-server-event-msg>ch-recv! ch-recv
                 (merge ev-msg-const
@@ -511,14 +512,14 @@
                     (reply-fn :chsk/timeout)))
                 (reply-fn :chsk/dummy-cb-200))))}))
 
-     :ajax-get-or-ws-handshake-fn ; Ajax handshake/poll, or WebSocket handshake
+     ;; Ajax handshake/poll, or WebSocket handshake
+     :ajax-get-or-ws-handshake-fn
      (fn [ring-req]
-       (let [csrf-token (csrf-token-fn ring-req)
+       (let [sch-uuid   (enc/uuid-str 6)
              params     (get ring-req :params)
              client-id  (get params   :client-id)
-             uid        (user-id-fn ring-req client-id)
-             websocket? (:websocket? ring-req)
-             sch-uuid   (enc/uuid-str 6)
+             csrf-token (csrf-token-fn ring-req)
+             uid        (user-id-fn    ring-req client-id)
 
              receive-event-msg! ; Partial
              (fn self
@@ -533,25 +534,24 @@
                      :uid       uid}))))
 
              send-handshake!
-             (fn [server-ch]
+             (fn [server-ch websocket?]
                (tracef "send-handshake!")
                (let [?handshake-data (handshake-data-fn ring-req)
                      handshake-ev
                      (if (nil? ?handshake-data) ; Micro optimization
                        [:chsk/handshake [uid csrf-token]]
                        [:chsk/handshake [uid csrf-token ?handshake-data]])]
-                 (interfaces/-sch-send! server-ch
-                   (pack packer nil handshake-ev)
-                   (not websocket?))))]
+                 (interfaces/sch-send! server-ch websocket?
+                   (pack packer nil handshake-ev))))]
 
          (if (str/blank? client-id)
            (let [err-msg "Client's Ring request doesn't have a client id. Does your server have the necessary keyword Ring middleware (`wrap-params` & `wrap-keyword-params`)?"]
              (errorf (str err-msg ": %s") ring-req) ; Careful re: % in req
              (throw (ex-info err-msg {:ring-req ring-req})))
 
-           (interfaces/ring-req->server-ch-resp web-server-adapter ring-req
+           (interfaces/ring-req->server-ch-resp web-server-ch-adapter ring-req
              {:on-open
-              (fn [server-ch]
+              (fn [server-ch websocket?]
                 (if websocket?
 
                   ;; WebSocket handshake
@@ -562,7 +562,7 @@
                     (when (connect-uid! :ws uid)
                       (receive-event-msg! [:chsk/uidport-open uid]))
 
-                    (send-handshake! server-ch)
+                    (send-handshake! server-ch websocket?)
 
                     ;; Start ws-kalive loop
                     ;; This also works to gc ws conns that were suddenly
@@ -578,9 +578,8 @@
                               ;; conn w/in our kalive window so send a ping
                               ;; ->client (should auto-close conn if it's
                               ;; gone dead)
-                              (interfaces/-sch-send! server-ch
-                                (pack packer nil :chsk/ws-ping)
-                                (not :close-after-send)))
+                              (interfaces/sch-send! server-ch websocket?
+                                (pack packer nil :chsk/ws-ping)))
                             (recur udt-t1))))))
 
                   ;; Ajax handshake/poll
@@ -594,7 +593,7 @@
 
                     (if handshake?
                       ; Client will immediately repoll
-                      (send-handshake! server-ch)
+                      (send-handshake! server-ch websocket?)
 
                       (when-let [ms lp-timeout-ms]
                         (go
@@ -603,12 +602,12 @@
                             (when (= udt-t1 udt-open)
                               ;; (assert (= _sch server-ch))
                               ;; Appears to still be the active sch
-                              (interfaces/-sch-send! server-ch
-                                (pack packer nil :chsk/timeout)
-                                :close-after-send)))))))))
+                              (interfaces/sch-send! server-ch websocket?
+                                (pack packer nil :chsk/timeout))))))))))
 
-              :on-msg ; Only for WebSockets
-              (fn [server-ch req-ppstr]
+              :on-msg
+              (fn [server-ch websocket? req-ppstr]
+                (assert websocket?)
                 (upd-conn! :ws uid client-id)
                 (let [[clj ?cb-uuid] (unpack packer req-ppstr)]
                   (receive-event-msg! clj ; Should be ev
@@ -616,13 +615,12 @@
                       (fn reply-fn [resp-clj] ; Any clj form
                         (tracef "Chsk send (ws reply): %s" resp-clj)
                         ;; true iff apparent success:
-                        (interfaces/-sch-send! server-ch
-                          (pack packer (meta resp-clj) resp-clj ?cb-uuid)
-                          (not :close-after-send)))))))
+                        (interfaces/sch-send! server-ch websocket?
+                          (pack packer (meta resp-clj) resp-clj ?cb-uuid)))))))
 
               :on-close ; We rely on `on-close` to trigger for _every_ conn!
-              (fn [server-ch _status]
-                ;; Note that `status` form varies with underlying web server
+              (fn [server-ch websocket? _status]
+                ;; Note that `status` type varies with underlying web server
                 (let [conn-type (if websocket? :ws :ajax)
                       _ (tracef "%s channel closed: %s (%s)"
                           (if websocket? "WebSocket" "Ajax")
@@ -656,7 +654,12 @@
                               (fn [?m] (if (empty? ?m) :swap/dissoc ?m)))
 
                             (when (upd-connected-uid! uid)
-                              (receive-event-msg! [:chsk/uidport-close uid])))))))))}))))}))
+                              (receive-event-msg! [:chsk/uidport-close uid])))))))))
+
+              :on-error
+              (fn [server-ch websocket? error]
+                (errorf "ring-req->server-ch-resp error: %s (%s)"
+                  error uid sch-uuid))}))))}))
 
 (defn- send-buffered-server-evs>ws-clients!
   "Actually pushes buffered events (as packed-str) to all uid's WebSocket conns."
@@ -665,8 +668,7 @@
   (doseq [[client-id [?sch _udt]] (get-in @conns_ [:ws uid])]
     (when-let [sch ?sch]
       (upd-conn! :ws uid client-id)
-      (interfaces/-sch-send! sch buffered-evs-pstr
-        (not :close-after-send)))))
+      (interfaces/sch-send! sch :websocket buffered-evs-pstr))))
 
 (defn- send-buffered-server-evs>ajax-clients!
   "Actually pushes buffered events (as packed-str) to all uid's Ajax conns.
@@ -712,8 +714,8 @@
                       (let [sent?
                             (when-let [sch ?sch]
                               ;; Will noop + return false if sch already closed:
-                              (interfaces/sch-send! ?sch buffered-evs-pstr
-                                :close-after-send))]
+                              (interfaces/sch-send! ?sch (not :websocket)
+                                buffered-evs-pstr))]
 
                         (if sent? (conj s client-id) s)))
                     #{} ?pulled))
@@ -1074,7 +1076,7 @@
                :params
                (let [ppstr (pack packer (meta ev) ev (when ?cb-fn :ajax-cb))]
                  (merge params ; 1st (don't clobber impl.):
-                   {:_           (enc/now-udt) ; Force uncached resp
+                   {:udt         (enc/now-udt) ; Force uncached resp
 
                     ;; A duplicate of X-CSRF-Token for user's convenience and
                     ;; for back compatibility with earlier CSRF docs:
@@ -1132,7 +1134,7 @@
                        ;; params since there's no other choice there.
                        params ; 1st (don't clobber impl.):
 
-                       {:_          (enc/now-udt) ; Force uncached resp
+                       {:udt        (enc/now-udt) ; Force uncached resp
                         :client-id  client-id}
 
                        ;; A truthy :handshake? param will prompt server to
