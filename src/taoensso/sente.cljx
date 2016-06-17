@@ -32,7 +32,6 @@
         [:chsk/handshake [<?uid> <?csrf-token> <?handshake-data> <first-handshake?>]]
         [:chsk/state [<old-state-map> <new-state-map>]]
         [:chsk/recv <ev-as-pushed-from-server>] ; Server>user push
-        [:chsk/ws-error <websocket-error>] ; Alpha, subject to change
 
     * Server-side events:
         [:chsk/bad-package <packed-str>]
@@ -876,11 +875,11 @@
   ;; Handles (re)connections, cbs, etc.
 
   [client-id chs params packer url
-   state_ ; {:type _ :open? _ :uid _ :csrf-token _}
+   state_ ; {:type _ :open? _ :uid _ :csrf-token _ ...}
    active-retry-id_ retry-count_ ever-opened?_
    backoff-ms-fn ; (fn [nattempt]) -> msecs
    cbs-waiting_ ; {<cb-uuid> <fn> ...}
-   socket_ err-fn]
+   socket_]
 
   IChSocket
   (-chsk-disconnect! [chsk reconn?]
@@ -954,10 +953,17 @@
                     (doto ?socket
                       (aset "onerror"
                         (fn [ws-ev]
-                          (errorf "WebSocket error: %s" ws-ev)
-                          (put! (:internal chs) [:chsk/ws-error ws-ev])
-                          (when-let [ef err-fn] (ef chsk))
-                          nil))
+                          (errorf
+                           ;; ^:meta {:raw-console? true} ; TODO Maybe later
+                           "WebSocket error: %s"
+                           (try (js->clj ws-ev) (catch :default _ ws-ev)))
+
+                          (let [;; Note that `ws-ev` doesn't seem to contain
+                                ;; much useful info? Ref. http://goo.gl/bBJq0p
+                                last-ws-error {:uuid (enc/uuid-str)
+                                               :ev   ws-ev}]
+
+                            (merge>chsk-state! chsk {:last-ws-error last-ws-error}))))
 
                       (aset "onmessage" ; Nb receives both push & cb evs!
                         (fn [ws-ev]
@@ -998,16 +1004,24 @@
                       ;; server is down:
                       (aset "onclose"
                         (fn [ws-ev]
-                          (let [code   (enc/oget ws-ev "code")
+                          (let [clean? (enc/oget ws-ev "wasClean")
+                                code   (enc/oget ws-ev "code")
                                 reason (enc/oget ws-ev "reason")
-                                clean? (enc/oget ws-ev "wasClean")]
+                                last-ws-close
+                                {:uuid   (enc/uuid-str)
+                                 :ev     ws-ev
+                                 :clean? clean?
+                                 :code   code
+                                 :reason reason}]
 
                             ;; Firefox calls "onclose" while unloading,
                             ;; Ref. http://goo.gl/G5BYbn:
                             (if clean?
-                              (debugf "Clean WebSocket close, will not attempt reconnect")
                               (do
-                                (merge>chsk-state! chsk {:open? false})
+                                (debugf "Clean WebSocket close, will not attempt reconnect")
+                                (merge>chsk-state! chsk {:last-ws-close last-ws-close}))
+                              (do
+                                (merge>chsk-state! chsk {:last-ws-close last-ws-close :open? false})
                                 (retry-fn)))))))))))]
 
         (reset! active-retry-id_ retry-id)
@@ -1193,9 +1207,8 @@
   ;; Dynamic WebSocket/Ajax IChSocket implementation
   ;; Wraps a swappable ChWebSocket/ChAjaxSocket
 
-  [ws-chsk-opts ajax-chsk-opts
-   state_ ; {:type _ :open? _ :uid _ :csrf-token _}
-   impl_  ; ChWebSocket or ChAjaxSocket
+  [ws-chsk-opts ajax-chsk-opts state_
+   impl_ ; ChWebSocket or ChAjaxSocket
    ]
 
   IChSocket
@@ -1217,23 +1230,33 @@
         (chsk-send->closed! ?cb-fn))))
 
   (-chsk-connect! [chsk]
+    ;; Starting with a simple downgrade-only strategy here as a proof of concept
+    ;; TODO Later consider smarter downgrade or downgrade+upgrade strategies?
     (let [ajax-chsk-opts (assoc ajax-chsk-opts :state_ state_)
-          ajax-conn!     (fn [] (-chsk-connect! (new-ChAjaxSocket ajax-chsk-opts)))
-          downgraded?_   (atom false)
+            ws-chsk-opts (assoc   ws-chsk-opts :state_ state_)
 
-          ws-err-fn ; Called on WebSocket's onerror
-          (fn [impl]
-            ;; Starting with something simple here as a proof of concept;
-            ;; TODO Consider smarter downgrade/upgrade strategies here later
-            (when-let [ever-opened?_ (:ever-opened?_ impl)]
-              (when-not @ever-opened?_
-                (when (compare-and-set! downgraded?_ false true)
-                  (warnf "Permanently downgrading :auto chsk -> :ajax")
-                  (-chsk-disconnect! impl false)
-                  (reset! impl_ (ajax-conn!))))))
+          ajax-conn!
+          (fn []
+            ;; Remove :auto->:ajax downgrade watch
+            (remove-watch state_ :chsk/auto-ajax-downgrade)
+            (-chsk-connect! (new-ChAjaxSocket ajax-chsk-opts)))
 
-          ws-chsk-opts (assoc ws-chsk-opts :state_ state_ :err-fn ws-err-fn)
-          ws-conn! (fn [] (-chsk-connect! (new-ChWebSocket ws-chsk-opts)))]
+          ws-conn!
+          (fn []
+            ;; Configure :auto->:ajax downgrade watch
+            (let [downgraded?_ (atom false)]
+              (add-watch state_ :chsk/auto-ajax-downgrade
+                (fn [_ _ old-state new-state]
+                  (when-let [impl @impl_]
+                    (when-let [ever-opened?_ (:ever-opened?_ impl)]
+                      (when-not @ever-opened?_
+                        (when (:last-error new-state)
+                          (when (compare-and-set! downgraded?_ false true)
+                            (warnf "Permanently downgrading :auto chsk -> :ajax")
+                            (-chsk-disconnect! impl false)
+                            (reset! impl_ (ajax-conn!))))))))))
+
+            (-chsk-connect! (new-ChWebSocket ws-chsk-opts)))]
 
       (reset! impl_ (or (ws-conn!) (ajax-conn!)))
       chsk)))
