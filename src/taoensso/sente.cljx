@@ -30,7 +30,7 @@
 
     * Client-side events:
         [:chsk/handshake [<?uid> <?csrf-token> <?handshake-data> <first-handshake?>]]
-        [:chsk/state <new-state-map>]
+        [:chsk/state [<old-state-map> <new-state-map>]]
         [:chsk/recv <ev-as-pushed-from-server>] ; Server>user push
         [:chsk/ws-error <websocket-error>] ; Alpha, subject to change
 
@@ -802,9 +802,10 @@
               (swapped new-state [old-state new-state]))))]
 
     (when (not= old-state new-state)
-      ;; (debugf "Chsk state change: %s" new-state)
-      (put! (:state chs) [:chsk/state new-state])
-      new-state)))
+      (let [output [old-state new-state]]
+        ;; (debugf "Chsk state change: %s" output)
+        (put! (:state chs) [:chsk/state output])
+        output))))
 
 #+cljs
 (defn- cb-chan-as-fn

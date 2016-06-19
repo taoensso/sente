@@ -5,7 +5,7 @@
   (:require
    [clojure.string  :as str]
    [cljs.core.async :as async  :refer (<! >! put! chan)]
-   [taoensso.encore :as encore :refer ()]
+   [taoensso.encore :as encore :refer-macros (have have?)]
    [taoensso.timbre :as timbre :refer-macros (tracef debugf infof warnf errorf)]
    [taoensso.sente  :as sente  :refer (cb-success?)]
 
@@ -69,9 +69,10 @@
 
 (defmethod -event-msg-handler :chsk/state
   [{:as ev-msg :keys [?data]}]
-  (if (:first-open? ?data)
-    (->output! "Channel socket successfully established!: %s" ?data)
-    (->output! "Channel socket state change: %s" ?data)))
+  (let [[old-state-map new-state-map] (have vector? ?data)]
+    (if (:first-open? new-state-map)
+      (->output! "Channel socket successfully established!: %s" new-state-map)
+      (->output! "Channel socket state change: %s"              new-state-map))))
 
 (defmethod -event-msg-handler :chsk/recv
   [{:as ev-msg :keys [?data]}]
