@@ -1,5 +1,16 @@
 > This project uses [Break Versioning](https://github.com/ptaoussanis/encore/blob/master/BREAK-VERSIONING.md) as of **Aug 16, 2014**.
 
+## v1.9.0-beta3 - 2016 Jun 19
+
+```clojure
+[com.taoensso/sente "1.9.0-beta3"]
+```
+
+> Changes since `1.9.0-beta2`:
+
+* **BREAKING**: client-side event changed: `[:chsk/state <new-state-map>]` -> `[:chsk/state [<old-state-map> <new-state-map>]]`
+* **New**: dropped (alpha) `:chsk/ws-error` event, moved functionality to `:chsk/state`
+
 ## v1.9.0-beta2 - 2016 Jun 13
 
 ```clojure

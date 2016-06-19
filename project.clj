@@ -1,4 +1,4 @@
-(defproject com.taoensso/sente "1.9.0-beta2"
+(defproject com.taoensso/sente "1.9.0-beta3"
   :author "Peter Taoussanis <https://www.taoensso.com>"
   :description "Realtime web comms for Clojure/Script"
   :url "https://github.com/ptaoussanis/sente"
@@ -12,8 +12,8 @@
 
   :dependencies
   [[org.clojure/clojure      "1.5.1"]
-   [org.clojure/core.async   "0.2.374"]
-   [com.taoensso/encore      "2.53.1"]
+   [org.clojure/core.async   "0.2.385"]
+   [com.taoensso/encore      "2.56.1"]
    [org.clojure/tools.reader "0.10.0"]
    [com.taoensso/timbre      "4.4.0"]]
 
@@ -24,13 +24,13 @@
    :1.6  {:dependencies [[org.clojure/clojure "1.6.0"]]}
    :1.7  {:dependencies [[org.clojure/clojure "1.7.0"]]}
    :1.8  {:dependencies [[org.clojure/clojure "1.8.0"]]}
-   :1.9  {:dependencies [[org.clojure/clojure "1.9.0-alpha5"]]}
+   :1.9  {:dependencies [[org.clojure/clojure "1.9.0-alpha7"]]}
    :test {:dependencies [[com.cognitect/transit-clj  "0.8.285"]
                          [com.cognitect/transit-cljs "0.8.237"]
                          [org.clojure/test.check     "0.9.0"]]
           :plugins []}
 
-   :provided {:dependencies [[org.clojure/clojurescript "1.9.36"]]}
+   :provided {:dependencies [[org.clojure/clojurescript "1.9.76"]]}
 
    :dev
    [:1.9 :test :server-jvm
