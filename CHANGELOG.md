@@ -1,5 +1,35 @@
 > This project uses [Break Versioning](https://github.com/ptaoussanis/encore/blob/master/BREAK-VERSIONING.md) as of **Aug 16, 2014**.
 
+## v1.9.0-RC1 - 2016 Jun 23
+
+```clojure
+[com.taoensso/sente "1.9.0-RC1"]
+```
+
+This is a **particularly substantial release** focused on design refactoring, and a number of new features.
+
+Last chance to **PLEASE REPORT ANY PROBLEMS** before v1.9.0 final, thank you!
+
+- @ptaoussanis
+
+> No changes since `v1.9.0beta3`.
+> Changes since `v1.8.1`:
+
+* **BREAKING**: Client-side event changed: `[:chsk/state <new-state-map>]` -> `[:chsk/state [<old-state-map> <new-state-map>]]`
+* **BREAKING**: `:ws-kalive-ms`, `:lp-timeout-ms` opts moved from client-side to server-side `make-channel-socket!` fn
+* **BREAKING**: Drop experimental (and rarely used) flexi packer
+* **New**: Add Aleph server adapter (@sorenmacbeth) [#236]
+* **New**: Client-side `:chsk/state` events may now contain `:last-ws-error`, `:last-ws-close` keys [#214]
+* **New**: Add support for more flexible conn-type upgrade/downgrade [#201]
+* **New**: Add new goodies to reference example
+* **Impl**: Allow server to garbage collect long-polling conns [#150 #159]
+* **Impl**: Server-side ping to help gc non-terminating WebSocket conns [#230]
+* **Impl**: Servers now drive WebSocket identification (more robust, flexible)
+* **Impl**: Clojure-side Transit performance optimizations [#161]
+* **Fix**: Fixed faulty Nodejs Ajax adapter behaviour
+* **Fix**: Fix for spurious Firefox unload->onclose calls [#224]
+* **Fix**: Clear the keep alive timer in `chsk-disconnect!` [#221 @theasp]
+
 ## v1.9.0-beta3 - 2016 Jun 19
 
 ```clojure
@@ -29,9 +59,7 @@
 [com.taoensso/sente "1.9.0-beta1"]
 ```
 
-> This is a **major release** that should be non-breaking in most cases. Enjoy! :-)
-
-**PLEASE REPORT ANY PROBLEMS**, thank you!
+> Changes since `v1.8.1`:
 
 * **BREAKING**: `:ws-kalive-ms`, `:lp-timeout-ms` opts moved from client-side to server-side `make-channel-socket!` fn
 * **BREAKING**: Drop experimental (and rarely used) flexi packer
