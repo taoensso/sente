@@ -19,7 +19,7 @@
    [com.taoensso/timbre       "4.4.0"]
 
    ;;; TODO Choose (uncomment) a supported web server -----------------------
-   [http-kit                             "2.2.0-alpha2"] ; Default
+   [http-kit                             "2.2.0-beta1"] ; Default
    ;; [org.immutant/web                  "2.1.4"]
    ;; [nginx-clojure/nginx-clojure-embed "0.4.4"] ; Needs v0.4.2+
    ;; [aleph                             "0.4.1"]
@@ -29,13 +29,13 @@
    [ring/ring-defaults        "0.2.1"] ; Includes `ring-anti-forgery`, etc.
    ;; [ring-anti-forgery      "1.0.0"]
 
-   [compojure                 "1.5.0"] ; Or routing lib of your choice
+   [compojure                 "1.5.1"] ; Or routing lib of your choice
    [hiccup                    "1.0.5"] ; Optional, just for HTML
 
    ;;; Transit deps optional; may be used to aid perf. of larger data payloads
    ;;; (see reference example for details):
    [com.cognitect/transit-clj  "0.8.285"]
-   [com.cognitect/transit-cljs "0.8.237"]]
+   [com.cognitect/transit-cljs "0.8.239"]]
 
   :plugins
   [[lein-pprint         "1.1.2"]
