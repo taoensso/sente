@@ -788,8 +788,13 @@
                   ;; thought...
                   requested-reconnect?
                   (and (:requested-reconnect-pending? old-state)
-                    (do  (:open? new-state))
+                         (:open? new-state)
                     (not (:open? old-state)))
+
+                  new-state
+                  (if (:first-open? old-state)
+                    (assoc new-state :first-open? false)
+                    new-state)
 
                   new-state
                   (if requested-reconnect?
