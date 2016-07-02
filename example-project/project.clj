@@ -11,12 +11,12 @@
 
   :dependencies
   [[org.clojure/clojure       "1.8.0"]
-   [org.clojure/clojurescript "1.9.76"]
+   [org.clojure/clojurescript "1.9.93"]
    [org.clojure/core.async    "0.2.385"]
    [org.clojure/tools.nrepl   "0.2.12"] ; Optional, for Cider
 
    [com.taoensso/sente        "1.9.0-RC1"] ; <--- Sente
-   [com.taoensso/timbre       "4.4.0"]
+   [com.taoensso/timbre       "4.5.1"]
 
    ;;; TODO Choose (uncomment) a supported web server -----------------------
    [http-kit                             "2.2.0-beta1"] ; Default

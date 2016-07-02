@@ -13,9 +13,9 @@
   :dependencies
   [[org.clojure/clojure      "1.5.1"]
    [org.clojure/core.async   "0.2.385"]
-   [com.taoensso/encore      "2.58.0"]
+   [com.taoensso/encore      "2.61.0"]
    [org.clojure/tools.reader "0.10.0"]
-   [com.taoensso/timbre      "4.4.0"]]
+   [com.taoensso/timbre      "4.5.1"]]
 
   :profiles
   {;; :default [:base :system :user :provided :dev]
@@ -24,19 +24,19 @@
    :1.6  {:dependencies [[org.clojure/clojure "1.6.0"]]}
    :1.7  {:dependencies [[org.clojure/clojure "1.7.0"]]}
    :1.8  {:dependencies [[org.clojure/clojure "1.8.0"]]}
-   :1.9  {:dependencies [[org.clojure/clojure "1.9.0-alpha7"]]}
+   :1.9  {:dependencies [[org.clojure/clojure "1.9.0-alpha8"]]}
    :test {:dependencies [[com.cognitect/transit-clj  "0.8.285"]
                          [com.cognitect/transit-cljs "0.8.239"]
                          [org.clojure/test.check     "0.9.0"]]
           :plugins []}
 
-   :provided {:dependencies [[org.clojure/clojurescript "1.9.76"]]}
+   :provided {:dependencies [[org.clojure/clojurescript "1.9.93"]]}
 
    :dev
    [:1.9 :test :server-jvm
     {:dependencies
      [[http-kit         "2.2.0-beta1"]
-      [org.immutant/web "2.1.4"]
+      [org.immutant/web "2.1.5"]
       [nginx-clojure    "0.4.4"]
       [aleph            "0.4.1"]]
      :plugins
