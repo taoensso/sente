@@ -4,7 +4,7 @@
 **[CHANGELOG]** | [API] | current [Break Version]:
 
 ```clojure
-[com.taoensso/sente "1.9.0-RC1"] ; BREAKING, see CHANGELOG for details
+[com.taoensso/sente "1.9.0-RC2"] ; BREAKING, see CHANGELOG for details
 [com.taoensso/sente "1.8.1"]     ; Stable
 ```
 
@@ -60,7 +60,7 @@ So you can ignore the underlying protocol and deal directly with Sente's unified
 Add the necessary dependency to your project:
 
 ```clojure
-[com.taoensso/sente "1.9.0-RC1"]
+[com.taoensso/sente "1.9.0-RC2"]
 ```
 
 ### On the server (Clojure) side

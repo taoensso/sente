@@ -1,5 +1,13 @@
 > This project uses [Break Versioning](https://github.com/ptaoussanis/encore/blob/master/BREAK-VERSIONING.md) as of **Aug 16, 2014**.
 
+## v1.9.0-RC2 - 2016 Jul 2
+
+```clojure
+[com.taoensso/sente "1.9.0-RC2"]
+```
+
+* **Hotfix**: `:first-open?` in chsk state wasn't being correctly reset
+
 ## v1.9.0-RC1 - 2016 Jun 23
 
 ```clojure

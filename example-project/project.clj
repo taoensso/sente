@@ -1,4 +1,4 @@
-(defproject com.taoensso.examples/sente "1.9.0-RC1"
+(defproject com.taoensso.examples/sente "1.9.0-RC2"
   :description "Sente, reference web-app example project"
   :url "https://github.com/ptaoussanis/sente"
   :license {:name "Eclipse Public License"
@@ -15,7 +15,7 @@
    [org.clojure/core.async    "0.2.385"]
    [org.clojure/tools.nrepl   "0.2.12"] ; Optional, for Cider
 
-   [com.taoensso/sente        "1.9.0-RC1"] ; <--- Sente
+   [com.taoensso/sente        "1.9.0-RC2"] ; <--- Sente
    [com.taoensso/timbre       "4.5.1"]
 
    ;;; TODO Choose (uncomment) a supported web server -----------------------
