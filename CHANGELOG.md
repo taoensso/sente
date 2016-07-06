@@ -1,27 +1,12 @@
 > This project uses [Break Versioning](https://github.com/ptaoussanis/encore/blob/master/BREAK-VERSIONING.md) as of **Aug 16, 2014**.
 
-## v1.9.0-RC2 - 2016 Jul 2
+## v1.9.0 - 2016 Jul 6
 
 ```clojure
-[com.taoensso/sente "1.9.0-RC2"]
+[com.taoensso/sente "1.9.0"]
 ```
 
-* **Hotfix**: `:first-open?` in chsk state wasn't being correctly reset
-
-## v1.9.0-RC1 - 2016 Jun 23
-
-```clojure
-[com.taoensso/sente "1.9.0-RC1"]
-```
-
-This is a **particularly substantial release** focused on design refactoring, and a number of new features.
-
-Last chance to **PLEASE REPORT ANY PROBLEMS** before v1.9.0 final, thank you!
-
-- @ptaoussanis
-
-> No changes since `v1.9.0beta3`.
-> Changes since `v1.8.1`:
+> This is a **particularly substantial release** focused on design refactoring, and a number of new features.
 
 * **BREAKING**: Client-side event changed: `[:chsk/state <new-state-map>]` -> `[:chsk/state [<old-state-map> <new-state-map>]]`
 * **BREAKING**: `:ws-kalive-ms`, `:lp-timeout-ms` opts moved from client-side to server-side `make-channel-socket!` fn
@@ -35,47 +20,6 @@ Last chance to **PLEASE REPORT ANY PROBLEMS** before v1.9.0 final, thank you!
 * **Impl**: Servers now drive WebSocket identification (more robust, flexible)
 * **Impl**: Clojure-side Transit performance optimizations [#161]
 * **Fix**: Fixed faulty Nodejs Ajax adapter behaviour
-* **Fix**: Fix for spurious Firefox unload->onclose calls [#224]
-* **Fix**: Clear the keep alive timer in `chsk-disconnect!` [#221 @theasp]
-
-## v1.9.0-beta3 - 2016 Jun 19
-
-```clojure
-[com.taoensso/sente "1.9.0-beta3"]
-```
-
-> Changes since `1.9.0-beta2`:
-
-* **BREAKING**: client-side event changed: `[:chsk/state <new-state-map>]` -> `[:chsk/state [<old-state-map> <new-state-map>]]`
-* **New**: dropped (alpha) `:chsk/ws-error` event, moved functionality to `:chsk/state`
-
-## v1.9.0-beta2 - 2016 Jun 13
-
-```clojure
-[com.taoensso/sente "1.9.0-beta2"]
-```
-
-> Changes since `1.9.0-beta1`:
-
-* **New**: Add Aleph server adapter (@sorenmacbeth) [#236]
-* **Impl**: Servers now drive WebSocket identification (more robust, flexible)
-* **Fix**: Fixed faulty Nodejs Ajax adapter behaviour
-
-## v1.9.0-beta1 - 2016 Jun 10
-
-```clojure
-[com.taoensso/sente "1.9.0-beta1"]
-```
-
-> Changes since `v1.8.1`:
-
-* **BREAKING**: `:ws-kalive-ms`, `:lp-timeout-ms` opts moved from client-side to server-side `make-channel-socket!` fn
-* **BREAKING**: Drop experimental (and rarely used) flexi packer
-* **New**: Add support for more flexible conn-type upgrade/downgrade [#201]
-* **New**: Add alpha `[:chsk/ws-error _]` client-side ev-msgs [#214]
-* **Impl**: Clojure-side Transit performance optimizations [#161]
-* **Impl**: Allow server to garbage collect long-polling conns [#150 #159]
-* **Fix**: Server-side ping to help gc non-terminating WebSocket conns [#230]
 * **Fix**: Fix for spurious Firefox unload->onclose calls [#224]
 * **Fix**: Clear the keep alive timer in `chsk-disconnect!` [#221 @theasp]
 
