@@ -5,7 +5,6 @@
 
 ```clojure
 [com.taoensso/sente "1.9.0"] ; BREAKING, see CHANGELOG for details
-[com.taoensso/sente "1.8.1"] ; Previous version
 ```
 
 > Please consider helping to [support my continued open-source Clojure/Script work]? 
