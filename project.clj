@@ -17,11 +17,17 @@
    [org.clojure/tools.reader "0.10.0"]
    [com.taoensso/timbre      "4.5.1"]]
 
+  :plugins [[lein-cljsbuild "1.1.3"]
+            ;;
+            [lein-pprint "1.1.2"]
+            [lein-ancient "0.6.10"]
+            ;; [com.cemerick/austin          "0.1.4"]
+            [com.cemerick/clojurescript.test "0.3.3"]
+            [lein-codox "0.9.5"]]
+
   :profiles
   {;; :default [:base :system :user :provided :dev]
    :server-jvm {:jvm-opts ^:replace ["-server"]}
-   :1.5  {:dependencies [[org.clojure/clojure "1.5.1"]]}
-   :1.6  {:dependencies [[org.clojure/clojure "1.6.0"]]}
    :1.7  {:dependencies [[org.clojure/clojure "1.7.0"]]}
    :1.8  {:dependencies [[org.clojure/clojure "1.8.0"]]}
    :1.9  {:dependencies [[org.clojure/clojure "1.9.0-alpha9"]]}
@@ -38,22 +44,7 @@
      [[http-kit         "2.2.0-beta1"]
       [org.immutant/web "2.1.5"]
       [nginx-clojure    "0.4.4"]
-      [aleph            "0.4.1"]]
-     :plugins
-     [;;; These must be in :dev, Ref. https://github.com/lynaghk/cljx/issues/47:
-      [com.keminglabs/cljx             "0.6.0"]
-      [lein-cljsbuild                  "1.1.3"]
-      ;;
-      [lein-pprint                     "1.1.2"]
-      [lein-ancient                    "0.6.10"]
-      ;; [com.cemerick/austin          "0.1.4"]
-      [com.cemerick/clojurescript.test "0.3.3"]
-      [lein-codox                      "0.9.5"]]}]}
-
-  :cljx
-  {:builds
-   [{:source-paths ["src" "test"] :rules :clj  :output-path "target/classes"}
-    {:source-paths ["src" "test"] :rules :cljs :output-path "target/classes"}]}
+      [aleph            "0.4.1"]]}]}
 
   :cljsbuild
   {:test-commands {"node"    ["node" :node-runner "target/main.js"]
@@ -66,7 +57,6 @@
                     :pretty-print false}}]}
 
   :test-paths ["test" "src"]
-  :prep-tasks [["cljx" "once"] "javac" "compile"]
   :codox
   {:language :clojure ; [:clojure :clojurescript] ; No support?
    :source-paths ["target/classes"]
@@ -75,11 +65,11 @@
     #".*"             "https://github.com/ptaoussanis/sente/blob/master/{filepath}#L{line}"}}
 
   :aliases
-  {"test-all"   ["do" "clean," "cljx" "once,"
-                 "with-profile" "+1.9:+1.8:+1.7:+1.6" "test,"
+  {"test-all"   ["do" "clean,"
+                 "with-profile" "+1.9:+1.8:+1.7" "test,"
                  ;; "with-profile" "+test" "cljsbuild" "test"
                  ]
-   "build-once" ["do" "cljx" "once," "cljsbuild" "once"]
+   "build-once" ["cljsbuild" "once"]
    "deploy-lib" ["do" "build-once," "deploy" "clojars," "install"]
    "start-dev"  ["with-profile" "+dev" "repl" ":headless"]}
 

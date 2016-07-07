@@ -60,8 +60,8 @@
 
   {:author "Peter Taoussanis (@ptaoussanis)"}
 
- #?(:clj
-    (:require
+  #?(:clj
+     (:require
       [clojure.string :as str]
       [clojure.core.async :as async :refer (<! <!! >! >!! put! chan go go-loop)]
       [taoensso.encore :as enc :refer (swap-in! reset-in! swapped have have! have?)]
@@ -70,16 +70,16 @@
 
   #?(:cljs
      (:require
-       [clojure.string :as str]
-       [cljs.core.async :as async :refer (<! >! put! chan)]
-       [taoensso.encore :as enc :refer (format swap-in! reset-in! swapped)
-        :refer-macros (have have! have?)]
-       [taoensso.timbre :as timbre :refer-macros (tracef debugf infof warnf errorf)]
-       [taoensso.sente.interfaces :as interfaces]))
+      [clojure.string :as str]
+      [cljs.core.async :as async :refer (<! >! put! chan)]
+      [taoensso.encore :as enc :refer (format swap-in! reset-in! swapped)
+       :refer-macros (have have! have?)]
+      [taoensso.timbre :as timbre :refer-macros (tracef debugf infof warnf errorf)]
+      [taoensso.sente.interfaces :as interfaces]))
 
   #?(:cljs
      (:require-macros
-       [cljs.core.async.macros :as asyncm :refer (go go-loop)])))
+      [cljs.core.async.macros :as asyncm :refer (go go-loop)])))
 
 (if (vector? taoensso.encore/encore-version)
   (enc/assert-min-encore-version [2 53 1])
@@ -781,30 +781,30 @@
    (defn- merge>chsk-state! [{:keys [chs state_] :as chsk} merge-state]
      (let [[old-state new-state]
            (swap-in! state_ []
-                     (fn [old-state]
-                       (let [new-state (merge old-state merge-state)
+             (fn [old-state]
+               (let [new-state (merge old-state merge-state)
 
-                             ;; Is this a reasonable way of helping client distinguish
-                             ;; cause of an auto reconnect? Didn't give it much
-                             ;; thought...
-                             requested-reconnect?
-                             (and (:requested-reconnect-pending? old-state)
-                                  (:open? new-state)
-                                  (not (:open? old-state)))
+                     ;; Is this a reasonable way of helping client
+                     ;; distinguish cause of an auto reconnect? Didn't give
+                     ;; it much thought...
+                     requested-reconnect?
+                     (and (:requested-reconnect-pending? old-state)
+                          (:open? new-state)
+                          (not (:open? old-state)))
 
-                             new-state
-                             (if (:first-open? old-state)
-                               (assoc new-state :first-open? false)
-                               new-state)
+                     new-state
+                     (if (:first-open? old-state)
+                       (assoc new-state :first-open? false)
+                       new-state)
 
-                             new-state
-                             (if requested-reconnect?
-                               (-> new-state
-                                   (dissoc :requested-reconnect-pending?)
-                                   (assoc :requested-reconnect? true))
-                               (dissoc new-state :requested-reconnect?))]
+                     new-state
+                     (if requested-reconnect?
+                       (-> new-state
+                           (dissoc :requested-reconnect-pending?)
+                           (assoc :requested-reconnect? true))
+                       (dissoc new-state :requested-reconnect?))]
 
-                         (swapped new-state [old-state new-state]))))]
+                 (swapped new-state [old-state new-state]))))]
 
        (when (not= old-state new-state)
          (let [output [old-state new-state]]
@@ -827,8 +827,8 @@
                cb-ch ?cb]
            (fn [reply]
              (put! cb-ch
-                   [(keyword (str (enc/fq-name ev-id) ".cb"))
-                    reply])))))))
+               [(keyword (str (enc/fq-name ev-id) ".cb"))
+                reply])))))))
 
 #?(:cljs
    (defn- receive-buffered-evs! [chs clj]
@@ -939,15 +939,16 @@
                          (when (= @active-retry-id_ retry-id)
                            (let [retry-count* (swap! retry-count_ inc)
                                  backoff-ms (backoff-ms-fn retry-count*)]
-                             (warnf "Chsk is closed: will try reconnect (%s)" retry-count*)
+                             (warnf "Chsk is closed: will try reconnect (%s)"
+                               retry-count*)
                              (.setTimeout js/window connect-fn backoff-ms))))
 
                        ?socket
                        (try
                          (WebSocket.
                            (enc/merge-url-with-query-string url
-                                                            (merge params ; 1st (don't clobber impl.):
-                                                                   {:client-id client-id})))
+                             (merge params ; 1st (don't clobber impl.):
+                               {:client-id client-id})))
                          (catch js/Error e
                            (errorf e "WebSocket js/Error")
                            nil))]
@@ -956,79 +957,83 @@
                      (retry-fn) ; Couldn't even get a socket
 
                      (reset! socket_
-                             (doto ?socket
-                               (aset "onerror"
-                                     (fn [ws-ev]
-                                       (errorf
-                                         ;; ^:meta {:raw-console? true} ; TODO Maybe later
-                                         "WebSocket error: %s"
-                                         (try (js->clj ws-ev) (catch :default _ ws-ev)))
+                       (doto ?socket
+                         (aset "onerror"
+                           (fn [ws-ev]
+                             (errorf
+                               ;; ^:meta {:raw-console? true} ; TODO Maybe later
+                               "WebSocket error: %s"
+                               (try (js->clj ws-ev) (catch :default _ ws-ev)))
 
-                                       (let [;; Note that `ws-ev` doesn't seem to contain
-                                             ;; much useful info? Ref. http://goo.gl/bBJq0p
-                                             last-ws-error {:uuid (enc/uuid-str)
-                                                            :ev   ws-ev}]
+                             (let [;; Note that `ws-ev` doesn't seem to
+                                   ;; contain much useful info?
+                                   ;; Ref. http://goo.gl/bBJq0p
+                                   last-ws-error {:uuid (enc/uuid-str)
+                                                  :ev   ws-ev}]
 
-                                         (merge>chsk-state! chsk {:last-ws-error last-ws-error}))))
+                               (merge>chsk-state! chsk
+                                 {:last-ws-error last-ws-error}))))
 
-                               (aset "onmessage" ; Nb receives both push & cb evs!
-                                     (fn [ws-ev]
-                                       (let [ppstr (enc/oget ws-ev "data")
-                                             [clj ?cb-uuid] (unpack packer ppstr)]
+                         (aset "onmessage" ; Nb receives both push & cb evs!
+                           (fn [ws-ev]
+                             (let [ppstr (enc/oget ws-ev "data")
+                                   [clj ?cb-uuid] (unpack packer ppstr)]
 
-                                         ;; Nb may or may NOT satisfy `event?` since we
-                                         ;; also receive cb replies here! This is actually
-                                         ;; why we prefix our pstrs to indicate whether
-                                         ;; they're wrapped or not.
-                                         ;; (assert-event clj) ;; NO!
+                               ;; Nb may or may NOT satisfy `event?` since we
+                               ;; also receive cb replies here! This is why
+                               ;; we prefix our pstrs to indicate whether
+                               ;; they're wrapped or not.
+                               ;; (assert-event clj) ;; NO!
 
-                                         (or
-                                           (when (handshake? clj)
-                                             (receive-handshake! :ws chsk clj)
-                                             (reset! retry-count_ 0))
+                               (or
+                                 (when (handshake? clj)
+                                   (receive-handshake! :ws chsk clj)
+                                   (reset! retry-count_ 0))
 
-                                           (when (= clj :chsk/ws-ping)
-                                             (when @debug-mode?_
-                                               (receive-buffered-evs! chs [[:debug/ws-ping]]))
-                                             :noop)
+                                 (when (= clj :chsk/ws-ping)
+                                   (when @debug-mode?_
+                                     (receive-buffered-evs! chs [[:debug/ws-ping]]))
+                                   :noop)
 
-                                           (if-let [cb-uuid ?cb-uuid]
-                                             (if-let [cb-fn (pull-unused-cb-fn! cbs-waiting_
-                                                                                cb-uuid)]
-                                               (cb-fn clj)
-                                               (warnf "Cb reply w/o local cb-fn: %s" clj))
-                                             (let [buffered-evs clj]
-                                               (receive-buffered-evs! chs buffered-evs)))))))
+                                 (if-let [cb-uuid ?cb-uuid]
+                                   (if-let [cb-fn (pull-unused-cb-fn! cbs-waiting_
+                                                    cb-uuid)]
+                                     (cb-fn clj)
+                                     (warnf "Cb reply w/o local cb-fn: %s" clj))
+                                   (let [buffered-evs clj]
+                                     (receive-buffered-evs! chs buffered-evs)))))))
 
-                               #_(aset "onopen"
-                                       (fn [_ws-ev]
-                                         ;; NO, better for server to send a handshake:
-                                         ;; (merge>chsk-state! chsk {:open? true})
-                                         ))
+                         #_(aset "onopen"
+                             (fn [_ws-ev]
+                               ;; NO, better for server to send a handshake:
+                               ;; (merge>chsk-state! chsk {:open? true})
+                               ))
 
-                               ;; Fires repeatedly (on each connection attempt) while
-                               ;; server is down:
-                               (aset "onclose"
-                                     (fn [ws-ev]
-                                       (let [clean? (enc/oget ws-ev "wasClean")
-                                             code (enc/oget ws-ev "code")
-                                             reason (enc/oget ws-ev "reason")
-                                             last-ws-close
-                                             {:uuid   (enc/uuid-str)
-                                              :ev     ws-ev
-                                              :clean? clean?
-                                              :code   code
-                                              :reason reason}]
+                         ;; Fires repeatedly (on each connection attempt) while
+                         ;; server is down:
+                         (aset "onclose"
+                           (fn [ws-ev]
+                             (let [clean? (enc/oget ws-ev "wasClean")
+                                   code (enc/oget ws-ev "code")
+                                   reason (enc/oget ws-ev "reason")
+                                   last-ws-close
+                                   {:uuid   (enc/uuid-str)
+                                    :ev     ws-ev
+                                    :clean? clean?
+                                    :code   code
+                                    :reason reason}]
 
-                                         ;; Firefox calls "onclose" while unloading,
-                                         ;; Ref. http://goo.gl/G5BYbn:
-                                         (if clean?
-                                           (do
-                                             (debugf "Clean WebSocket close, will not attempt reconnect")
-                                             (merge>chsk-state! chsk {:last-ws-close last-ws-close}))
-                                           (do
-                                             (merge>chsk-state! chsk {:last-ws-close last-ws-close :open? false})
-                                             (retry-fn)))))))))))]
+                               ;; Firefox calls "onclose" while unloading,
+                               ;; Ref. http://goo.gl/G5BYbn:
+                               (if clean?
+                                 (do
+                                   (debugf "Clean WebSocket close, will not attempt reconnect")
+                                   (merge>chsk-state! chsk
+                                     {:last-ws-close last-ws-close}))
+                                 (do
+                                   (merge>chsk-state! chsk
+                                     {:last-ws-close last-ws-close :open? false})
+                                   (retry-fn)))))))))))]
 
            (reset! active-retry-id_ retry-id)
            (reset! retry-count_ 0)
@@ -1085,45 +1090,46 @@
            ;; TODO Buffer before sending (but honor `:flush?`)
            (let [csrf-token (:csrf-token @state_)]
              (ajax-lite url
-                        (merge ajax-opts
-                               {:method     :post
-                                :timeout-ms (or ?timeout-ms (:timeout-ms ajax-opts)
-                                                default-client-side-ajax-timeout-ms)
-                                :resp-type  :text ; We'll do our own pstr decoding
-                                :headers
-                                            (merge (:headers ajax-opts) ; 1st (don't clobber impl.):
-                                                   {:X-CSRF-Token csrf-token})
+               (merge ajax-opts
+                 {:method     :post
+                  :timeout-ms (or ?timeout-ms (:timeout-ms ajax-opts)
+                                  default-client-side-ajax-timeout-ms)
+                  :resp-type  :text ; We'll do our own pstr decoding
+                  :headers
+                  (merge (:headers ajax-opts) ; 1st (don't clobber impl.):
+                    {:X-CSRF-Token csrf-token})
 
-                                :params
-                                            (let [ppstr (pack packer (meta ev) ev (when ?cb-fn :ajax-cb))]
-                                              (merge params ; 1st (don't clobber impl.):
-                                                     {:udt        (enc/now-udt) ; Force uncached resp
+                  :params
+                  (let [ppstr (pack packer (meta ev) ev (when ?cb-fn :ajax-cb))]
+                    (merge params ; 1st (don't clobber impl.):
+                      {:udt        (enc/now-udt) ; Force uncached resp
 
-                                                      ;; A duplicate of X-CSRF-Token for user's convenience and
-                                                      ;; for back compatibility with earlier CSRF docs:
-                                                      :csrf-token csrf-token
+                       ;; A duplicate of X-CSRF-Token for user's convenience
+                       ;; and for back compatibility with earlier CSRF docs:
+                       :csrf-token csrf-token
 
-                                                      ;; Just for user's convenience here. non-lp-POSTs don't
-                                                      ;; actually need a client-id for Sente's own implementation:
-                                                      :client-id  client-id
+                       ;; Just for user's convenience here. non-lp-POSTs
+                       ;; don't actually need a client-id for Sente's own
+                       ;; implementation:
+                       :client-id  client-id
 
-                                                      :ppstr      ppstr}))})
+                       :ppstr      ppstr}))})
 
-                        (fn ajax-cb [{:keys [?error ?content]}]
-                          (if ?error
-                            (if (= ?error :timeout)
-                              (when ?cb-fn (?cb-fn :chsk/timeout))
-                              (do (merge>chsk-state! chsk {:open? false})
-                                  (when ?cb-fn (?cb-fn :chsk/error))))
+               (fn ajax-cb [{:keys [?error ?content]}]
+                 (if ?error
+                   (if (= ?error :timeout)
+                     (when ?cb-fn (?cb-fn :chsk/timeout))
+                     (do (merge>chsk-state! chsk {:open? false})
+                         (when ?cb-fn (?cb-fn :chsk/error))))
 
-                            (let [content ?content
-                                  resp-ppstr content
-                                  [resp-clj _] (unpack packer resp-ppstr)]
-                              (if ?cb-fn
-                                (?cb-fn resp-clj)
-                                (when (not= resp-clj :chsk/dummy-cb-200)
-                                  (warnf "Cb reply w/o local cb-fn: %s" resp-clj)))
-                              (merge>chsk-state! chsk {:open? true})))))
+                   (let [content ?content
+                         resp-ppstr content
+                         [resp-clj _] (unpack packer resp-ppstr)]
+                     (if ?cb-fn
+                       (?cb-fn resp-clj)
+                       (when (not= resp-clj :chsk/dummy-cb-200)
+                         (warnf "Cb reply w/o local cb-fn: %s" resp-clj)))
+                     (merge>chsk-state! chsk {:open? true})))))
 
              :apparent-success))))
 
@@ -1137,62 +1143,64 @@
                        (when (= @active-retry-id_ retry-id)
                          (let [retry-count* (inc retry-count)
                                backoff-ms (backoff-ms-fn retry-count*)]
-                           (warnf "Chsk is closed: will try reconnect (%s)" retry-count*)
-                           (.setTimeout js/window (fn [] (poll-fn retry-count*)) backoff-ms))))]
+                           (warnf "Chsk is closed: will try reconnect (%s)"
+                             retry-count*)
+                           (.setTimeout js/window (fn [] (poll-fn retry-count*))
+                             backoff-ms))))]
 
                  (reset! curr-xhr_
-                         (ajax-lite url
-                                    (merge ajax-opts
-                                           {:method     :get ; :timeout-ms timeout-ms
-                                            :timeout-ms (or (:timeout-ms ajax-opts)
-                                                            default-client-side-ajax-timeout-ms)
-                                            :resp-type  :text ; Prefer to do our own pstr reading
-                                            :params
-                                                        (merge
+                   (ajax-lite url
+                     (merge ajax-opts
+                       {:method     :get ; :timeout-ms timeout-ms
+                        :timeout-ms (or (:timeout-ms ajax-opts)
+                                        default-client-side-ajax-timeout-ms)
+                        :resp-type  :text ; Prefer to do our own pstr reading
+                        :params
+                        (merge
+                          ;; Note that user params here are actually POST
+                          ;; params for convenience. Contrast: WebSocket
+                          ;; params sent as query params since there's no
+                          ;; other choice there.
+                          params ; 1st (don't clobber impl.):
 
-                                                          ;; Note that user params here are actually POST params for
-                                                          ;; convenience. Contrast: WebSocket params sent as query
-                                                          ;; params since there's no other choice there.
-                                                          params ; 1st (don't clobber impl.):
+                          {:udt       (enc/now-udt) ; Force uncached resp
+                           :client-id client-id}
 
-                                                          {:udt       (enc/now-udt) ; Force uncached resp
-                                                           :client-id client-id}
+                          ;; A truthy :handshake? param will prompt server to
+                          ;; reply immediately with a handshake response,
+                          ;; letting us confirm that our client<->server comms
+                          ;; are working:
+                          (when-not (:open? @state_) {:handshake? true}))})
 
-                                                          ;; A truthy :handshake? param will prompt server to
-                                                          ;; reply immediately with a handshake response,
-                                                          ;; letting us confirm that our client<->server comms
-                                                          ;; are working:
-                                                          (when-not (:open? @state_) {:handshake? true}))})
+                     (fn ajax-cb [{:keys [?error ?content]}]
+                       (if ?error
+                         (cond
+                           (= ?error :timeout) (poll-fn 0)
+                           ;; (= ?error :abort) ; Abort => intentional, not an error
+                           :else
+                           (do (merge>chsk-state! chsk {:open? false})
+                               (retry-fn)))
 
-                                    (fn ajax-cb [{:keys [?error ?content]}]
-                                      (if ?error
-                                        (cond
-                                          (= ?error :timeout) (poll-fn 0)
-                                          ;; (= ?error :abort) ; Abort => intentional, not an error
-                                          :else
-                                          (do (merge>chsk-state! chsk {:open? false})
-                                              (retry-fn)))
+                         ;; The Ajax long-poller is used only for events, never cbs:
+                         (let [content ?content
+                               ppstr content
+                               [clj] (unpack packer ppstr)
+                               handshake? (handshake? clj)]
 
-                                        ;; The Ajax long-poller is used only for events, never cbs:
-                                        (let [content ?content
-                                              ppstr content
-                                              [clj] (unpack packer ppstr)
-                                              handshake? (handshake? clj)]
+                           (when handshake? (receive-handshake! :ajax chsk clj))
 
-                                          (when handshake? (receive-handshake! :ajax chsk clj))
+                           (merge>chsk-state! chsk {:open? true})
+                           (poll-fn 0) ; Repoll asap
 
-                                          (merge>chsk-state! chsk {:open? true})
-                                          (poll-fn 0) ; Repoll asap
+                           (when-not handshake?
+                             (or
+                               (when (= clj :chsk/timeout)
+                                 (when @debug-mode?_
+                                   (receive-buffered-evs! chs [[:debug/timeout]]))
+                                 :noop)
 
-                                          (when-not handshake?
-                                            (or
-                                              (when (= clj :chsk/timeout)
-                                                (when @debug-mode?_
-                                                  (receive-buffered-evs! chs [[:debug/timeout]]))
-                                                :noop)
-
-                                              (let [buffered-evs clj] ; An application reply
-                                                (receive-buffered-evs! chs buffered-evs)))))))))))]
+                               (let [buffered-evs clj] ; An application reply
+                                 (receive-buffered-evs! chs buffered-evs)))))))))))]
 
          (reset! active-retry-id_ retry-id)
          (poll-fn 0)
@@ -1252,15 +1260,15 @@
                ;; Configure :auto->:ajax downgrade watch
                (let [downgraded?_ (atom false)]
                  (add-watch state_ :chsk/auto-ajax-downgrade
-                            (fn [_ _ old-state new-state]
-                              (when-let [impl @impl_]
-                                (when-let [ever-opened?_ (:ever-opened?_ impl)]
-                                  (when-not @ever-opened?_
-                                    (when (:last-error new-state)
-                                      (when (compare-and-set! downgraded?_ false true)
-                                        (warnf "Permanently downgrading :auto chsk -> :ajax")
-                                        (-chsk-disconnect! impl false)
-                                        (reset! impl_ (ajax-conn!))))))))))
+                   (fn [_ _ old-state new-state]
+                     (when-let [impl @impl_]
+                       (when-let [ever-opened?_ (:ever-opened?_ impl)]
+                         (when-not @ever-opened?_
+                           (when (:last-error new-state)
+                             (when (compare-and-set! downgraded?_ false true)
+                               (warnf "Permanently downgrading :auto chsk -> :ajax")
+                               (-chsk-disconnect! impl false)
+                               (reset! impl_ (ajax-conn!))))))))))
 
                (-chsk-connect! (new-ChWebSocket ws-chsk-opts)))]
 
