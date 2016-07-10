@@ -48,7 +48,9 @@
       [lein-ancient                    "0.6.10"]
       ;; [com.cemerick/austin          "0.1.4"]
       [com.cemerick/clojurescript.test "0.3.3"]
-      [lein-codox                      "0.9.5"]]}]}
+      [lein-codox                      "0.9.5"]
+      [lein-npm                        "0.6.2"]]}]}
+  :npm {:dependencies [[websocket "1.0.23"]]}
 
   :cljx
   {:builds
