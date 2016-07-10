@@ -956,7 +956,7 @@
                         (let [retry-count* (swap! retry-count_ inc)
                               backoff-ms   (backoff-ms-fn retry-count*)]
                           (warnf "Chsk is closed: will try reconnect (%s)" retry-count*)
-                          (.setTimeout js/window connect-fn backoff-ms))))
+                          (.setTimeout global connect-fn backoff-ms))))
 
                     ?socket
                     (try
@@ -1154,7 +1154,7 @@
                       (let [retry-count* (inc retry-count)
                             backoff-ms   (backoff-ms-fn retry-count*)]
                         (warnf "Chsk is closed: will try reconnect (%s)" retry-count*)
-                        (.setTimeout js/window (fn [] (poll-fn retry-count*)) backoff-ms))))]
+                        (.setTimeout global (fn [] (poll-fn retry-count*)) backoff-ms))))]
 
               (reset! curr-xhr_
                 (ajax-lite url
