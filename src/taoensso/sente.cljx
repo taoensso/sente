@@ -81,6 +81,21 @@
   (:require-macros
    [cljs.core.async.macros :as asyncm :refer (go go-loop)]))
 
+; Note: requiring goog.global would be better, but currently breaks the cljs build: http://dev.clojure.org/jira/browse/CLJS-1677?page=com.atlassian.streams.streams-jira-plugin:activity-stream-issue-tab
+#+cljs
+(def is-node? (nil? enc/js-?win))
+
+#+cljs
+(def global (or enc/js-?win
+                js/global))
+
+#+cljs
+(def node-websocket
+  (when (and is-node? (exists? js/require))
+        (-> (js/require "websocket")
+            (aget "w3cwebsocket"))))
+
+
 (if (vector? taoensso.encore/encore-version)
   (enc/assert-min-encore-version [2 53 1])
   (enc/assert-min-encore-version  2.53))
@@ -928,8 +943,10 @@
               false))))))
 
   (-chsk-connect! [chsk]
-    (when-let [WebSocket (or (enc/oget js/window "WebSocket")
-                             (enc/oget js/window "MozWebSocket"))]
+    (when-let [WebSocket (if is-node?
+                           node-websocket
+                           (or (enc/oget global "WebSocket")
+                               (enc/oget global "MozWebSocket")))]
       (let [retry-id (enc/uuid-str)
             connect-fn
             (fn connect-fn []
