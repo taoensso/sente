@@ -943,10 +943,9 @@
               false))))))
 
   (-chsk-connect! [chsk]
-    (when-let [WebSocket (if is-node?
-                           node-websocket
-                           (or (enc/oget global "WebSocket")
-                               (enc/oget global "MozWebSocket")))]
+    (when-let [WebSocket (or (enc/oget global "WebSocket")
+                             (enc/oget global "MozWebSocket")
+                             node-websocket)]
       (let [retry-id (enc/uuid-str)
             connect-fn
             (fn connect-fn []
