@@ -81,13 +81,8 @@
   (:require-macros
    [cljs.core.async.macros :as asyncm :refer (go go-loop)]))
 
-; Note: requiring goog.global would be better, but currently breaks the cljs build: http://dev.clojure.org/jira/browse/CLJS-1677?page=com.atlassian.streams.streams-jira-plugin:activity-stream-issue-tab
 #+cljs
 (def is-node? (nil? enc/js-?win))
-
-#+cljs
-(def global (or enc/js-?win
-                js/global))
 
 #+cljs
 (def node-websocket
@@ -943,8 +938,8 @@
               false))))))
 
   (-chsk-connect! [chsk]
-    (when-let [WebSocket (or (enc/oget global "WebSocket")
-                             (enc/oget global "MozWebSocket")
+    (when-let [WebSocket (or (enc/oget goog/global "WebSocket")
+                             (enc/oget goog/global "MozWebSocket")
                              node-websocket)]
       (let [retry-id (enc/uuid-str)
             connect-fn
@@ -955,7 +950,7 @@
                         (let [retry-count* (swap! retry-count_ inc)
                               backoff-ms   (backoff-ms-fn retry-count*)]
                           (warnf "Chsk is closed: will try reconnect (%s)" retry-count*)
-                          (.setTimeout global connect-fn backoff-ms))))
+                          (.setTimeout goog/global connect-fn backoff-ms))))
 
                     ?socket
                     (try
@@ -1153,7 +1148,7 @@
                       (let [retry-count* (inc retry-count)
                             backoff-ms   (backoff-ms-fn retry-count*)]
                         (warnf "Chsk is closed: will try reconnect (%s)" retry-count*)
-                        (.setTimeout global (fn [] (poll-fn retry-count*)) backoff-ms))))]
+                        (.setTimeout goog/global (fn [] (poll-fn retry-count*)) backoff-ms))))]
 
               (reset! curr-xhr_
                 (ajax-lite url
