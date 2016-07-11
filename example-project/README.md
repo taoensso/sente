@@ -6,9 +6,3 @@
 
   1. Call `lein start` at your terminal, should auto-open web browser
   2. Observe std-out (server log) and web page textarea (client log)
-
-## Nodejs instructions
-
-  1. Start the server as detailed above
-  2. Run `lein node`
-  3. Run `node target/node.js`
