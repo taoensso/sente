@@ -15,7 +15,7 @@
    [org.clojure/core.async    "0.2.385"]
    [org.clojure/tools.nrepl   "0.2.12"] ; Optional, for Cider
 
-   [com.taoensso/sente        "1.9.1"] ; <--- Sente
+   [com.taoensso/sente        "1.9.0"] ; <--- Sente
    [com.taoensso/timbre       "4.5.1"]
 
    ;;; TODO Choose (uncomment) a supported web server -----------------------
@@ -47,26 +47,19 @@
 
   :cljsbuild
   {:builds
-   {:cljs-client {:source-paths ["src"]
-                  :compiler {:output-to "target/main.js"
-                             :optimizations :whitespace #_:advanced
-                             :pretty-print true}}
-    :node {:source-paths ["src"]
-           :compiler {:output-to "target/node.js"
-                      :main example.node
-                      :optimizations :advanced
-                      :target :nodejs
-                      :pretty-print true
-                      :source-map "target/node.map.js"}}}}
+   [{:id :cljs-client
+     :source-paths ["src"]
+     :compiler {:output-to "target/main.js"
+                :optimizations :whitespace #_:advanced
+                :pretty-print true}}]}
 
   :main example.server
 
   ;; Call `lein start-repl` to get a (headless) development repl that you can
   ;; connect to with Cider+emacs or your IDE of choice:
   :aliases
-  {"start-repl" ["do" "clean," "cljsbuild" "once" "cljs-client," "repl" ":headless"]
-   "start"      ["do" "clean," "cljsbuild" "once" "cljs-client," "run"]
-   "node"       ["do" "clean," "cljsbuild" "once" "node"]}
+  {"start-repl" ["do" "clean," "cljsbuild" "once," "repl" ":headless"]
+   "start"      ["do" "clean," "cljsbuild" "once," "run"]}
 
   :repositories
   {"sonatype-oss-public" "https://oss.sonatype.org/content/groups/public/"})
