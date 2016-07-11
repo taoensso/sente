@@ -90,7 +90,6 @@
         (-> (js/require "websocket")
             (aget "w3cwebsocket"))))
 
-
 (if (vector? taoensso.encore/encore-version)
   (enc/assert-min-encore-version [2 53 1])
   (enc/assert-min-encore-version  2.53))
