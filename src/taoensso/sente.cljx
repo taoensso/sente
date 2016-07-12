@@ -82,7 +82,7 @@
    [cljs.core.async.macros :as asyncm :refer (go go-loop)]))
 
 #+cljs
-(def is-node? (nil? enc/js-?win))
+(def is-node? (= *target* "nodejs"))
 
 #+cljs
 (def node-websocket
