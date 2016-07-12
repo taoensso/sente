@@ -81,6 +81,15 @@
   (:require-macros
    [cljs.core.async.macros :as asyncm :refer (go go-loop)]))
 
+#+cljs
+(def is-node? (= *target* "nodejs"))
+
+#+cljs
+(def node-websocket
+  (when (and is-node? (exists? js/require))
+        (-> (js/require "websocket")
+            (aget "w3cwebsocket"))))
+
 (if (vector? taoensso.encore/encore-version)
   (enc/assert-min-encore-version [2 53 1])
   (enc/assert-min-encore-version  2.53))
@@ -928,8 +937,9 @@
               false))))))
 
   (-chsk-connect! [chsk]
-    (when-let [WebSocket (or (enc/oget js/window "WebSocket")
-                             (enc/oget js/window "MozWebSocket"))]
+    (when-let [WebSocket (or (enc/oget goog/global "WebSocket")
+                             (enc/oget goog/global "MozWebSocket")
+                             node-websocket)]
       (let [retry-id (enc/uuid-str)
             connect-fn
             (fn connect-fn []
@@ -939,7 +949,7 @@
                         (let [retry-count* (swap! retry-count_ inc)
                               backoff-ms   (backoff-ms-fn retry-count*)]
                           (warnf "Chsk is closed: will try reconnect (%s)" retry-count*)
-                          (.setTimeout js/window connect-fn backoff-ms))))
+                          (.setTimeout goog/global connect-fn backoff-ms))))
 
                     ?socket
                     (try
@@ -1137,7 +1147,7 @@
                       (let [retry-count* (inc retry-count)
                             backoff-ms   (backoff-ms-fn retry-count*)]
                         (warnf "Chsk is closed: will try reconnect (%s)" retry-count*)
-                        (.setTimeout js/window (fn [] (poll-fn retry-count*)) backoff-ms))))]
+                        (.setTimeout goog/global (fn [] (poll-fn retry-count*)) backoff-ms))))]
 
               (reset! curr-xhr_
                 (ajax-lite url
