@@ -330,6 +330,14 @@ There's also a couple lifecycle libraries that include Sente components:
  1. [@danielsz/system] for use with [@stuartsierra/component]
  2. [@palletops/bakery] for use with [@palletops/leaven]
 
+#### Can I use the client on nodejs?
+
+Yes you can, you just need to install the [websocket npm library](https://www.npmjs.com/package/websocket). The easiest way to do this is to add the [lein-npm](https://github.com/RyanMcG/lein-npm) plugin to your `project.clj`, and then add:
+
+```clojure
+:npm {:dependencies [[websocket "1.0.23"]]}
+```
+
 #### Any other questions?
 
 If I've missed something here, feel free to open a GitHub issue or pop me an email!
