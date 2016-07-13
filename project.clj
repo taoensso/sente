@@ -1,4 +1,4 @@
-(defproject com.taoensso/sente "1.9.0"
+(defproject com.taoensso/sente "1.10.0-SNAPSHOT"
   :author "Peter Taoussanis <https://www.taoensso.com>"
   :description "Realtime web comms for Clojure/Script"
   :url "https://github.com/ptaoussanis/sente"
@@ -13,9 +13,9 @@
   :dependencies
   [[org.clojure/clojure      "1.5.1"]
    [org.clojure/core.async   "0.2.385"]
-   [com.taoensso/encore      "2.64.0"]
+   [com.taoensso/encore      "2.64.1"]
    [org.clojure/tools.reader "0.10.0"]
-   [com.taoensso/timbre      "4.5.1"]]
+   [com.taoensso/timbre      "4.6.0"]]
 
   :plugins [[lein-cljsbuild "1.1.3"]
             ;;
@@ -30,7 +30,7 @@
    :server-jvm {:jvm-opts ^:replace ["-server"]}
    :1.7  {:dependencies [[org.clojure/clojure "1.7.0"]]}
    :1.8  {:dependencies [[org.clojure/clojure "1.8.0"]]}
-   :1.9  {:dependencies [[org.clojure/clojure "1.9.0-alpha9"]]}
+   :1.9  {:dependencies [[org.clojure/clojure "1.9.0-alpha10"]]}
    :test {:dependencies [[com.cognitect/transit-clj  "0.8.285"]
                          [com.cognitect/transit-cljs "0.8.239"]
                          [org.clojure/test.check     "0.9.0"]]
@@ -41,7 +41,7 @@
    :dev
    [:1.9 :test :server-jvm
     {:dependencies
-     [[http-kit         "2.2.0-beta1"]
+     [[http-kit         "2.2.0"]
       [org.immutant/web "2.1.5"]
       [nginx-clojure    "0.4.4"]
       [aleph            "0.4.1"]]}]}
