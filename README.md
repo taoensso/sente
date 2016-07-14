@@ -219,7 +219,7 @@ Link                     | Description
 **[Official example]** | **Official Sente reference example**, always up-to-date
 [@danielsz/system-websockets] | Client-side UI, login and wiring of components
 [@timothypratley/snakelake] | Multiplayer snake game with screencast walkthrough
-[@theasp/sente-nodejs-example] | Ref. example adapted for Node.js servers ([Express], [Dog Fort])
+[@theasp/sente-nodejs-example] | Ref. example adapted for Node.js servers ([Express], [Dog Fort]), as well as a node.js client
 [@ebellani/carpet]       | Web+mobile interface for a remmitance application
 [@danielsz/sente-system] | Ref example adapted for [@danielsz/system]
 [@danielsz/sente-boot]   | Ref example adapted for [boot]
