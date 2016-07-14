@@ -85,6 +85,8 @@
   (enc/assert-min-encore-version [2 53 1])
   (enc/assert-min-encore-version  2.53))
 
+#?(:cljs (def ^:private node-target? (= *target* "nodejs")))
+
 ;; (timbre/set-level! :trace) ; Uncomment for debugging
 (defonce debug-mode?_ (atom false))
 
@@ -929,8 +931,14 @@
                  false))))))
 
      (-chsk-connect! [chsk]
-       (when-let [WebSocket (or (enc/oget js/window "WebSocket")
-                                (enc/oget js/window "MozWebSocket"))]
+       (when-let [WebSocket
+                  (if node-target?
+                    (when (exists? js/require)
+                      (enc/oget (js/require "websocket") "w3cwebsocket"))
+                    (or
+                      (enc/oget goog/global "WebSocket")
+                      (enc/oget goog/global "MozWebSocket")))]
+
          (let [retry-id (enc/uuid-str)
                connect-fn
                (fn connect-fn []
@@ -941,7 +949,7 @@
                                  backoff-ms (backoff-ms-fn retry-count*)]
                              (warnf "Chsk is closed: will try reconnect (%s)"
                                retry-count*)
-                             (.setTimeout js/window connect-fn backoff-ms))))
+                             (.setTimeout goog/global connect-fn backoff-ms))))
 
                        ?socket
                        (try
@@ -1145,7 +1153,7 @@
                                backoff-ms (backoff-ms-fn retry-count*)]
                            (warnf "Chsk is closed: will try reconnect (%s)"
                              retry-count*)
-                           (.setTimeout js/window (fn [] (poll-fn retry-count*))
+                           (.setTimeout goog/global (fn [] (poll-fn retry-count*))
                              backoff-ms))))]
 
                  (reset! curr-xhr_
