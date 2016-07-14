@@ -85,6 +85,8 @@
   (enc/assert-min-encore-version [2 53 1])
   (enc/assert-min-encore-version  2.53))
 
+#?(:cljs (def ^:private node-target? (= *target* "nodejs")))
+
 ;; (timbre/set-level! :trace) ; Uncomment for debugging
 (defonce debug-mode?_ (atom false))
 
@@ -929,8 +931,14 @@
                  false))))))
 
      (-chsk-connect! [chsk]
-       (when-let [WebSocket (or (enc/oget js/window "WebSocket")
-                                (enc/oget js/window "MozWebSocket"))]
+       (when-let [WebSocket
+                  (if node-target?
+                    (when (exists? js/require)
+                      (enc/oget (js/require "websocket") "w3cwebsocket"))
+                    (or
+                      (enc/oget js/window "WebSocket")
+                      (enc/oget js/window "MozWebSocket")))]
+
          (let [retry-id (enc/uuid-str)
                connect-fn
                (fn connect-fn []
