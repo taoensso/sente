@@ -1325,11 +1325,7 @@
                packer         :edn
                client-id      (or (:client-uuid opts) ; Backwards compatibility
                                   (enc/uuid-str))
-
-               ;; TODO Deprecated. Default to false later, then eventually just
-               ;; drop this option altogether? - here now for back compatibility:
                wrap-recv-evs? true
-
                backoff-ms-fn  enc/exp-backoff}}
 
        _deprecated-more-opts]]
@@ -1356,8 +1352,12 @@
            private-chs
            {:internal (chan (async/sliding-buffer 128))
             :state    (chan (async/sliding-buffer 10))
-            ;; Nb must be >= max expected buffered-evs size:
-            :<server  (chan (async/sliding-buffer 512))}
+            :<server
+            (let [;; Nb must be >= max expected buffered-evs size:
+                  buf (async/sliding-buffer 512)]
+              (if wrap-recv-evs?
+                (chan buf (map (fn [ev] [:chsk/recv ev])))
+                (chan buf)))}
 
            common-chsk-opts
            {:client-id client-id
@@ -1383,41 +1383,38 @@
            ?chsk
            (-chsk-connect!
              (case type
-               :ws (new-ChWebSocket ws-chsk-opts)
+               :ws   (new-ChWebSocket    ws-chsk-opts)
                :ajax (new-ChAjaxSocket ajax-chsk-opts)
                :auto (new-ChAutoSocket auto-chsk-opts)))]
 
        (if-let [chsk ?chsk]
-         (let [send-fn (partial chsk-send! chsk)
-
-               ;; TODO map< is deprecated, prefer transducers (needs clj 1.7+)
-
+         (let [chsk-state_ (:state_ chsk)
+               internal-ch (:internal private-chs)
+               send-fn (partial chsk-send! chsk)
                ev-ch
                (async/merge
-                 [(do (:internal private-chs))
-                  (do (:state private-chs))
-                  (let [<server-ch (:<server private-chs)]
-                    (if wrap-recv-evs?
-                      (async/map< (fn [ev] [:chsk/recv ev]) <server-ch)
-                      <server-ch))]
+                 [(:internal private-chs)
+                  (:state    private-chs)
+                  (:<server  private-chs)]
                  recv-buf-or-n)
 
                ev-msg-ch
-               (async/map<
-                 ;; All client-side `event-msg`s go through this (allows client to
-                 ;; inject arbitrary synthetic events into router for handling):
-                 (fn ev->ev-msg [ev]
-                   (let [[ev-id ev-?data :as ev] (as-event ev)]
-                     {:ch-recv ev-ch
-                      :send-fn send-fn
-                      :state   (:state_ chsk)
-                      :event   ev
-                      :id      ev-id
-                      :?data   ev-?data}))
-                 ev-ch)]
+               (async/chan 1
+                 (map
+                   (fn [ev]
+                     (let [[ev-id ev-?data :as ev] (as-event ev)]
+                       {;; Allow client to inject into router for handler:
+                        :ch-recv internal-ch
+                        :send-fn send-fn
+                        :state   chsk-state_
+                        :event   ev
+                        :id      ev-id
+                        :?data   ev-?data}))))]
+
+           (async/pipe ev-ch ev-msg-ch)
 
            {:chsk    chsk
-            :ch-recv ev-msg-ch ; Public `ev`s->`ev-msg`s ch
+            :ch-recv ev-msg-ch
             :send-fn send-fn
             :state   (:state_ chsk)})
 
