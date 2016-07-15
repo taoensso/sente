@@ -1310,6 +1310,8 @@
      Common options:
        :type           ; e/o #{:auto :ws :ajax}. You'll usually want the default (:auto).
        :host           ; Server host (defaults to current page's host).
+       :protocol       ; Custom protocol, #{"https:" "http:"}.
+                       ; React native don't have window.location.
        :params         ; Map of any params to incl. in chsk Ring requests (handy
                        ; for application-level auth, etc.).
        :packer         ; :edn (default), or an IPacker implementation.
@@ -1317,7 +1319,7 @@
        :wrap-recv-evs? ; Should events from server be wrapped in [:chsk/recv _]?"
 
      [path &
-      [{:keys [type host params recv-buf-or-n packer
+      [{:keys [type host protocol params recv-buf-or-n packer
                client-id ajax-opts wrap-recv-evs? backoff-ms-fn]
         :as   opts
         :or   {type           :auto
@@ -1339,15 +1341,15 @@
      (let [packer (coerce-packer packer)
 
            win-loc (enc/get-win-loc)
-           win-protocol  (:protocol win-loc)
+           protocol  (if protocol protocol (:protocol win-loc))
            host (or host (:host     win-loc))
            path (or path (:pathname win-loc))
 
            [ws-url ajax-url]
            (if-let [f (:chsk-url-fn opts)] ; Deprecated
              [(f path win-loc :ws) (f path win-loc :ajax)]
-             [(get-chsk-url win-protocol host path :ws)
-              (get-chsk-url win-protocol host path :ajax)])
+             [(get-chsk-url protocol host path :ws)
+              (get-chsk-url protocol host path :ajax)])
 
            private-chs
            {:internal (chan (async/sliding-buffer 128))
