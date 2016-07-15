@@ -1310,7 +1310,7 @@
      Common options:
        :type           ; e/o #{:auto :ws :ajax}. You'll usually want the default (:auto).
        :host           ; Server host (defaults to current page's host).
-       :protocol       ; Custom protocol, #{"https:" "http:"}.
+       :protocol       ; Custom protocol, #{:wss :ws}.
                        ; React native don't have window.location.
        :params         ; Map of any params to incl. in chsk Ring requests (handy
                        ; for application-level auth, etc.).
@@ -1341,7 +1341,10 @@
      (let [packer (coerce-packer packer)
 
            win-loc (enc/get-win-loc)
-           protocol  (if protocol protocol (:protocol win-loc))
+           protocol (case (keyword protocol)
+                      :wss "https:"
+                      :ws  "http:"
+                      (:protocol win-loc))
            host (or host (:host     win-loc))
            path (or path (:pathname win-loc))
 
