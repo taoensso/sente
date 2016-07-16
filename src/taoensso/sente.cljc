@@ -878,6 +878,23 @@
        :handled)))
 
 #?(:cljs
+   (def ^:private ?node-npm-websocket
+     "nnil iff the websocket npm library[1] is available.
+     Easiest way to install:
+       1. Add the lein-npm[2] plugin to your `project.clj`,
+       2. Add: `:npm {:dependencies [[websocket \"1.0.23\"]]}`
+
+     [1] Ref. https://www.npmjs.com/package/websocket
+     [2] Ref. https://github.com/RyanMcG/lein-npm"
+     (when (and node-target? (exists? js/require))
+       (try
+         (js/require "websocket")
+         ;; In particular, catch 'UnableToResolveError'
+         (catch :default e
+           ;; (errorf e "Unable to load npm websocket lib")
+           nil)))))
+
+#?(:cljs
    (defrecord ChWebSocket
      ;; WebSocket-only IChSocket implementation
      ;; Handles (re)connections, cbs, etc.
@@ -932,12 +949,10 @@
 
      (-chsk-connect! [chsk]
        (when-let [WebSocket
-                  (if node-target?
-                    (when (exists? js/require)
-                      (enc/oget (js/require "websocket") "w3cwebsocket"))
-                    (or
-                      (enc/oget goog/global "WebSocket")
-                      (enc/oget goog/global "MozWebSocket")))]
+                  (or
+                    (enc/oget ?node-npm-websocket "w3cwebsocket")
+                    (enc/oget goog/global    "WebSocket")
+                    (enc/oget goog/global "MozWebSocket"))]
 
          (let [retry-id (enc/uuid-str)
                connect-fn
