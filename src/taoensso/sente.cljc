@@ -1293,9 +1293,11 @@
 
 #?(:cljs
    (defn- get-chsk-url [protocol host path type]
-     (let [protocol (case type
-                      :ajax protocol
-                      :ws (if (= protocol "https:") "wss:" "ws:"))]
+     (let [protocol (case protocol :http "http:" :https "https:" protocol)
+           protocol (have [:el #{"http:" "https:"}] protocol)
+           protocol (case type
+                      :ajax     protocol
+                      :ws (case protocol "https:" "wss:" "http:" "ws:"))]
        (str protocol "//" (enc/path host path)))))
 
 #?(:cljs
@@ -1339,16 +1341,19 @@
 
      (let [packer (coerce-packer packer)
 
-           win-loc  (enc/get-win-loc) ; Not available with React Native, etc.
-           protocol (or protocol (:protocol win-loc))
-           host     (or host     (:host     win-loc))
-           path     (or path     (:pathname win-loc))
-
            [ws-url ajax-url]
-           (if-let [f (:chsk-url-fn opts)] ; Deprecated
-             [(f path win-loc :ws) (f path win-loc :ajax)]
-             [(get-chsk-url protocol host path :ws)
-              (get-chsk-url protocol host path :ajax)])
+           (let [;; Not available with React Native, etc.:
+                 win-loc  (enc/get-win-loc)
+                 path     (or path (:pathname win-loc))]
+
+             (if-let [f (:chsk-url-fn opts)] ; Deprecated
+               [(f path win-loc :ws)
+                (f path win-loc :ajax)]
+
+               (let [protocol (or protocol (:protocol win-loc))
+                     host     (or host     (:host     win-loc))]
+                 [(get-chsk-url protocol host path :ws)
+                  (get-chsk-url protocol host path :ajax)])))
 
            private-chs
            {:internal (chan (async/sliding-buffer 128))
