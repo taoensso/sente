@@ -939,7 +939,7 @@
              (try
                (.send @socket_ ppstr)
                :apparent-success
-               (catch js/Error e
+               (catch :default e
                  (errorf e "Chsk send error")
                  (when-let [cb-uuid ?cb-uuid]
                    (let [cb-fn* (or (pull-unused-cb-fn! cbs-waiting_ cb-uuid)
@@ -972,8 +972,8 @@
                            (enc/merge-url-with-query-string url
                              (merge params ; 1st (don't clobber impl.):
                                {:client-id client-id})))
-                         (catch js/Error e
-                           (errorf e "WebSocket js/Error")
+                         (catch :default e
+                           (errorf e "WebSocket error")
                            nil))]
 
                    (if-not ?socket
