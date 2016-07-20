@@ -878,7 +878,7 @@
        :handled)))
 
 #?(:cljs
-   (def ^:private ?node-npm-websocket
+   (def ^:private ?node-npm-websocket_
      "nnil iff the websocket npm library[1] is available.
      Easiest way to install:
        1. Add the lein-npm[2] plugin to your `project.clj`,
@@ -886,13 +886,14 @@
 
      [1] Ref. https://www.npmjs.com/package/websocket
      [2] Ref. https://github.com/RyanMcG/lein-npm"
-     (when (and node-target? (exists? js/require))
-       (try
-         (js/require "websocket")
-         ;; In particular, catch 'UnableToResolveError'
-         (catch :default e
-           ;; (errorf e "Unable to load npm websocket lib")
-           nil)))))
+     (delay ; Eager eval causes issues with React Native, Ref. #247,
+       (when (and node-target? (exists? js/require))
+         (try
+           (js/require "websocket")
+           ;; In particular, catch 'UnableToResolveError'
+           (catch :default e
+             ;; (errorf e "Unable to load npm websocket lib")
+             nil))))))
 
 #?(:cljs
    (defrecord ChWebSocket
@@ -950,9 +951,9 @@
      (-chsk-connect! [chsk]
        (when-let [WebSocket
                   (or
-                    (enc/oget ?node-npm-websocket "w3cwebsocket")
                     (enc/oget goog/global    "WebSocket")
-                    (enc/oget goog/global "MozWebSocket"))]
+                    (enc/oget goog/global "MozWebSocket")
+                    (enc/oget @?node-npm-websocket_ "w3cwebsocket"))]
 
          (let [retry-id (enc/uuid-str)
                connect-fn
