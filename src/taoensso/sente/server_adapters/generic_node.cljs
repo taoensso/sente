@@ -6,9 +6,10 @@
        https://github.com/theasp/sente-nodejs-example."
   {:author "Andrew Phillips <@theasp>, Matthew Molloy <@whamtet>"}
   (:require
-   [taoensso.sente.interfaces :as i]
+   [taoensso.encore :as enc :refer-macros ()]
    [taoensso.timbre :as timbre
-    :refer-macros (tracef debugf infof warnf errorf)]))
+    :refer-macros (tracef debugf infof warnf errorf)]
+   [taoensso.sente.interfaces :as i]))
 
 (defn- ws-open? [ws] (= (.-readyState ws) (.-OPEN ws)))
 
@@ -94,7 +95,7 @@
 
 (defn get-sch-adapter [] (GenericNodeServerChanAdapter.))
 
-(do ; DEPRECATED
+(enc/deprecated
   ;; These are stateful, could be problematic?
   (def generic-node-adapter "Deprecated" (get-sch-adapter))
   (def sente-web-server-adapter "Deprecated" generic-node-adapter))

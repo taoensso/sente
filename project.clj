@@ -13,9 +13,9 @@
   :dependencies
   [[org.clojure/clojure      "1.5.1"]
    [org.clojure/core.async   "0.2.385"]
-   [com.taoensso/encore      "2.64.1"]
+   [com.taoensso/encore      "2.67.1"]
    [org.clojure/tools.reader "0.10.0"]
-   [com.taoensso/timbre      "4.6.0"]]
+   [com.taoensso/timbre      "4.7.2"]]
 
   :plugins [[lein-cljsbuild "1.1.3"]
             ;;

@@ -79,11 +79,12 @@
 
   #?(:cljs
      (:require-macros
-      [cljs.core.async.macros :as asyncm :refer (go go-loop)])))
+      [cljs.core.async.macros :as asyncm :refer (go go-loop)]
+      [taoensso.sente :as sente-macros :refer (elide-require)])))
 
 (if (vector? taoensso.encore/encore-version)
-  (enc/assert-min-encore-version [2 53 1])
-  (enc/assert-min-encore-version  2.53))
+  (enc/assert-min-encore-version [2 67 1])
+  (enc/assert-min-encore-version  2.67))
 
 #?(:cljs (def ^:private node-target? (= *target* "nodejs")))
 
@@ -124,7 +125,7 @@
 (defn client-event-msg? [x]
   (and
     (map? x)
-    (enc/keys= x #{:ch-recv :send-fn :state :event :id :?data})
+    (enc/ks= #{:ch-recv :send-fn :state :event :id :?data} x)
     (let [{:keys [ch-recv send-fn state event]} x]
       (and
         (enc/chan? ch-recv)
@@ -135,9 +136,9 @@
 (defn server-event-msg? [x]
   (and
     (map? x)
-    (enc/keys= x #{:ch-recv :send-fn :connected-uids
-                   :ring-req :client-id
-                   :event :id :?data :?reply-fn :uid})
+    (enc/ks= #{:ch-recv :send-fn :connected-uids
+               :ring-req :client-id
+               :event :id :?data :?reply-fn :uid} x)
     (let [{:keys [ch-recv send-fn connected-uids
                   ring-req client-id event ?reply-fn]} x]
       (and
@@ -768,7 +769,7 @@
    (defn- assert-send-args [x ?timeout-ms ?cb]
      (assert-event x)
      (assert (or (and (nil? ?timeout-ms) (nil? ?cb))
-                 (and (enc/nneg-int? ?timeout-ms)))
+                 (and (enc/nat-int? ?timeout-ms)))
              (str "cb requires a timeout; timeout-ms should be a +ive integer: " ?timeout-ms))
      (assert (or (nil? ?cb) (ifn? ?cb) (enc/chan? ?cb))
              (str "cb should be nil, an ifn, or a channel: " (type ?cb)))))
@@ -829,7 +830,7 @@
                cb-ch ?cb]
            (fn [reply]
              (put! cb-ch
-               [(keyword (str (enc/fq-name ev-id) ".cb"))
+               [(keyword (str (enc/as-qname ev-id) ".cb"))
                 reply])))))))
 
 #?(:cljs
@@ -877,13 +878,14 @@
 
        :handled)))
 
-(defmacro ^:private elide-require
-  "Experimental. The presence of `js/require` calls can cause issues with
-  React Native, even if they never execute. Currently no other known
-  workarounds. Ref. https://github.com/ptaoussanis/sente/issues/247."
-  [& body]
-  (when-not (enc/get-sys-val "SENTE_ELIDE_JS_REQUIRE")
-    `(do ~@body)))
+#?(:clj
+   (defmacro ^:private elide-require
+    "Experimental. The presence of `js/require` calls can cause issues with
+    React Native, even if they never execute. Currently no other known
+    workarounds. Ref. https://github.com/ptaoussanis/sente/issues/247."
+     [& body]
+     (when-not (enc/get-sys-val "SENTE_ELIDE_JS_REQUIRE")
+       `(do ~@body))))
 
 #?(:cljs
    (def ^:private ?node-npm-websocket_
@@ -1463,23 +1465,21 @@
             stop? (= p ch-ctrl)]
 
         (when-not stop?
-          (let [{:as event-msg :keys [event]} v
-                [_ ?error]
-                (enc/catch-errors
-                  (when trace-evs? (tracef "Pre-handler event: %s" event))
-                  (event-msg-handler
-                    (if server?
-                      (have! server-event-msg? event-msg)
-                      (have! client-event-msg? event-msg))))]
+          (let [{:as event-msg :keys [event]} v]
 
-            (when-let [e ?error]
-              (let [[_ ?error2]
-                    (enc/catch-errors
-                      (if-let [eh error-handler]
-                        (error-handler e event-msg)
-                        (errorf e "Chsk router `event-msg-handler` error: %s" event)))]
-                (when-let [e2 ?error2]
-                  (errorf e2 "Chsk router `error-handler` error: %s" event))))
+            (enc/catching
+              (do
+                (when trace-evs? (tracef "Pre-handler event: %s" event))
+                (event-msg-handler
+                  (if server?
+                    (have! server-event-msg? event-msg)
+                    (have! client-event-msg? event-msg))))
+              e1
+              (enc/catching
+                (if-let [eh error-handler]
+                  (error-handler e1 event-msg)
+                  (errorf e1 "Chsk router `event-msg-handler` error: %s" event))
+                e2 (errorf e2 "Chsk router `error-handler` error: %s" event)))
 
             (recur)))))
 
@@ -1525,30 +1525,31 @@
 
 ;;;; Deprecated
 
-#?(:clj
-   (defn start-chsk-router-loop!
-     "DEPRECATED: Please use `start-chsk-router!` instead"
-     [event-msg-handler ch-recv]
-     (start-server-chsk-router! ch-recv
-       ;; Old handler form: (fn [ev-msg ch-recv])
-       (fn [ev-msg] (event-msg-handler ev-msg (:ch-recv ev-msg))))))
+(enc/deprecated
+  #?(:clj
+     (defn start-chsk-router-loop!
+       "DEPRECATED: Please use `start-chsk-router!` instead"
+       [event-msg-handler ch-recv]
+       (start-server-chsk-router! ch-recv
+         ;; Old handler form: (fn [ev-msg ch-recv])
+         (fn [ev-msg] (event-msg-handler ev-msg (:ch-recv ev-msg))))))
 
-#?(:cljs
-   (defn start-chsk-router-loop!
-     "DEPRECATED: Please use `start-chsk-router!` instead"
-     [event-handler ch-recv]
-     (start-client-chsk-router! ch-recv
-       ;; Old handler form: (fn [ev ch-recv])
-       (fn [ev-msg] (event-handler (:event ev-msg) (:ch-recv ev-msg))))))
+  #?(:cljs
+     (defn start-chsk-router-loop!
+       "DEPRECATED: Please use `start-chsk-router!` instead"
+       [event-handler ch-recv]
+       (start-client-chsk-router! ch-recv
+         ;; Old handler form: (fn [ev ch-recv])
+         (fn [ev-msg] (event-handler (:event ev-msg) (:ch-recv ev-msg))))))
 
-(def set-logging-level! "DEPRECATED. Please use `timbre/set-level!` instead" timbre/set-level!)
+  (def set-logging-level! "DEPRECATED. Please use `timbre/set-level!` instead" timbre/set-level!)
 
-#?(:cljs (def ajax-call "DEPRECATED: Please use `ajax-lite` instead" enc/ajax-lite))
-#?(:cljs
-   (def default-chsk-url-fn "DEPRECATED"
-     (fn [path {:as location :keys [protocol host pathname]} websocket?]
-       (let [protocol
-             (if websocket?
-               (if (= protocol "https:") "wss:" "ws:")
-               protocol)]
-         (str protocol "//" host (or path pathname))))))
+  #?(:cljs (def ajax-call "DEPRECATED: Please use `ajax-lite` instead" enc/ajax-lite))
+  #?(:cljs
+     (def default-chsk-url-fn "DEPRECATED"
+       (fn [path {:as location :keys [protocol host pathname]} websocket?]
+         (let [protocol
+               (if websocket?
+                 (if (= protocol "https:") "wss:" "ws:")
+                 protocol)]
+           (str protocol "//" host (or path pathname)))))))

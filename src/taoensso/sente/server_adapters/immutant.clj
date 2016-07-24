@@ -1,8 +1,10 @@
 (ns taoensso.sente.server-adapters.immutant
   "Sente server adapter for Immutant v2+ (http://immutant.org/)."
   {:author "Toby Crawley (@tobias)"}
-  (:require [taoensso.sente.interfaces :as i]
-            [immutant.web.async :as imm]))
+  (:require
+   [taoensso.encore :as enc]
+   [taoensso.sente.interfaces :as i]
+   [immutant.web.async :as imm]))
 
 (extend-type org.projectodd.wunderboss.web.async.Channel
   i/IServerChan
@@ -30,7 +32,7 @@
 
 (defn get-sch-adapter [] (ImmutantServerChanAdapter.))
 
-(do ; DEPRECATED
+(enc/deprecated
   (defn make-immutant-adapter "Deprecated" [_opts] (get-sch-adapter))
   (def immutant-adapter "Deprecated" (get-sch-adapter))
   (def sente-web-server-adapter immutant-adapter))

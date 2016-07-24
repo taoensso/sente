@@ -2,8 +2,10 @@
   "Sente server adapter for Nginx-Clojure v0.4.2+
   (http://nginx-clojure.github.io/)."
   {:author "Zhang Yuexiang (@xfeep)"}
-  (:require [taoensso.sente.interfaces :as i]
-            [nginx.clojure.core :as ncc]))
+  (:require
+   [taoensso.encore :as enc]
+   [taoensso.sente.interfaces :as i]
+   [nginx.clojure.core :as ncc]))
 
 (def ^:dynamic *max-message-size*
   nginx.clojure.WholeMessageAdapter/DEFAULT_MAX_MESSAGE_SIZE)
@@ -47,6 +49,6 @@
 
 (defn get-sch-adapter [] (NginxServerChanAdapter.))
 
-(do ; DEPRECATED
+(enc/deprecated
   (def nginx-clojure-adapter (get-sch-adapter))
   (def sente-web-server-adapter nginx-clojure-adapter))

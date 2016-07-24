@@ -1,8 +1,10 @@
 (ns taoensso.sente.server-adapters.http-kit
   "Sente server adapter for http-kit (http://www.http-kit.org/)."
   {:author "Peter Taoussanis (@ptaoussanis)"}
-  (:require [taoensso.sente.interfaces :as i]
-            [org.httpkit.server :as hk]))
+  (:require
+   [taoensso.encore :as enc]
+   [taoensso.sente.interfaces :as i]
+   [org.httpkit.server :as hk]))
 
 (extend-type org.httpkit.server.AsyncChannel
   i/IServerChan
@@ -29,6 +31,6 @@
 
 (defn get-sch-adapter [] (HttpKitServerChanAdapter.))
 
-(do ; DEPRECATED
+(enc/deprecated
   (def http-kit-adapter "Deprecated" (get-sch-adapter))
   (def sente-web-server-adapter "Deprecated" http-kit-adapter))
