@@ -877,6 +877,14 @@
 
        :handled)))
 
+(defmacro ^:private elide-require
+  "Experimental. The presence of `js/require` calls can cause issues with
+  React Native, even if they never execute. Currently no other known
+  workarounds. Ref. https://github.com/ptaoussanis/sente/issues/247."
+  [& body]
+  (when-not (enc/get-sys-val "SENTE_ELIDE_JS_REQUIRE")
+    `(do ~@body)))
+
 #?(:cljs
    (def ^:private ?node-npm-websocket_
      "nnil iff the websocket npm library[1] is available.
@@ -887,13 +895,14 @@
      [1] Ref. https://www.npmjs.com/package/websocket
      [2] Ref. https://github.com/RyanMcG/lein-npm"
      (delay ; Eager eval causes issues with React Native, Ref. #247,
-       (when (and node-target? (exists? js/require))
-         (try
-           (js/require "websocket")
-           ;; In particular, catch 'UnableToResolveError'
-           (catch :default e
-             ;; (errorf e "Unable to load npm websocket lib")
-             nil))))))
+       (elide-require
+         (when (and node-target? (exists? js/require))
+           (try
+             (js/require "websocket")
+             ;; In particular, catch 'UnableToResolveError'
+             (catch :default e
+               ;; (errorf e "Unable to load npm websocket lib")
+               nil)))))))
 
 #?(:cljs
    (defrecord ChWebSocket
