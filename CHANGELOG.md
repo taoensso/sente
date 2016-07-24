@@ -1,5 +1,18 @@
 > This project uses [Break Versioning](https://github.com/ptaoussanis/encore/blob/master/BREAK-VERSIONING.md) as of **Aug 16, 2014**.
 
+## v1.10.0 - 2016 Jul 24
+
+```clojure
+[com.taoensso/sente "1.10.0"]
+```
+
+> This is a minor, non-breaking release focused on moving from .cljx -> .cljc
+
+* [#242] **Impl**: Switch from .cljx to .cljc (@danielcompton)
+* [#243] **Impl**: Add support for nodejs clients (@DaveWM)
+* [#246] **New**: Add :protocol parameter to make-channel-socket-client! (@tiensonqin)
+* [#247] **New**: `SENTE_ELIDE_JS_REQUIRE` environment var for use with **React Native**
+
 ## v1.9.0 - 2016 Jul 6
 
 ```clojure
