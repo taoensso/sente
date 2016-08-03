@@ -749,6 +749,9 @@
      (defn chsk-reconnect! "Useful for reauthenticating after login/logout, etc."
        [chsk] (-chsk-reconnect! chsk))))
 
+;; TODO Change ?timeout-ms -> ?timeout, add support for it to be a channel
+;; (e.g. to support app-controlled extendable/early timeouts)
+;;
 #?(:cljs
    (defn chsk-send!
      "Sends `[ev-id ev-?data :as event]`, returns true on apparent success."
