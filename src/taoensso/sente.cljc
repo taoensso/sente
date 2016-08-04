@@ -1087,7 +1087,7 @@
    (defn- new-ChWebSocket [opts]
      (map->ChWebSocket
        (merge
-         {:state_           (atom {:type :ws :open? false})
+         {:state_           (atom {:type :ws :open? false :ever-opened? false})
           :active-retry-id_ (atom "_pending")
           :retry-count_     (atom 0)
           :ever-opened?_    (atom false)
@@ -1261,7 +1261,7 @@
    (defn- new-ChAjaxSocket [opts]
      (map->ChAjaxSocket
        (merge
-         {:state_           (atom {:type :ajax :open? false})
+         {:state_           (atom {:type :ajax :open? false :ever-opened? false})
           :active-retry-id_ (atom "_pending")
           :ever-opened?_    (atom false)
           :curr-xhr_        (atom nil)}
@@ -1330,7 +1330,7 @@
    (defn- new-ChAutoSocket [opts]
      (map->ChAutoSocket
        (merge
-         {:state_ (atom {:type :auto :open? false})
+         {:state_ (atom {:type :auto :open? false :ever-opened? false})
           :impl_  (atom nil)}
          opts))))
 
