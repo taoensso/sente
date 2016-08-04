@@ -977,8 +977,8 @@
                          (when (= @active-retry-id_ retry-id)
                            (let [retry-count* (swap! retry-count_ inc)
                                  backoff-ms (backoff-ms-fn retry-count*)]
-                             (warnf "Chsk is closed: will try reconnect (%s)"
-                               retry-count*)
+                             (warnf "Chsk is closed: will try reconnect attempt (%s) in %s ms"
+                               retry-count* backoff-ms)
                              (.setTimeout goog/global connect-fn backoff-ms))))
 
                        ?socket
