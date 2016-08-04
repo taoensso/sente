@@ -153,7 +153,7 @@ The client will automatically initiate a WebSocket or repeating long-polling con
 #### Client-side API
 
  * `ch-recv` is a **core.async channel** that'll receive `event-msg`s
- * `chsk-send!` is a `(fn [event & [?timeout-ms ?cb-fn]])` for standard **client>server req>resp calls**
+ * `chsk-send!` is a `(fn [event & [?timeout ?cb-fn]])` for standard **client>server req>resp calls**
 
 #### Server-side API
 

@@ -753,11 +753,13 @@
    (defn chsk-send!
      "Sends `[ev-id ev-?data :as event]`, returns true on apparent success."
      ([chsk ev] (chsk-send! chsk ev {}))
-     ([chsk ev ?timeout-ms ?cb] (chsk-send! chsk ev {:timeout-ms ?timeout-ms
-                                                     :cb         ?cb}))
+     ([chsk ev ?timeout ?cb] (chsk-send! chsk ev {:timeout ?timeout :cb ?cb}))
      ([chsk ev opts]
-      (tracef "Chsk send: (%s) %s" (assoc opts :cb (boolean (:cb opts))) ev)
-      (-chsk-send! chsk ev opts))))
+      (let [;; For back compatibility:
+            ?timeout (get   opts :timeout (get opts :timeout-ms))
+            opts     (assoc opts :timeout ?timeout)]
+        (tracef "Chsk send: (%s) %s" (assoc opts :cb (boolean (:cb opts))) ev)
+        (-chsk-send! chsk ev opts)))))
 
 #?(:cljs
    (defn- chsk-send->closed! [?cb-fn]
@@ -766,11 +768,12 @@
      false))
 
 #?(:cljs
-   (defn- assert-send-args [x ?timeout-ms ?cb]
+   (defn- assert-send-args [x ?timeout ?cb]
      (assert-event x)
-     (assert (or (and (nil? ?timeout-ms) (nil? ?cb))
-                 (and (enc/nat-int? ?timeout-ms)))
-             (str "cb requires a timeout; timeout-ms should be a +ive integer: " ?timeout-ms))
+     (assert (or (and (nil? ?timeout) (nil? ?cb))
+                 (or (enc/chan?    ?timeout)
+                     (enc/nat-int? ?timeout)))
+             (str "cb requires a timeout; timeout should be a +ive integer or channel: " ?timeout))
      (assert (or (nil? ?cb) (ifn? ?cb) (enc/chan? ?cb))
              (str "cb should be nil, an ifn, or a channel: " (type ?cb)))))
 
@@ -931,8 +934,8 @@
        (-chsk-connect! chsk))
 
      (-chsk-send! [chsk ev opts]
-       (let [{?timeout-ms :timeout-ms ?cb :cb :keys [flush?]} opts
-             _ (assert-send-args ev ?timeout-ms ?cb)
+       (let [{?timeout :timeout ?cb :cb :keys [flush?]} opts
+             _ (assert-send-args ev ?timeout ?cb)
              ?cb-fn (cb-chan-as-fn ?cb ev)]
          (if-not (:open? @state_) ; Definitely closed
            (chsk-send->closed! ?cb-fn)
@@ -943,10 +946,15 @@
 
              (when-let [cb-uuid ?cb-uuid]
                (reset-in! cbs-waiting_ [cb-uuid] (have ?cb-fn))
-               (when-let [timeout-ms ?timeout-ms]
-                 (go (<! (async/timeout timeout-ms))
+               (when-let [timeout ?timeout]
+                 (let [timeout-ch
+                       (if (enc/chan? timeout)
+                         timeout
+                         (async/timeout (have enc/nat-int? timeout)))]
+                   (go
+                     (<! timeout-ch)
                      (when-let [cb-fn* (pull-unused-cb-fn! cbs-waiting_ ?cb-uuid)]
-                       (cb-fn* :chsk/timeout)))))
+                       (cb-fn* :chsk/timeout))))))
 
              (try
                (.send @socket_ ppstr)
@@ -1116,9 +1124,17 @@
        (-chsk-connect! chsk))
 
      (-chsk-send! [chsk ev opts]
-       (let [{?timeout-ms :timeout-ms ?cb :cb :keys [flush?]} opts
-             _ (assert-send-args ev ?timeout-ms ?cb)
+       (let [{?timeout :timeout ?cb :cb :keys [flush?]} opts
+             _ (assert-send-args ev ?timeout ?cb)
+             ?timeout-ms
+             (when ?timeout
+               (if (enc/chan? ?timeout)
+                 (throw
+                   (ex-info "`chsk-send!` error: timeout channels only supported for WebSocket connections"
+                     {}))
+                 (have enc/nat-int? ?timeout)))
              ?cb-fn (cb-chan-as-fn ?cb ev)]
+
          (if-not (:open? @state_) ; Definitely closed
            (chsk-send->closed! ?cb-fn)
 
@@ -1332,7 +1348,7 @@
      "Returns nil on failure, or a map with keys:
        :ch-recv ; core.async channel to receive `event-msg`s (internal or from
                 ; clients). May `put!` (inject) arbitrary `event`s to this channel.
-       :send-fn ; (fn [event & [?timeout-ms ?cb-fn]]) for client>server send.
+       :send-fn ; (fn [event & [?timeout ?cb-fn]]) for client>server send.
        :state   ; Watchable, read-only (atom {:type _ :open? _ :uid _ :csrf-token _}).
        :chsk    ; IChSocket implementer. You can usu. ignore this.
 
