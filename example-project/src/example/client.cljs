@@ -128,6 +128,18 @@
                 (->output! "Async broadcast loop now enabled")
                 (->output! "Async broadcast loop now disabled")))))))))
 
+(when-let [target-el (.getElementById js/document "btn5")]
+  (.addEventListener target-el "click"
+                     (fn [ev]
+                       (->output! "Disconnecting")
+                       (sente/chsk-disconnect! chsk))))
+
+(when-let [target-el (.getElementById js/document "btn6")]
+  (.addEventListener target-el "click"
+                     (fn [ev]
+                       (->output! "Reconnecting")
+                       (sente/chsk-reconnect! chsk))))
+
 (when-let [target-el (.getElementById js/document "btn-login")]
   (.addEventListener target-el "click"
     (fn [ev]
