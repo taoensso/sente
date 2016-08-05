@@ -737,17 +737,17 @@
 #?(:cljs
    (defprotocol IChSocket
      (-chsk-connect!    [chsk])
-     (-chsk-disconnect! [chsk reconn?])
+     (-chsk-disconnect! [chsk cause])
      (-chsk-reconnect!  [chsk])
      (-chsk-send!       [chsk ev opts])))
 
 #?(:cljs
    (do
      (defn chsk-connect!    [chsk] (-chsk-connect!    chsk))
-     (defn chsk-disconnect! [chsk] (-chsk-disconnect! chsk false))
+     (defn chsk-disconnect! [chsk] (-chsk-disconnect! chsk :requested-disconnect))
      (defn chsk-reconnect! "Useful for reauthenticating after login/logout, etc."
        [chsk] (-chsk-reconnect! chsk))
-     (defn chsk-destroy! "Deprecated" [chsk] (-chsk-disconnect! chsk false))))
+     (def chsk-destroy! "Deprecated" chsk-disconnect!)))
 
 #?(:cljs
    (defn chsk-send!
@@ -784,39 +784,37 @@
                  (fn [?f] (swapped :swap/dissoc ?f))))))
 
 #?(:cljs
-   (defn- merge>chsk-state! [{:keys [chs state_] :as chsk} merge-state]
+   (defn- swap-chsk-state!
+     "Atomically swaps the value of chk's :state_ atom."
+     [chsk f]
      (let [[old-state new-state]
-           (swap-in! state_ []
+           (swap-in! (:state_ chsk)
              (fn [old-state]
-               (let [new-state (merge old-state merge-state)
-
-                     ;; Is this a reasonable way of helping client
-                     ;; distinguish cause of an auto reconnect? Didn't give
-                     ;; it much thought...
-                     requested-reconnect?
-                     (and (:requested-reconnect-pending? old-state)
-                          (:open? new-state)
-                          (not (:open? old-state)))
-
+               (let [new-state (f old-state)
                      new-state
                      (if (:first-open? old-state)
                        (assoc new-state :first-open? false)
-                       new-state)
-
-                     new-state
-                     (if requested-reconnect?
-                       (-> new-state
-                           (dissoc :requested-reconnect-pending?)
-                           (assoc :requested-reconnect? true))
-                       (dissoc new-state :requested-reconnect?))]
+                       new-state)]
 
                  (swapped new-state [old-state new-state]))))]
 
        (when (not= old-state new-state)
          (let [output [old-state new-state]]
            ;; (debugf "Chsk state change: %s" output)
-           (put! (:state chs) [:chsk/state output])
+           (put! (get-in chsk [:chs :state]) [:chsk/state output])
            output)))))
+
+#?(:cljs
+   (defn- chsk-state->closed [state cause]
+     (have? map? state)
+     (have? [:el #{:requested-disconnect
+                   :requested-reconnect
+                   :downgrading-ws-to-ajax
+                   :unexpected}] cause)
+     ;; Sets cause if the chsk wasn't already closed:
+     (if (:open? state)
+       (assoc state :open? false :last-close-cause cause)
+       state)))
 
 #?(:cljs
    (defn- cb-chan-as-fn
@@ -876,7 +874,7 @@
        (when (str/blank? ?csrf-token)
          (warnf "SECURITY WARNING: no CSRF token available for use by Sente"))
 
-       (merge>chsk-state! chsk new-state)
+       (swap-chsk-state! chsk #(merge % new-state))
        (put! (:internal chs) handshake-ev)
 
        :handled)))
@@ -922,16 +920,14 @@
       socket_]
 
      IChSocket
-     (-chsk-disconnect! [chsk reconn?]
+     (-chsk-disconnect! [chsk cause]
        (reset! active-retry-id_ "_disable-auto-retry")
-       (if reconn?
-         (merge>chsk-state! chsk {:open? false :requested-reconnect-pending? true})
-         (merge>chsk-state! chsk {:open? false}))
+       (swap-chsk-state! chsk #(chsk-state->closed % cause))
        (when-let [s @socket_] (.close s 1000 "CLOSE_NORMAL")))
 
      (-chsk-reconnect! [chsk]
-       (-chsk-disconnect! chsk :reconn)
-       (-chsk-connect! chsk))
+       (-chsk-disconnect! chsk :requested-reconnect)
+       (-chsk-connect!    chsk))
 
      (-chsk-send! [chsk ev opts]
        (let [{?timeout :timeout ?cb :cb :keys [flush?]} opts
@@ -1014,8 +1010,8 @@
                                    last-ws-error {:uuid (enc/uuid-str)
                                                   :ev   ws-ev}]
 
-                               (merge>chsk-state! chsk
-                                 {:last-ws-error last-ws-error}))))
+                               (swap-chsk-state! chsk
+                                 #(assoc % :last-ws-error last-ws-error)))))
 
                          (aset "onmessage" ; Nb receives both push & cb evs!
                            (fn [ws-ev]
@@ -1046,18 +1042,18 @@
                                    (let [buffered-evs clj]
                                      (receive-buffered-evs! chs buffered-evs)))))))
 
-                         #_(aset "onopen"
-                             (fn [_ws-ev]
-                               ;; NO, better for server to send a handshake:
-                               ;; (merge>chsk-state! chsk {:open? true})
-                               ))
+                         ;; (aset "onopen"
+                         ;;   (fn [_ws-ev]
+                         ;;     ;; NO, better for server to send a handshake:
+                         ;;     (swap-chsk-state! chsk
+                         ;;       #(assoc % :open? false))))
 
                          ;; Fires repeatedly (on each connection attempt) while
                          ;; server is down:
                          (aset "onclose"
                            (fn [ws-ev]
                              (let [clean? (enc/oget ws-ev "wasClean")
-                                   code (enc/oget ws-ev "code")
+                                   code   (enc/oget ws-ev "code")
                                    reason (enc/oget ws-ev "reason")
                                    last-ws-close
                                    {:uuid   (enc/uuid-str)
@@ -1071,11 +1067,12 @@
                                (if clean?
                                  (do
                                    (debugf "Clean WebSocket close, will not attempt reconnect")
-                                   (merge>chsk-state! chsk
-                                     {:last-ws-close last-ws-close}))
+                                   (swap-chsk-state! chsk
+                                     #(assoc % :last-ws-close last-ws-close)))
                                  (do
-                                   (merge>chsk-state! chsk
-                                     {:last-ws-close last-ws-close :open? false})
+                                   (swap-chsk-state! chsk
+                                     #(assoc (chsk-state->closed % :unexpected)
+                                        :last-ws-close last-ws-close))
                                    (retry-fn)))))))))))]
 
            (reset! active-retry-id_ retry-id)
@@ -1112,16 +1109,14 @@
       ajax-opts curr-xhr_]
 
      IChSocket
-     (-chsk-disconnect! [chsk reconn?]
+     (-chsk-disconnect! [chsk cause]
        (reset! active-retry-id_ "_disable-auto-retry")
-       (if reconn?
-         (merge>chsk-state! chsk {:open? false :requested-reconnect-pending? true})
-         (merge>chsk-state! chsk {:open? false}))
+       (swap-chsk-state! chsk #(chsk-state->closed % cause))
        (when-let [x @curr-xhr_] (.abort x)))
 
      (-chsk-reconnect! [chsk]
-       (-chsk-disconnect! chsk :reconn)
-       (-chsk-connect! chsk))
+       (-chsk-disconnect! chsk :requested-reconnect)
+       (-chsk-connect!    chsk))
 
      (-chsk-send! [chsk ev opts]
        (let [{?timeout :timeout ?cb :cb :keys [flush?]} opts
@@ -1170,8 +1165,10 @@
                  (if ?error
                    (if (= ?error :timeout)
                      (when ?cb-fn (?cb-fn :chsk/timeout))
-                     (do (merge>chsk-state! chsk {:open? false})
-                         (when ?cb-fn (?cb-fn :chsk/error))))
+                     (do
+                       (swap-chsk-state! chsk
+                         #(chsk-state->closed % :unexpected))
+                       (when ?cb-fn (?cb-fn :chsk/error))))
 
                    (let [content ?content
                          resp-ppstr content
@@ -1180,7 +1177,7 @@
                        (?cb-fn resp-clj)
                        (when (not= resp-clj :chsk/dummy-cb-200)
                          (warnf "Cb reply w/o local cb-fn: %s" resp-clj)))
-                     (merge>chsk-state! chsk {:open? true})))))
+                     (swap-chsk-state! chsk #(assoc % :open? true))))))
 
              :apparent-success))))
 
@@ -1229,8 +1226,10 @@
                            (= ?error :timeout) (poll-fn 0)
                            ;; (= ?error :abort) ; Abort => intentional, not an error
                            :else
-                           (do (merge>chsk-state! chsk {:open? false})
-                               (retry-fn)))
+                           (do
+                             (swap-chsk-state! chsk
+                               #(chsk-state->closed % :unexpected))
+                             (retry-fn)))
 
                          ;; The Ajax long-poller is used only for events, never cbs:
                          (let [content ?content
@@ -1240,7 +1239,7 @@
 
                            (when handshake? (receive-handshake! :ajax chsk clj))
 
-                           (merge>chsk-state! chsk {:open? true})
+                           (swap-chsk-state! chsk #(assoc % :open? true))
                            (poll-fn 0) ; Repoll asap
 
                            (when-not handshake?
@@ -1277,15 +1276,15 @@
       ]
 
      IChSocket
-     (-chsk-disconnect! [chsk reconn?]
+     (-chsk-disconnect! [chsk cause]
        (when-let [impl @impl_]
-         (-chsk-disconnect! impl reconn?)))
+         (-chsk-disconnect! impl cause)))
 
      ;; Possibly reset impl type:
      (-chsk-reconnect! [chsk]
        (when-let [impl @impl_]
-         (-chsk-disconnect! impl :reconn)
-         (-chsk-connect! chsk)))
+         (-chsk-disconnect! impl :requested-reconnect)
+         (-chsk-connect!    chsk)))
 
      (-chsk-send! [chsk ev opts]
        (if-let [impl @impl_]
@@ -1318,7 +1317,7 @@
                            (when (:last-error new-state)
                              (when (compare-and-set! downgraded?_ false true)
                                (warnf "Permanently downgrading :auto chsk -> :ajax")
-                               (-chsk-disconnect! impl false)
+                               (-chsk-disconnect! impl :downgrading-ws-to-ajax)
                                (reset! impl_ (ajax-conn!))))))))))
 
                (-chsk-connect! (new-ChWebSocket ws-chsk-opts)))]
