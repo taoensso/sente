@@ -47,11 +47,12 @@
     :uid            - User id provided by server on handshake,    or nil
     :csrf-token     - CSRF token provided by server on handshake, or nil
     :handshake-data - Arb user data provided by server on handshake
-    :last-ws-error  - ?{:uuid <random-uuid> :ev <WebSocket-on-error-event>}
-    :last-ws-close  - ?{:uuid <random-uuid> :ev <WebSocket-on-close-event>
+    :last-ws-error  - ?{:uuid _ :ev <WebSocket-on-error-event>}
+    :last-ws-close  - ?{:uuid _ :ev <WebSocket-on-close-event>
                         :clean? _ :code _ :reason _}
-    :last-close-cause - e/o #{nil :requested-disconnect :requested-reconnect
-                              :downgrading-ws-to-ajax :unexpected}
+    :last-close     - ?{:uuid <random-uuid> :reason _}, with reason e/o
+                        #{nil :requested-disconnect :requested-reconnect
+                         :downgrading-ws-to-ajax :unexpected}
 
   Notable implementation details:
     * core.async is used liberally where brute-force core.async allows for
@@ -751,7 +752,7 @@
 #?(:cljs
    (defprotocol IChSocket
      (-chsk-connect!    [chsk])
-     (-chsk-disconnect! [chsk cause])
+     (-chsk-disconnect! [chsk reason])
      (-chsk-reconnect!  [chsk])
      (-chsk-send!       [chsk ev opts])))
 
@@ -819,15 +820,16 @@
            output)))))
 
 #?(:cljs
-   (defn- chsk-state->closed [state cause]
+   (defn- chsk-state->closed [state reason]
      (have? map? state)
      (have? [:el #{:requested-disconnect
                    :requested-reconnect
                    :downgrading-ws-to-ajax
-                   :unexpected}] cause)
-     ;; Sets cause if the chsk wasn't already closed:
+                   :unexpected}] reason)
      (if (:open? state)
-       (assoc state :open? false :last-close-cause cause)
+       (assoc state
+         :open? false
+         :last-close {:uuid (enc/uuid-str) :reason reason})
        state)))
 
 #?(:cljs
@@ -934,9 +936,9 @@
       socket_]
 
      IChSocket
-     (-chsk-disconnect! [chsk cause]
+     (-chsk-disconnect! [chsk reason]
        (reset! active-retry-id_ "_disable-auto-retry")
-       (swap-chsk-state! chsk #(chsk-state->closed % cause))
+       (swap-chsk-state! chsk #(chsk-state->closed % reason))
        (when-let [s @socket_] (.close s 1000 "CLOSE_NORMAL")))
 
      (-chsk-reconnect! [chsk]
@@ -1123,9 +1125,9 @@
       ajax-opts curr-xhr_]
 
      IChSocket
-     (-chsk-disconnect! [chsk cause]
+     (-chsk-disconnect! [chsk reason]
        (reset! active-retry-id_ "_disable-auto-retry")
-       (swap-chsk-state! chsk #(chsk-state->closed % cause))
+       (swap-chsk-state! chsk #(chsk-state->closed % reason))
        (when-let [x @curr-xhr_] (.abort x)))
 
      (-chsk-reconnect! [chsk]
@@ -1290,9 +1292,9 @@
       ]
 
      IChSocket
-     (-chsk-disconnect! [chsk cause]
+     (-chsk-disconnect! [chsk reason]
        (when-let [impl @impl_]
-         (-chsk-disconnect! impl cause)))
+         (-chsk-disconnect! impl reason)))
 
      ;; Possibly reset impl type:
      (-chsk-reconnect! [chsk]

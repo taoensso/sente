@@ -218,18 +218,18 @@ Each time the channel socket client's state changes, a client-side `:chsk/state`
 
 The event form is `[:chsk/state [<old-state-map> <new-state-map>]]` with the following possible state map keys:
 
-Key               | Value
------------------ | --------------------------------------------------------
-:type             | e/o `#{:auto :ws :ajax}`
-:open?            | Truthy iff chsk appears to be open (connected) now
-:ever-opened?     | Truthy iff chsk handshake has ever completed successfully
-:first-open?      | Truthy iff chsk just completed first successful handshake
-:uid              | User id provided by server on handshake,    or nil
-:csrf-token       | CSRF token provided by server on handshake, or nil
-:handshake-data   | Arb user data provided by server on handshake
-:last-ws-error    | `?{:uuid <random-uuid> :ev <WebSocket-on-error-event>}`
-:last-ws-close    | `?{:uuid <random-uuid> :ev <WebSocket-on-close-event> :clean? _ :code _ :reason _}`
-:last-close-cause | e/o `#{nil :requested-disconnect :requested-reconnect :downgrading-ws-to-ajax :unexpected}`
+Key             | Value
+--------------- | --------------------------------------------------------
+:type           | e/o `#{:auto :ws :ajax}`
+:open?          | Truthy iff chsk appears to be open (connected) now
+:ever-opened?   | Truthy iff chsk handshake has ever completed successfully
+:first-open?    | Truthy iff chsk just completed first successful handshake
+:uid            | User id provided by server on handshake,    or nil
+:csrf-token     | CSRF token provided by server on handshake, or nil
+:handshake-data | Arb user data provided by server on handshake
+:last-ws-error  | `?{:uuid _ :ev <WebSocket-on-error-event>}`
+:last-ws-close  | `?{:uuid _ :ev <WebSocket-on-close-event> :clean? _ :code _ :reason _}`
+:last-close     | `?{:uuid _ :reason _}`, with reason e/o `#{nil :requested-disconnect :requested-reconnect :downgrading-ws-to-ajax :unexpected}`
 
 ### Example projects
 
