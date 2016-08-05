@@ -212,19 +212,38 @@ Some important differences to note:
  * Ajax would require clumsy long-polling setup, and wouldn't easily support users connected with multiple clients simultaneously
  * Sente: `(chsk-send! "destination-user-id" [:some/alert-id <arb-clj-data-payload>])`
 
+### Channel socket client state
+
+Each time the channel socket client's state changes, a client-side `:chsk/state` event will fire that you can watch for and handle like any other event.
+
+The event form is `[:chsk/state [<old-state-map> <new-state-map>]]` with the following possible state map keys:
+
+Key               | Value
+----------------- | --------------------------------------------------------
+:type             | e/o `#{:auto :ws :ajax}`
+:open?            | Truthy iff chsk appears to be open (connected) now
+:ever-opened?     | Truthy iff chsk handshake has ever completed successfully
+:first-open?      | Truthy iff chsk just completed first successful handshake
+:uid              | User id provided by server on handshake,    or nil
+:csrf-token       | CSRF token provided by server on handshake, or nil
+:handshake-data   | Arb user data provided by server on handshake
+:last-ws-error    | `?{:uuid <random-uuid> :ev <WebSocket-on-error-event>}`
+:last-ws-close    | `?{:uuid <random-uuid> :ev <WebSocket-on-close-event> :clean? _ :code _ :reason _}`
+:last-close-cause | e/o `#{nil :requested-disconnect :requested-reconnect :downgrading-ws-to-ajax :unexpected}`
+
 ### Example projects
 
-Link                     | Description
------------------------- | --------------------------------------------------------------------
-**[Official example]** | **Official Sente reference example**, always up-to-date
-[@danielsz/system-websockets] | Client-side UI, login and wiring of components
-[@timothypratley/snakelake] | Multiplayer snake game with screencast walkthrough
+Link                           | Description
+------------------------------ | --------------------------------------------------------
+**[Official example]**         | **Official Sente reference example**, always up-to-date
+[@danielsz/system-websockets]  | Client-side UI, login and wiring of components
+[@timothypratley/snakelake]    | Multiplayer snake game with screencast walkthrough
 [@theasp/sente-nodejs-example] | Ref. example adapted for Node.js servers ([Express], [Dog Fort]), as well as a node.js client
-[@ebellani/carpet]       | Web+mobile interface for a remmitance application
-[@danielsz/sente-system] | Ref example adapted for [@danielsz/system]
-[@danielsz/sente-boot]   | Ref example adapted for [boot]
-[@seancorfield/om-sente] | ??
-Your link here?          | **PR's welcome!**
+[@ebellani/carpet]             | Web+mobile interface for a remmitance application
+[@danielsz/sente-system]       | Ref example adapted for [@danielsz/system]
+[@danielsz/sente-boot]         | Ref example adapted for [boot]
+[@seancorfield/om-sente]       | ??
+Your link here?                | **PR's welcome!**
 
 ### FAQ
 
@@ -297,7 +316,7 @@ Please see one of the [example projects] for a fully-baked example.
 
 #### Pageload: How do I know when Sente is ready client-side?
 
-You'll want to listen on the receive channel for a `[:chsk/state {:first-open? true}]` event. That's the signal that the socket's been established.
+You'll want to listen on the receive channel for a `[:chsk/state [_ {:first-open? true}]]` event. That's the signal that the socket's been established.
 
 #### How can server-side channel socket events modify a user's session?
 
