@@ -930,14 +930,14 @@
 
      [client-id chs params packer url
       state_ ; {:type _ :open? _ :uid _ :csrf-token _ ...}
-      active-retry-id_ retry-count_ ever-opened?_
+      retry-handle_ retry-count_ ever-opened?_
       backoff-ms-fn ; (fn [nattempt]) -> msecs
       cbs-waiting_ ; {<cb-uuid> <fn> ...}
       socket_]
 
      IChSocket
      (-chsk-disconnect! [chsk reason]
-       (reset! active-retry-id_ "_disable-auto-retry")
+       (reset! retry-handle_ "_disable-auto-retry")
        (swap-chsk-state! chsk #(chsk-state->closed % reason))
        (when-let [s @socket_] (.close s 1000 "CLOSE_NORMAL")))
 
@@ -986,12 +986,12 @@
                     (enc/oget goog/global "MozWebSocket")
                     (enc/oget @?node-npm-websocket_ "w3cwebsocket"))]
 
-         (let [retry-id (enc/uuid-str)
+         (let [retry-handle (enc/uuid-str)
                connect-fn
                (fn connect-fn []
                  (let [retry-fn
                        (fn []
-                         (when (= @active-retry-id_ retry-id)
+                         (when (= @retry-handle_ retry-handle)
                            (let [retry-count* (swap! retry-count_ inc)
                                  backoff-ms (backoff-ms-fn retry-count*)]
                              (warnf "Chsk is closed: will try reconnect attempt (%s) in %s ms"
@@ -1091,7 +1091,7 @@
                                         :last-ws-close last-ws-close))
                                    (retry-fn)))))))))))]
 
-           (reset! active-retry-id_ retry-id)
+           (reset! retry-handle_ retry-handle)
            (reset! retry-count_ 0)
            (connect-fn)
            chsk)))))
@@ -1100,12 +1100,12 @@
    (defn- new-ChWebSocket [opts]
      (map->ChWebSocket
        (merge
-         {:state_           (atom {:type :ws :open? false :ever-opened? false})
-          :active-retry-id_ (atom "_pending")
-          :retry-count_     (atom 0)
-          :ever-opened?_    (atom false)
-          :cbs-waiting_     (atom {})
-          :socket_          (atom nil)}
+         {:state_        (atom {:type :ws :open? false :ever-opened? false})
+          :retry-handle_ (atom "_pending")
+          :retry-count_  (atom 0)
+          :ever-opened?_ (atom false)
+          :cbs-waiting_  (atom {})
+          :socket_       (atom nil)}
          opts))))
 
 (def ^:private default-client-side-ajax-timeout-ms
@@ -1120,13 +1120,13 @@
      ;; Handles (re)polling, etc.
 
      [client-id chs params packer url state_
-      active-retry-id_ ever-opened?_
+      retry-handle_ ever-opened?_
       backoff-ms-fn
       ajax-opts curr-xhr_]
 
      IChSocket
      (-chsk-disconnect! [chsk reason]
-       (reset! active-retry-id_ "_disable-auto-retry")
+       (reset! retry-handle_ "_disable-auto-retry")
        (swap-chsk-state! chsk #(chsk-state->closed % reason))
        (when-let [x @curr-xhr_] (.abort x)))
 
@@ -1198,13 +1198,13 @@
              :apparent-success))))
 
      (-chsk-connect! [chsk]
-       (let [retry-id (enc/uuid-str)
+       (let [retry-handle (enc/uuid-str)
              poll-fn ; async-poll-for-update-fn
              (fn poll-fn [retry-count]
                (tracef "async-poll-for-update!")
                (let [retry-fn
                      (fn []
-                       (when (= @active-retry-id_ retry-id)
+                       (when (= @retry-handle_ retry-handle)
                          (let [retry-count* (inc retry-count)
                                backoff-ms (backoff-ms-fn retry-count*)]
                            (warnf "Chsk is closed: will try reconnect (%s)"
@@ -1268,7 +1268,7 @@
                                (let [buffered-evs clj] ; An application reply
                                  (receive-buffered-evs! chs buffered-evs)))))))))))]
 
-         (reset! active-retry-id_ retry-id)
+         (reset! retry-handle_ retry-handle)
          (poll-fn 0)
          chsk))))
 
@@ -1276,10 +1276,10 @@
    (defn- new-ChAjaxSocket [opts]
      (map->ChAjaxSocket
        (merge
-         {:state_           (atom {:type :ajax :open? false :ever-opened? false})
-          :active-retry-id_ (atom "_pending")
-          :ever-opened?_    (atom false)
-          :curr-xhr_        (atom nil)}
+         {:state_        (atom {:type :ajax :open? false :ever-opened? false})
+          :retry-handle_ (atom "_pending")
+          :ever-opened?_ (atom false)
+          :curr-xhr_     (atom nil)}
          opts))))
 
 #?(:cljs
