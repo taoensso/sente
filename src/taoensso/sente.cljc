@@ -736,18 +736,18 @@
 #?(:cljs (def ajax-lite "Alias of `taoensso.encore/ajax-lite`" enc/ajax-lite))
 #?(:cljs
    (defprotocol IChSocket
-     (-chsk-connect! [chsk])
+     (-chsk-connect!    [chsk])
      (-chsk-disconnect! [chsk reconn?])
-     (-chsk-reconnect! [chsk])
-     (-chsk-send! [chsk ev opts])))
+     (-chsk-reconnect!  [chsk])
+     (-chsk-send!       [chsk ev opts])))
 
 #?(:cljs
    (do
-     (defn chsk-connect! [chsk] (-chsk-connect! chsk))
-     (defn chsk-destroy! "Deprecated" [chsk] (-chsk-disconnect! chsk false))
+     (defn chsk-connect!    [chsk] (-chsk-connect!    chsk))
      (defn chsk-disconnect! [chsk] (-chsk-disconnect! chsk false))
      (defn chsk-reconnect! "Useful for reauthenticating after login/logout, etc."
-       [chsk] (-chsk-reconnect! chsk))))
+       [chsk] (-chsk-reconnect! chsk))
+     (defn chsk-destroy! "Deprecated" [chsk] (-chsk-disconnect! chsk false))))
 
 #?(:cljs
    (defn chsk-send!
