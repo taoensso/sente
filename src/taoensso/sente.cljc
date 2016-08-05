@@ -987,109 +987,113 @@
                     (enc/oget @?node-npm-websocket_ "w3cwebsocket"))]
 
          (let [retry-handle (enc/uuid-str)
+               have-handle? (fn [] (= @retry-handle_ retry-handle))
                connect-fn
                (fn connect-fn []
-                 (let [retry-fn
-                       (fn []
-                         (when (= @retry-handle_ retry-handle)
-                           (let [retry-count* (swap! retry-count_ inc)
-                                 backoff-ms (backoff-ms-fn retry-count*)]
-                             (warnf "Chsk is closed: will try reconnect attempt (%s) in %s ms"
-                               retry-count* backoff-ms)
-                             (.setTimeout goog/global connect-fn backoff-ms))))
+                 (if-not (have-handle?)
+                   (warnf "Aborting reconnect attempt (lost handle)")
+                   (let [retry-fn
+                         (fn [] ; Backoff then recur
+                           (when (have-handle?)
+                             (let [retry-count* (swap! retry-count_ inc)
+                                   backoff-ms (backoff-ms-fn retry-count*)]
+                               (warnf "Chsk is closed: will try reconnect attempt (%s) in %s ms"
+                                 retry-count* backoff-ms)
+                               (.setTimeout goog/global connect-fn backoff-ms))))
 
-                       ?socket
-                       (try
-                         (WebSocket.
-                           (enc/merge-url-with-query-string url
-                             (merge params ; 1st (don't clobber impl.):
-                               {:client-id client-id})))
-                         (catch :default e
-                           (errorf e "WebSocket error")
-                           nil))]
+                         ?socket
+                         (try
+                           (WebSocket.
+                             (enc/merge-url-with-query-string url
+                               (merge params ; 1st (don't clobber impl.):
+                                 {:client-id client-id})))
 
-                   (if-not ?socket
-                     (retry-fn) ; Couldn't even get a socket
+                           (catch :default e
+                             (errorf e "WebSocket error")
+                             nil))]
 
-                     (reset! socket_
-                       (doto ?socket
-                         (aset "onerror"
-                           (fn [ws-ev]
-                             (errorf
-                               ;; ^:meta {:raw-console? true} ; TODO Maybe later
-                               "WebSocket error: %s"
-                               (try (js->clj ws-ev) (catch :default _ ws-ev)))
+                     (if-not ?socket
+                       (retry-fn) ; Couldn't even get a socket
 
-                             (let [;; Note that `ws-ev` doesn't seem to
-                                   ;; contain much useful info?
-                                   ;; Ref. http://goo.gl/bBJq0p
-                                   last-ws-error {:uuid (enc/uuid-str)
-                                                  :ev   ws-ev}]
+                       (reset! socket_
+                         (doto ?socket
+                           (aset "onerror"
+                             (fn [ws-ev]
+                               (errorf
+                                 ;; ^:meta {:raw-console? true} ; TODO Maybe later
+                                 "WebSocket error: %s"
+                                 (try (js->clj ws-ev) (catch :default _ ws-ev)))
 
-                               (swap-chsk-state! chsk
-                                 #(assoc % :last-ws-error last-ws-error)))))
+                               (let [;; Note that `ws-ev` doesn't seem to
+                                     ;; contain much useful info?
+                                     ;; Ref. http://goo.gl/bBJq0p
+                                     last-ws-error {:uuid (enc/uuid-str)
+                                                    :ev   ws-ev}]
 
-                         (aset "onmessage" ; Nb receives both push & cb evs!
-                           (fn [ws-ev]
-                             (let [ppstr (enc/oget ws-ev "data")
-                                   [clj ?cb-uuid] (unpack packer ppstr)]
+                                 (swap-chsk-state! chsk
+                                   #(assoc % :last-ws-error last-ws-error)))))
 
-                               ;; Nb may or may NOT satisfy `event?` since we
-                               ;; also receive cb replies here! This is why
-                               ;; we prefix our pstrs to indicate whether
-                               ;; they're wrapped or not.
-                               ;; (assert-event clj) ;; NO!
+                           (aset "onmessage" ; Nb receives both push & cb evs!
+                             (fn [ws-ev]
+                               (let [ppstr (enc/oget ws-ev "data")
+                                     [clj ?cb-uuid] (unpack packer ppstr)]
 
-                               (or
-                                 (when (handshake? clj)
-                                   (receive-handshake! :ws chsk clj)
-                                   (reset! retry-count_ 0))
+                                 ;; Nb may or may NOT satisfy `event?` since we
+                                 ;; also receive cb replies here! This is why
+                                 ;; we prefix our pstrs to indicate whether
+                                 ;; they're wrapped or not.
+                                 ;; (assert-event clj) ;; NO!
 
-                                 (when (= clj :chsk/ws-ping)
-                                   (when @debug-mode?_
-                                     (receive-buffered-evs! chs [[:debug/ws-ping]]))
-                                   :noop)
+                                 (or
+                                   (when (handshake? clj)
+                                     (receive-handshake! :ws chsk clj)
+                                     (reset! retry-count_ 0))
 
-                                 (if-let [cb-uuid ?cb-uuid]
-                                   (if-let [cb-fn (pull-unused-cb-fn! cbs-waiting_
-                                                    cb-uuid)]
-                                     (cb-fn clj)
-                                     (warnf "Cb reply w/o local cb-fn: %s" clj))
-                                   (let [buffered-evs clj]
-                                     (receive-buffered-evs! chs buffered-evs)))))))
+                                   (when (= clj :chsk/ws-ping)
+                                     (when @debug-mode?_
+                                       (receive-buffered-evs! chs [[:debug/ws-ping]]))
+                                     :noop)
 
-                         ;; (aset "onopen"
-                         ;;   (fn [_ws-ev]
-                         ;;     ;; NO, better for server to send a handshake:
-                         ;;     (swap-chsk-state! chsk
-                         ;;       #(assoc % :open? false))))
+                                   (if-let [cb-uuid ?cb-uuid]
+                                     (if-let [cb-fn (pull-unused-cb-fn! cbs-waiting_
+                                                      cb-uuid)]
+                                       (cb-fn clj)
+                                       (warnf "Cb reply w/o local cb-fn: %s" clj))
+                                     (let [buffered-evs clj]
+                                       (receive-buffered-evs! chs buffered-evs)))))))
 
-                         ;; Fires repeatedly (on each connection attempt) while
-                         ;; server is down:
-                         (aset "onclose"
-                           (fn [ws-ev]
-                             (let [clean? (enc/oget ws-ev "wasClean")
-                                   code   (enc/oget ws-ev "code")
-                                   reason (enc/oget ws-ev "reason")
-                                   last-ws-close
-                                   {:uuid   (enc/uuid-str)
-                                    :ev     ws-ev
-                                    :clean? clean?
-                                    :code   code
-                                    :reason reason}]
+                           ;; (aset "onopen"
+                           ;;   (fn [_ws-ev]
+                           ;;     ;; NO, better for server to send a handshake:
+                           ;;     (swap-chsk-state! chsk
+                           ;;       #(assoc % :open? false))))
 
-                               ;; Firefox calls "onclose" while unloading,
-                               ;; Ref. http://goo.gl/G5BYbn:
-                               (if clean?
-                                 (do
-                                   (debugf "Clean WebSocket close, will not attempt reconnect")
-                                   (swap-chsk-state! chsk
-                                     #(assoc % :last-ws-close last-ws-close)))
-                                 (do
-                                   (swap-chsk-state! chsk
-                                     #(assoc (chsk-state->closed % :unexpected)
-                                        :last-ws-close last-ws-close))
-                                   (retry-fn)))))))))))]
+                           ;; Fires repeatedly (on each connection attempt) while
+                           ;; server is down:
+                           (aset "onclose"
+                             (fn [ws-ev]
+                               (let [clean? (enc/oget ws-ev "wasClean")
+                                     code   (enc/oget ws-ev "code")
+                                     reason (enc/oget ws-ev "reason")
+                                     last-ws-close
+                                     {:uuid   (enc/uuid-str)
+                                      :ev     ws-ev
+                                      :clean? clean?
+                                      :code   code
+                                      :reason reason}]
+
+                                 ;; Firefox calls "onclose" while unloading,
+                                 ;; Ref. http://goo.gl/G5BYbn:
+                                 (if clean?
+                                   (do
+                                     (debugf "Clean WebSocket close, will not attempt reconnect")
+                                     (swap-chsk-state! chsk
+                                       #(assoc % :last-ws-close last-ws-close)))
+                                   (do
+                                     (swap-chsk-state! chsk
+                                       #(assoc (chsk-state->closed % :unexpected)
+                                          :last-ws-close last-ws-close))
+                                     (retry-fn))))))))))))]
 
            (reset! retry-handle_ retry-handle)
            (reset! retry-count_ 0)
@@ -1199,74 +1203,78 @@
 
      (-chsk-connect! [chsk]
        (let [retry-handle (enc/uuid-str)
+             have-handle? (fn [] (= @retry-handle_ retry-handle))
              poll-fn ; async-poll-for-update-fn
              (fn poll-fn [retry-count]
                (tracef "async-poll-for-update!")
-               (let [retry-fn
-                     (fn []
-                       (when (= @retry-handle_ retry-handle)
-                         (let [retry-count* (inc retry-count)
-                               backoff-ms (backoff-ms-fn retry-count*)]
-                           (warnf "Chsk is closed: will try reconnect (%s)"
-                             retry-count*)
-                           (.setTimeout goog/global (fn [] (poll-fn retry-count*))
-                             backoff-ms))))]
+               (if-not (have-handle?)
+                 (warnf "Aborting reconnect attempt (lost handle)")
+                 (let [retry-fn
+                       (fn [] ; Backoff then recur
+                         (when (have-handle?)
+                           (let [retry-count* (inc retry-count)
+                                 backoff-ms (backoff-ms-fn retry-count*)]
+                             (warnf "Chsk is closed: will try reconnect (%s)"
+                               retry-count*)
+                             (.setTimeout goog/global
+                               (fn [] (poll-fn retry-count*))
+                               backoff-ms))))]
 
-                 (reset! curr-xhr_
-                   (ajax-lite url
-                     (merge ajax-opts
-                       {:method     :get ; :timeout-ms timeout-ms
-                        :timeout-ms (or (:timeout-ms ajax-opts)
+                   (reset! curr-xhr_
+                     (ajax-lite url
+                       (merge ajax-opts
+                         {:method     :get ; :timeout-ms timeout-ms
+                          :timeout-ms (or (:timeout-ms ajax-opts)
                                         default-client-side-ajax-timeout-ms)
-                        :resp-type  :text ; Prefer to do our own pstr reading
-                        :params
-                        (merge
-                          ;; Note that user params here are actually POST
-                          ;; params for convenience. Contrast: WebSocket
-                          ;; params sent as query params since there's no
-                          ;; other choice there.
-                          params ; 1st (don't clobber impl.):
+                          :resp-type  :text ; Prefer to do our own pstr reading
+                          :params
+                          (merge
+                            ;; Note that user params here are actually POST
+                            ;; params for convenience. Contrast: WebSocket
+                            ;; params sent as query params since there's no
+                            ;; other choice there.
+                            params ; 1st (don't clobber impl.):
 
-                          {:udt       (enc/now-udt) ; Force uncached resp
-                           :client-id client-id}
+                            {:udt       (enc/now-udt) ; Force uncached resp
+                             :client-id client-id}
 
-                          ;; A truthy :handshake? param will prompt server to
-                          ;; reply immediately with a handshake response,
-                          ;; letting us confirm that our client<->server comms
-                          ;; are working:
-                          (when-not (:open? @state_) {:handshake? true}))})
+                            ;; A truthy :handshake? param will prompt server to
+                            ;; reply immediately with a handshake response,
+                            ;; letting us confirm that our client<->server comms
+                            ;; are working:
+                            (when-not (:open? @state_) {:handshake? true}))})
 
-                     (fn ajax-cb [{:keys [?error ?content]}]
-                       (if ?error
-                         (cond
-                           (= ?error :timeout) (poll-fn 0)
-                           ;; (= ?error :abort) ; Abort => intentional, not an error
-                           :else
-                           (do
-                             (swap-chsk-state! chsk
-                               #(chsk-state->closed % :unexpected))
-                             (retry-fn)))
+                       (fn ajax-cb [{:keys [?error ?content]}]
+                         (if ?error
+                           (cond
+                             (= ?error :timeout) (poll-fn 0)
+                             ;; (= ?error :abort) ; Abort => intentional, not an error
+                             :else
+                             (do
+                               (swap-chsk-state! chsk
+                                 #(chsk-state->closed % :unexpected))
+                               (retry-fn)))
 
-                         ;; The Ajax long-poller is used only for events, never cbs:
-                         (let [content ?content
-                               ppstr content
-                               [clj] (unpack packer ppstr)
-                               handshake? (handshake? clj)]
+                           ;; The Ajax long-poller is used only for events, never cbs:
+                           (let [content ?content
+                                 ppstr content
+                                 [clj] (unpack packer ppstr)
+                                 handshake? (handshake? clj)]
 
-                           (when handshake? (receive-handshake! :ajax chsk clj))
+                             (when handshake? (receive-handshake! :ajax chsk clj))
 
-                           (swap-chsk-state! chsk #(assoc % :open? true))
-                           (poll-fn 0) ; Repoll asap
+                             (swap-chsk-state! chsk #(assoc % :open? true))
+                             (poll-fn 0) ; Repoll asap
 
-                           (when-not handshake?
-                             (or
-                               (when (= clj :chsk/timeout)
-                                 (when @debug-mode?_
-                                   (receive-buffered-evs! chs [[:debug/timeout]]))
-                                 :noop)
+                             (when-not handshake?
+                               (or
+                                 (when (= clj :chsk/timeout)
+                                   (when @debug-mode?_
+                                     (receive-buffered-evs! chs [[:debug/timeout]]))
+                                   :noop)
 
-                               (let [buffered-evs clj] ; An application reply
-                                 (receive-buffered-evs! chs buffered-evs)))))))))))]
+                                 (let [buffered-evs clj] ; An application reply
+                                   (receive-buffered-evs! chs buffered-evs))))))))))))]
 
          (reset! retry-handle_ retry-handle)
          (poll-fn 0)
