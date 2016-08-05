@@ -74,6 +74,9 @@
     [:p
      [:button#btn3 {:type "button"} "Test rapid server>user async pushes"]
      [:button#btn4 {:type "button"} "Toggle server>user async broadcast push loop"]]
+    [:p
+     [:button#btn5 {:type "button"} "Disconnect"]
+     [:button#btn6 {:type "button"} "Reconnect"]]
     ;;
     [:p [:strong "Step 2: "] " observe std-out (for server output) and below (for client output):"]
     [:textarea#output {:style "width: 100%; height: 200px;"}]
