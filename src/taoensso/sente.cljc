@@ -1393,7 +1393,7 @@
                [(f path win-loc :ws)
                 (f path win-loc :ajax)]
 
-               (let [protocol (or protocol (:protocol win-loc))
+               (let [protocol (or protocol (:protocol win-loc) :http)
                      host     (or host     (:host     win-loc))]
                  [(get-chsk-url protocol host path :ws)
                   (get-chsk-url protocol host path :ajax)])))
