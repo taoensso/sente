@@ -243,6 +243,7 @@ Link                           | Description
 [@danielsz/sente-system]       | Ref example adapted for [@danielsz/system]
 [@danielsz/sente-boot]         | Ref example adapted for [boot]
 [@seancorfield/om-sente]       | ??
+[@tfoldi/data15-blackjack]     | Multiplayer blackjack game with documented source code
 Your link here?                | **PR's welcome!**
 
 ### FAQ
@@ -409,6 +410,7 @@ Copyright &copy; 2014-2016 [Peter Taoussanis].
 [@ebellani/carpet]: https://github.com/ebellani/carpet
 [@theasp/sente-nodejs-example]: https://github.com/theasp/sente-nodejs-example
 [@timothypratley/snakelake]: https://github.com/timothypratley/snakelake
+[@tfoldi/data15-blackjack]: https://github.com/tfoldi/data15-blackjack
 [Express]: http://expressjs.com/
 [Dog Fort]: https://github.com/whamtet/dogfort
 
