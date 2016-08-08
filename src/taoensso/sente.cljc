@@ -823,7 +823,7 @@
                    :requested-reconnect
                    :downgrading-ws-to-ajax
                    :unexpected}] reason)
-     (if (:open? state)
+     (if (or (:open? state) (not= reason :unexpected))
        (assoc state
          :open? false
          :last-close {:uuid (enc/uuid-str) :reason reason})
