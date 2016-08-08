@@ -227,9 +227,9 @@ Key             | Value
 :uid            | User id provided by server on handshake,    or nil
 :csrf-token     | CSRF token provided by server on handshake, or nil
 :handshake-data | Arb user data provided by server on handshake
-:last-ws-error  | `?{:uuid _ :ev <WebSocket-on-error-event>}`
-:last-ws-close  | `?{:uuid _ :ev <WebSocket-on-close-event> :clean? _ :code _ :reason _}`
-:last-close     | `?{:uuid _ :reason _}`, with reason e/o `#{nil :requested-disconnect :requested-reconnect :downgrading-ws-to-ajax :unexpected}`
+:last-ws-error  | `?{:udt _ :ev <WebSocket-on-error-event>}`
+:last-ws-close  | `?{:udt _ :ev <WebSocket-on-close-event> :clean? _ :code _ :reason _}`
+:last-close     | `?{:udt _ :reason _}`, with reason e/o `#{nil :requested-disconnect :requested-reconnect :downgrading-ws-to-ajax :unexpected}`
 
 ### Example projects
 

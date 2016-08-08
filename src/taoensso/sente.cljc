@@ -47,10 +47,10 @@
     :uid            - User id provided by server on handshake,    or nil
     :csrf-token     - CSRF token provided by server on handshake, or nil
     :handshake-data - Arb user data provided by server on handshake
-    :last-ws-error  - ?{:uuid _ :ev <WebSocket-on-error-event>}
-    :last-ws-close  - ?{:uuid _ :ev <WebSocket-on-close-event>
+    :last-ws-error  - ?{:udt _ :ev <WebSocket-on-error-event>}
+    :last-ws-close  - ?{:udt _ :ev <WebSocket-on-close-event>
                         :clean? _ :code _ :reason _}
-    :last-close     - ?{:uuid <random-uuid> :reason _}, with reason e/o
+    :last-close     - ?{:udt _ :reason _}, with reason e/o
                         #{nil :requested-disconnect :requested-reconnect
                          :downgrading-ws-to-ajax :unexpected}
 
@@ -826,7 +826,7 @@
      (if (or (:open? state) (not= reason :unexpected))
        (assoc state
          :open? false
-         :last-close {:uuid (enc/uuid-str) :reason reason})
+         :last-close {:udt (enc/now-udt) :reason reason})
        state)))
 
 #?(:cljs
@@ -1019,8 +1019,9 @@
                                (let [;; Note that `ws-ev` doesn't seem to
                                      ;; contain much useful info?
                                      ;; Ref. http://goo.gl/bBJq0p
-                                     last-ws-error {:uuid (enc/uuid-str)
-                                                    :ev   ws-ev}]
+                                     last-ws-error
+                                     {:udt (enc/now-udt)
+                                      :ev  ws-ev}]
 
                                  (swap-chsk-state! chsk
                                    #(assoc % :last-ws-error last-ws-error)))))
@@ -1068,7 +1069,7 @@
                                      code   (enc/oget ws-ev "code")
                                      reason (enc/oget ws-ev "reason")
                                      last-ws-close
-                                     {:uuid   (enc/uuid-str)
+                                     {:udt    (enc/now-udt)
                                       :ev     ws-ev
                                       :clean? clean?
                                       :code   code
