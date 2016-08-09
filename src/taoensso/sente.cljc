@@ -983,7 +983,9 @@
                connect-fn
                (fn connect-fn []
                  (if-not (have-handle?)
-                   (warnf "Aborting reconnect attempt (lost handle)")
+                   (let [close-reason (get-in @state_ [:last-close :reason])]
+                     (when (or (nil? close-reason) (= :unexpected close-reason))
+                       (warnf "Aborting reconnect attempt (lost handle)")))
                    (let [retry-fn
                          (fn [] ; Backoff then recur
                            (when (have-handle?)
