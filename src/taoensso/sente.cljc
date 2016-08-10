@@ -982,8 +982,7 @@
                have-handle? (fn [] (= @retry-handle_ retry-handle))
                connect-fn
                (fn connect-fn []
-                 (if-not (have-handle?)
-                   (warnf "Aborting reconnect attempt (lost handle)")
+                 (when (have-handle?)
                    (let [retry-fn
                          (fn [] ; Backoff then recur
                            (when (have-handle?)
@@ -1192,8 +1191,7 @@
              poll-fn ; async-poll-for-update-fn
              (fn poll-fn [retry-count]
                (tracef "async-poll-for-update!")
-               (if-not (have-handle?)
-                 (warnf "Aborting reconnect attempt (lost handle)")
+               (when (have-handle?)
                  (let [retry-fn
                        (fn [] ; Backoff then recur
                          (when (have-handle?)
