@@ -98,8 +98,8 @@
       [taoensso.sente :as sente-macros :refer (elide-require)])))
 
 (if (vector? taoensso.encore/encore-version)
-  (enc/assert-min-encore-version [2 67 1])
-  (enc/assert-min-encore-version  2.67))
+  (enc/assert-min-encore-version [2 76 0])
+  (enc/assert-min-encore-version  2.76))
 
 #?(:cljs (def ^:private node-target? (= *target* "nodejs")))
 
@@ -251,6 +251,8 @@
       (let [pk default-transit-json-packer] (unpack pk (pack pk data))))))
 
 ;;;; Server API
+
+(def ^:private next-idx! (enc/idx-fn))
 
 (declare
   ^:private send-buffered-server-evs>ws-clients!
@@ -1010,31 +1012,25 @@
                          (doto ?socket
                            (aset "onerror"
                              (fn [ws-ev]
-                               (errorf
-                                 ;; ^:meta {:raw-console? true} ; TODO Maybe later
+                               (errorf ; ^:meta {:raw-console? true}
                                  "WebSocket error: %s"
-                                 (try (js->clj ws-ev) (catch :default _ ws-ev)))
+                                 (try
+                                   (js->clj ws-ev)
+                                   (catch :default _ ws-ev)))
 
-                               (let [;; Note that `ws-ev` doesn't seem to
-                                     ;; contain much useful info?
-                                     ;; Ref. http://goo.gl/bBJq0p
-                                     last-ws-error
-                                     {:udt (enc/now-udt)
-                                      :ev  ws-ev}]
-
+                               (let [last-ws-error {:udt (enc/now-udt), :ev ws-ev}]
                                  (swap-chsk-state! chsk
                                    #(assoc % :last-ws-error last-ws-error)))))
 
                            (aset "onmessage" ; Nb receives both push & cb evs!
                              (fn [ws-ev]
                                (let [ppstr (enc/oget ws-ev "data")
-                                     [clj ?cb-uuid] (unpack packer ppstr)]
 
-                                 ;; Nb may or may NOT satisfy `event?` since we
-                                 ;; also receive cb replies here! This is why
-                                 ;; we prefix our pstrs to indicate whether
-                                 ;; they're wrapped or not.
-                                 ;; (assert-event clj) ;; NO!
+                                     ;; `clj` may/not satisfy `event?` since
+                                     ;; we also receive cb replies here. This
+                                     ;; is why we prefix pstrs to indicate
+                                     ;; whether they're wrapped or not
+                                     [clj ?cb-uuid] (unpack packer ppstr)]
 
                                  (or
                                    (when (handshake? clj)
@@ -1053,12 +1049,6 @@
                                        (warnf "Cb reply w/o local cb-fn: %s" clj))
                                      (let [buffered-evs clj]
                                        (receive-buffered-evs! chs buffered-evs)))))))
-
-                           ;; (aset "onopen"
-                           ;;   (fn [_ws-ev]
-                           ;;     ;; NO, better for server to send a handshake:
-                           ;;     (swap-chsk-state! chsk
-                           ;;       #(assoc % :open? false))))
 
                            ;; Fires repeatedly (on each connection attempt) while
                            ;; server is down:
