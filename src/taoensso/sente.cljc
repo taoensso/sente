@@ -32,12 +32,14 @@
         [:chsk/handshake [<?uid> <?csrf-token> <?handshake-data> <first-handshake?>]]
         [:chsk/state [<old-state-map> <new-state-map>]]
         [:chsk/recv <ev-as-pushed-from-server>] ; Server>user push
+        [:chsk/ws-ping]
 
     * Server-side events:
         [:chsk/bad-package <packed-str>]
         [:chsk/bad-event   <event>]
         [:chsk/uidport-open  <uid>]
         [:chsk/uidport-close <uid>]
+        [:chsk/ws-ping]
 
   Channel socket state map:
     :type           - e/o #{:auto :ws :ajax}
@@ -272,7 +274,7 @@
     :csrf-token-fn     ; (fn [ring-req]) -> CSRF token for Ajax POSTs.
     :handshake-data-fn ; (fn [ring-req]) -> arb user data to append to handshake evs.
     :ws-kalive-ms      ; Ping to keep a WebSocket conn alive if no activity
-                       ; w/in given msecs.
+                       ; w/in given msecs. Should be different to client's :ws-kalive-ms.
     :lp-timeout-ms     ; Timeout (repoll) long-polling Ajax conns after given msecs.
     :send-buf-ms-ajax  ; [2]
     :send-buf-ms-ws    ; [2]
@@ -593,10 +595,11 @@
                           (when (interfaces/sch-open? server-ch)
                             ;; (assert (= _sch server-ch))
                             (when (= udt-t1 udt-t0)
+                              ;; Ref. issue #230:
                               ;; We've seen no send/recv activity on this
                               ;; conn w/in our kalive window so send a ping
                               ;; ->client (should auto-close conn if it's
-                              ;; gone dead)
+                              ;; gone dead).
                               (interfaces/sch-send! server-ch websocket?
                                 (pack packer nil :chsk/ws-ping)))
                             (recur udt-t1))))))
@@ -927,16 +930,17 @@
      ;; WebSocket-only IChSocket implementation
      ;; Handles (re)connections, cbs, etc.
 
-     [client-id chs params packer url
+     [client-id chs params packer url ws-kalive-ms
       state_ ; {:type _ :open? _ :uid _ :csrf-token _ ...}
-      retry-handle_ retry-count_ ever-opened?_
+      instance-handle_ retry-count_ ever-opened?_
       backoff-ms-fn ; (fn [nattempt]) -> msecs
       cbs-waiting_ ; {<cb-uuid> <fn> ...}
-      socket_]
+      socket_
+      udt-last-comms_]
 
      IChSocket
      (-chsk-disconnect! [chsk reason]
-       (reset! retry-handle_ "_disable-auto-retry")
+       (reset! instance-handle_ nil) ; Disable auto retry
        (swap-chsk-state! chsk #(chsk-state->closed % reason))
        (when-let [s @socket_] (.close s 1000 "CLOSE_NORMAL")))
 
@@ -965,6 +969,7 @@
 
              (try
                (.send @socket_ ppstr)
+               (reset! udt-last-comms_ (enc/now-udt))
                :apparent-success
                (catch :default e
                  (errorf e "Chsk send error")
@@ -981,8 +986,8 @@
                     (enc/oget goog/global "MozWebSocket")
                     (enc/oget @?node-npm-websocket_ "w3cwebsocket"))]
 
-         (let [retry-handle (enc/uuid-str)
-               have-handle? (fn [] (= @retry-handle_ retry-handle))
+         (let [instance-handle (reset! instance-handle_ (enc/uuid-str))
+               have-handle? (fn [] (= @instance-handle_ instance-handle))
                connect-fn
                (fn connect-fn []
                  (when (have-handle?)
@@ -1033,14 +1038,15 @@
                                      ;; whether they're wrapped or not
                                      [clj ?cb-uuid] (unpack packer ppstr)]
 
+                                 (reset! udt-last-comms_ (enc/now-udt))
+
                                  (or
                                    (when (handshake? clj)
                                      (receive-handshake! :ws chsk clj)
                                      (reset! retry-count_ 0))
 
                                    (when (= clj :chsk/ws-ping)
-                                     (when @debug-mode?_
-                                       (receive-buffered-evs! chs [[:debug/ws-ping]]))
+                                     (put! (:<server chs) [:chsk/ws-ping])
                                      :noop)
 
                                    (if-let [cb-uuid ?cb-uuid]
@@ -1078,7 +1084,24 @@
                                           :last-ws-close last-ws-close))
                                      (retry-fn))))))))))))]
 
-           (reset! retry-handle_ retry-handle)
+           (when-let [ms ws-kalive-ms]
+             (go-loop []
+               (let [udt-t0 @udt-last-comms_]
+                 (<! (async/timeout ms))
+                 (when (have-handle?)
+                   (let [udt-t1 @udt-last-comms_]
+                     (when (= udt-t0 udt-t1)
+                       ;; Ref. issue #259:
+                       ;; We've seen no send/recv activity on this
+                       ;; conn w/in our kalive window so send a ping
+                       ;; ->server (should auto-close conn if it's
+                       ;; gone dead). The server generally sends pings so
+                       ;; this should be rare. Mostly here to help clients
+                       ;; identify conns that were suddenly dropped.
+
+                       (-chsk-send! chsk [:chsk/ws-ping] {:flush? true})))
+                   (recur)))))
+
            (reset! retry-count_ 0)
            (connect-fn)
            chsk)))))
@@ -1087,12 +1110,13 @@
    (defn- new-ChWebSocket [opts]
      (map->ChWebSocket
        (merge
-         {:state_        (atom {:type :ws :open? false :ever-opened? false})
-          :retry-handle_ (atom "_pending")
-          :retry-count_  (atom 0)
-          :ever-opened?_ (atom false)
-          :cbs-waiting_  (atom {})
-          :socket_       (atom nil)}
+         {:state_ (atom {:type :ws :open? false :ever-opened? false})
+          :instance-handle_ (atom nil)
+          :retry-count_     (atom 0)
+          :ever-opened?_    (atom false)
+          :cbs-waiting_     (atom {})
+          :socket_          (atom nil)
+          :udt-last-comms_  (atom nil)}
          opts))))
 
 (def ^:private default-client-side-ajax-timeout-ms
@@ -1107,13 +1131,13 @@
      ;; Handles (re)polling, etc.
 
      [client-id chs params packer url state_
-      retry-handle_ ever-opened?_
+      instance-handle_ ever-opened?_
       backoff-ms-fn
       ajax-opts curr-xhr_]
 
      IChSocket
      (-chsk-disconnect! [chsk reason]
-       (reset! retry-handle_ "_disable-auto-retry")
+       (reset! instance-handle_ nil) ; Disable auto retry
        (swap-chsk-state! chsk #(chsk-state->closed % reason))
        (when-let [x @curr-xhr_] (.abort x)))
 
@@ -1177,8 +1201,8 @@
              :apparent-success))))
 
      (-chsk-connect! [chsk]
-       (let [retry-handle (enc/uuid-str)
-             have-handle? (fn [] (= @retry-handle_ retry-handle))
+       (let [instance-handle (reset! instance-handle_ (enc/uuid-str))
+             have-handle? (fn [] (= @instance-handle_ instance-handle))
              poll-fn ; async-poll-for-update-fn
              (fn poll-fn [retry-count]
                (tracef "async-poll-for-update!")
@@ -1250,7 +1274,6 @@
                                  (let [buffered-evs clj] ; An application reply
                                    (receive-buffered-evs! chs buffered-evs))))))))))))]
 
-         (reset! retry-handle_ retry-handle)
          (poll-fn 0)
          chsk))))
 
@@ -1258,10 +1281,10 @@
    (defn- new-ChAjaxSocket [opts]
      (map->ChAjaxSocket
        (merge
-         {:state_        (atom {:type :ajax :open? false :ever-opened? false})
-          :retry-handle_ (atom "_pending")
-          :ever-opened?_ (atom false)
-          :curr-xhr_     (atom nil)}
+         {:state_           (atom {:type :ajax :open? false :ever-opened? false})
+          :instance-handle_ (atom nil)
+          :ever-opened?_    (atom false)
+          :curr-xhr_        (atom nil)}
          opts))))
 
 #?(:cljs
@@ -1357,10 +1380,12 @@
                        ; for application-level auth, etc.).
        :packer         ; :edn (default), or an IPacker implementation.
        :ajax-opts      ; Base opts map provided to `taoensso.encore/ajax-lite`.
-       :wrap-recv-evs? ; Should events from server be wrapped in [:chsk/recv _]?"
+       :wrap-recv-evs? ; Should events from server be wrapped in [:chsk/recv _]?
+       :ws-kalive-ms   ; Ping to keep a WebSocket conn alive if no activity
+                       ; w/in given msecs. Should be different to server's :ws-kalive-ms."
 
      [path &
-      [{:keys [type protocol host params recv-buf-or-n packer
+      [{:keys [type protocol host params recv-buf-or-n packer ws-kalive-ms
                client-id ajax-opts wrap-recv-evs? backoff-ms-fn]
         :as   opts
         :or   {type           :auto
@@ -1369,7 +1394,8 @@
                client-id      (or (:client-uuid opts) ; Backwards compatibility
                                   (enc/uuid-str))
                wrap-recv-evs? true
-               backoff-ms-fn  enc/exp-backoff}}
+               backoff-ms-fn  enc/exp-backoff
+               ws-kalive-ms   (enc/ms :secs 20)}}
 
        _deprecated-more-opts]]
 
@@ -1406,10 +1432,11 @@
                 (chan buf)))}
 
            common-chsk-opts
-           {:client-id client-id
-            :chs       private-chs
-            :params    params
-            :packer    packer}
+           {:client-id    client-id
+            :chs          private-chs
+            :params       params
+            :packer       packer
+            :ws-kalive-ms ws-kalive-ms}
 
            ws-chsk-opts
            (merge common-chsk-opts
