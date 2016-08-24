@@ -51,18 +51,13 @@
                    "phantom" ["phantomjs" :runner "target/main.js"]}
    :builds
    [{:id :main
-     :source-paths ["src" "test" "target/classes"]
+     :source-paths ["src" "test"]
      :compiler     {:output-to "target/main.js"
                     :optimizations :advanced
                     :pretty-print false}}]}
 
   :test-paths ["test" "src"]
-  :codox
-  {:language :clojure ; [:clojure :clojurescript] ; No support?
-   :source-paths ["target/classes"]
-   :source-uri
-   {#"target/classes" "https://github.com/ptaoussanis/sente/blob/master/src/{classpath}x#L{line}"
-    #".*"             "https://github.com/ptaoussanis/sente/blob/master/{filepath}#L{line}"}}
+  :codox {}
 
   :aliases
   {"test-all"   ["do" "clean,"
