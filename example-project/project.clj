@@ -11,12 +11,12 @@
 
   :dependencies
   [[org.clojure/clojure       "1.8.0"]
-   [org.clojure/clojurescript "1.9.93"]
+   [org.clojure/clojurescript "1.9.225"]
    [org.clojure/core.async    "0.2.385"]
    [org.clojure/tools.nrepl   "0.2.12"] ; Optional, for Cider
 
    [com.taoensso/sente        "1.11.0-SNAPSHOT"] ; <--- Sente
-   [com.taoensso/timbre       "4.7.2"]
+   [com.taoensso/timbre       "4.7.4"]
 
    ;;; TODO Choose (uncomment) a supported web server -----------------------
    [http-kit                             "2.2.0"] ; Default
@@ -34,14 +34,14 @@
 
    ;;; Transit deps optional; may be used to aid perf. of larger data payloads
    ;;; (see reference example for details):
-   [com.cognitect/transit-clj  "0.8.285"]
+   [com.cognitect/transit-clj  "0.8.288"]
    [com.cognitect/transit-cljs "0.8.239"]]
 
   :plugins
   [[lein-pprint         "1.1.2"]
    [lein-ancient        "0.6.10"]
    [com.cemerick/austin "0.1.6"]
-   [lein-cljsbuild      "1.1.3"]
+   [lein-cljsbuild      "1.1.4"]
    [cider/cider-nrepl   "0.12.0"] ; Optional, for use with Emacs
    ]
 

@@ -13,17 +13,17 @@
   :dependencies
   [[org.clojure/clojure      "1.5.1"]
    [org.clojure/core.async   "0.2.385"]
-   [com.taoensso/encore      "2.67.1"]
+   [com.taoensso/encore      "2.79.1"]
    [org.clojure/tools.reader "0.10.0"]
-   [com.taoensso/timbre      "4.7.2"]]
+   [com.taoensso/timbre      "4.7.4"]]
 
-  :plugins [[lein-cljsbuild "1.1.3"]
+  :plugins [[lein-cljsbuild "1.1.4"]
             ;;
             [lein-pprint "1.1.2"]
             [lein-ancient "0.6.10"]
             ;; [com.cemerick/austin          "0.1.4"]
             [com.cemerick/clojurescript.test "0.3.3"]
-            [lein-codox "0.9.5"]]
+            [lein-codox "0.9.6"]]
 
   :profiles
   {;; :default [:base :system :user :provided :dev]
@@ -31,12 +31,12 @@
    :1.7  {:dependencies [[org.clojure/clojure "1.7.0"]]}
    :1.8  {:dependencies [[org.clojure/clojure "1.8.0"]]}
    :1.9  {:dependencies [[org.clojure/clojure "1.9.0-alpha10"]]}
-   :test {:dependencies [[com.cognitect/transit-clj  "0.8.285"]
+   :test {:dependencies [[com.cognitect/transit-clj  "0.8.288"]
                          [com.cognitect/transit-cljs "0.8.239"]
                          [org.clojure/test.check     "0.9.0"]]
           :plugins []}
 
-   :provided {:dependencies [[org.clojure/clojurescript "1.9.93"]]}
+   :provided {:dependencies [[org.clojure/clojurescript "1.9.225"]]}
 
    :dev
    [:1.9 :test :server-jvm

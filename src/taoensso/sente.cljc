@@ -98,8 +98,8 @@
       [taoensso.sente :as sente-macros :refer (elide-require)])))
 
 (if (vector? taoensso.encore/encore-version)
-  (enc/assert-min-encore-version [2 76 0])
-  (enc/assert-min-encore-version  2.76))
+  (enc/assert-min-encore-version [2 79 1])
+  (enc/assert-min-encore-version  2.79))
 
 #?(:cljs (def ^:private node-target? (= *target* "nodejs")))
 
