@@ -958,9 +958,10 @@
              (when-let [cb-uuid ?cb-uuid]
                (reset-in! cbs-waiting_ [cb-uuid] (have ?cb-fn))
                (when-let [timeout-ms ?timeout-ms]
-                 (go (<! (async/timeout timeout-ms))
-                     (when-let [cb-fn* (pull-unused-cb-fn! cbs-waiting_ ?cb-uuid)]
-                       (cb-fn* :chsk/timeout)))))
+                 (go
+                   (<! (async/timeout timeout-ms))
+                   (when-let [cb-fn* (pull-unused-cb-fn! cbs-waiting_ ?cb-uuid)]
+                     (cb-fn* :chsk/timeout)))))
 
              (try
                (.send @socket_ ppstr)
@@ -1412,14 +1413,14 @@
 
            ws-chsk-opts
            (merge common-chsk-opts
-                  {:url           ws-url
-                   :backoff-ms-fn backoff-ms-fn})
+             {:url           ws-url
+              :backoff-ms-fn backoff-ms-fn})
 
            ajax-chsk-opts
            (merge common-chsk-opts
-                  {:url           ajax-url
-                   :ajax-opts     ajax-opts
-                   :backoff-ms-fn backoff-ms-fn})
+             {:url           ajax-url
+              :ajax-opts     ajax-opts
+              :backoff-ms-fn backoff-ms-fn})
 
            auto-chsk-opts
            {:ws-chsk-opts   ws-chsk-opts
