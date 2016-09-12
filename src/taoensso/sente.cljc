@@ -42,19 +42,20 @@
         [:chsk/ws-ping]
 
   Channel socket state map:
-    :type           - e/o #{:auto :ws :ajax}
-    :open?          - Truthy iff chsk appears to be open (connected) now
-    :ever-opened?   - Truthy iff chsk handshake has ever completed successfully
-    :first-open?    - Truthy iff chsk just completed first successful handshake
-    :uid            - User id provided by server on handshake,    or nil
-    :csrf-token     - CSRF token provided by server on handshake, or nil
-    :handshake-data - Arb user data provided by server on handshake
-    :last-ws-error  - ?{:udt _ :ev <WebSocket-on-error-event>}
-    :last-ws-close  - ?{:udt _ :ev <WebSocket-on-close-event>
-                        :clean? _ :code _ :reason _}
-    :last-close     - ?{:udt _ :reason _}, with reason e/o
-                        #{nil :requested-disconnect :requested-reconnect
-                         :downgrading-ws-to-ajax :unexpected}
+    :type               - e/o #{:auto :ws :ajax}
+    :open?              - Truthy iff chsk appears to be open (connected) now
+    :ever-opened?       - Truthy iff chsk handshake has ever completed successfully
+    :first-open?        - Truthy iff chsk just completed first successful handshake
+    :uid                - User id provided by server on handshake,    or nil
+    :csrf-token         - CSRF token provided by server on handshake, or nil
+    :handshake-data     - Arb user data provided by server on handshake
+    :last-ws-error      - ?{:udt _ :ev <WebSocket-on-error-event>}
+    :last-ws-close      - ?{:udt _ :ev <WebSocket-on-close-event>
+                            :clean? _ :code _ :reason _}
+    :last-close         - ?{:udt _ :reason _}, with reason e/o
+                            #{nil :requested-disconnect :requested-reconnect
+                             :downgrading-ws-to-ajax :unexpected}
+    :udt-next-reconnect - Approximate udt of next scheduled auto-reconnect attempt
 
   Notable implementation details:
     * core.async is used liberally where brute-force core.async allows for
@@ -829,9 +830,10 @@
                    :downgrading-ws-to-ajax
                    :unexpected}] reason)
      (if (or (:open? state) (not= reason :unexpected))
-       (assoc state
-         :open? false
-         :last-close {:udt (enc/now-udt) :reason reason})
+       (-> state
+           (dissoc :next-reconnect)
+           (assoc :open? false
+                  :last-close {:udt (enc/now-udt) :reason reason}))
        state)))
 
 #?(:cljs
@@ -995,10 +997,13 @@
                          (fn [] ; Backoff then recur
                            (when (have-handle?)
                              (let [retry-count* (swap! retry-count_ inc)
-                                   backoff-ms (backoff-ms-fn retry-count*)]
+                                   backoff-ms (backoff-ms-fn retry-count*)
+                                   next-reconnect (+ (enc/now-udt) backoff-ms)]
                                (warnf "Chsk is closed: will try reconnect attempt (%s) in %s ms"
                                  retry-count* backoff-ms)
-                               (.setTimeout goog/global connect-fn backoff-ms))))
+                               (.setTimeout goog/global connect-fn backoff-ms)
+                               (swap-chsk-state! chsk
+                                 #(assoc % :next-reconnect next-reconnect)))))
 
                          ?socket
                          (try
@@ -1043,7 +1048,10 @@
                                  (or
                                    (when (handshake? clj)
                                      (receive-handshake! :ws chsk clj)
-                                     (reset! retry-count_ 0))
+                                     (reset! retry-count_ 0)
+                                     (swap-chsk-state! chsk
+                                       #(dissoc % :next-reconnect))
+                                     true)
 
                                    (when (= clj :chsk/ws-ping)
                                      (put! (:<server chs) [:chsk/ws-ping])
@@ -1211,12 +1219,15 @@
                        (fn [] ; Backoff then recur
                          (when (have-handle?)
                            (let [retry-count* (inc retry-count)
-                                 backoff-ms (backoff-ms-fn retry-count*)]
+                                 backoff-ms (backoff-ms-fn retry-count*)
+                                 next-reconnect (+ (enc/now-udt) backoff-ms)]
                              (warnf "Chsk is closed: will try reconnect attempt (%s) in %s ms"
                                     retry-count* backoff-ms)
                              (.setTimeout goog/global
                                (fn [] (poll-fn retry-count*))
-                               backoff-ms))))]
+                               backoff-ms)
+                             (swap-chsk-state! chsk
+                               #(assoc % :next-reconnect next-reconnect)))))]
 
                    (reset! curr-xhr_
                      (ajax-lite url
@@ -1259,7 +1270,9 @@
                                  [clj] (unpack packer ppstr)
                                  handshake? (handshake? clj)]
 
-                             (when handshake? (receive-handshake! :ajax chsk clj))
+                             (when handshake? (receive-handshake! :ajax chsk clj)
+                                              (swap-chsk-state! chsk
+                                                #(dissoc % :next-reconnect)))
 
                              (swap-chsk-state! chsk #(assoc % :open? true))
                              (poll-fn 0) ; Repoll asap
