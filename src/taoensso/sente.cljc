@@ -1212,8 +1212,8 @@
                          (when (have-handle?)
                            (let [retry-count* (inc retry-count)
                                  backoff-ms (backoff-ms-fn retry-count*)]
-                             (warnf "Chsk is closed: will try reconnect (%s)"
-                               retry-count*)
+                             (warnf "Chsk is closed: will try reconnect attempt (%s) in %s ms"
+                                    retry-count* backoff-ms)
                              (.setTimeout goog/global
                                (fn [] (poll-fn retry-count*))
                                backoff-ms))))]
