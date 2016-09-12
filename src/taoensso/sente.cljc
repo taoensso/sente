@@ -55,6 +55,7 @@
     :last-close     - ?{:udt _ :reason _}, with reason e/o
                         #{nil :requested-disconnect :requested-reconnect
                          :downgrading-ws-to-ajax :unexpected}
+    :next-reconnect - ?udt of next reconnect attempt
 
   Notable implementation details:
     * core.async is used liberally where brute-force core.async allows for
@@ -828,11 +829,12 @@
                    :requested-reconnect
                    :downgrading-ws-to-ajax
                    :unexpected}] reason)
-     (if (or (:open? state) (not= reason :unexpected))
-       (assoc state
-         :open? false
-         :last-close {:udt (enc/now-udt) :reason reason})
-       state)))
+     (let [state (dissoc state :next-reconnect)]
+       (if (or (:open? state) (not= reason :unexpected))
+         (assoc state
+           :open? false
+           :last-close {:udt (enc/now-udt) :reason reason})
+         state))))
 
 #?(:cljs
    (defn- cb-chan-as-fn
@@ -995,10 +997,13 @@
                          (fn [] ; Backoff then recur
                            (when (have-handle?)
                              (let [retry-count* (swap! retry-count_ inc)
-                                   backoff-ms (backoff-ms-fn retry-count*)]
+                                   backoff-ms (backoff-ms-fn retry-count*)
+                                   next-reconnect (+ (enc/now-udt) backoff-ms)]
                                (warnf "Chsk is closed: will try reconnect attempt (%s) in %s ms"
                                  retry-count* backoff-ms)
-                               (.setTimeout goog/global connect-fn backoff-ms))))
+                               (.setTimeout goog/global connect-fn backoff-ms)
+                               (swap-chsk-state! chsk
+                                 #(assoc % :next-reconnect next-reconnect)))))
 
                          ?socket
                          (try
@@ -1043,7 +1048,9 @@
                                  (or
                                    (when (handshake? clj)
                                      (receive-handshake! :ws chsk clj)
-                                     (reset! retry-count_ 0))
+                                     (reset! retry-count_ 0)
+                                     (swap-chsk-state! chsk
+                                       #(dissoc % :next-reconnect)))
 
                                    (when (= clj :chsk/ws-ping)
                                      (put! (:<server chs) [:chsk/ws-ping])
@@ -1211,12 +1218,15 @@
                        (fn [] ; Backoff then recur
                          (when (have-handle?)
                            (let [retry-count* (inc retry-count)
-                                 backoff-ms (backoff-ms-fn retry-count*)]
+                                 backoff-ms (backoff-ms-fn retry-count*)
+                                 next-reconnect (+ (enc/now-udt) backoff-ms)]
                              (warnf "Chsk is closed: will try reconnect attempt (%s) in %s ms"
                                     retry-count* backoff-ms)
                              (.setTimeout goog/global
                                (fn [] (poll-fn retry-count*))
-                               backoff-ms))))]
+                               backoff-ms)
+                             (swap-chsk-state! chsk
+                               #(assoc % :next-reconnect next-reconnect)))))]
 
                    (reset! curr-xhr_
                      (ajax-lite url
@@ -1259,7 +1269,9 @@
                                  [clj] (unpack packer ppstr)
                                  handshake? (handshake? clj)]
 
-                             (when handshake? (receive-handshake! :ajax chsk clj))
+                             (when handshake? (receive-handshake! :ajax chsk clj)
+                                              (swap-chsk-state! chsk
+                                                #(dissoc % :next-reconnect)))
 
                              (swap-chsk-state! chsk #(assoc % :open? true))
                              (poll-fn 0) ; Repoll asap
