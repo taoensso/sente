@@ -343,6 +343,32 @@ Most of Sente's state is held internally to each channel socket (the map returne
 
 The only thing you _may_[1] want to do on component shutdown is stop any router loops that you've created to dispatch events to handlers. The client/server side `start-chsk-router!` fns both return a `(fn stop [])` that you can call to do this.
 
+#### How do I debug Sente websocket packets on the wire?
+
+You can directly inspect the format of sente packets by using `Wireshark` or similar tools. Assuming `sente` does not degrade to `AJAX`, the initial message, the one that ["upgrades"](https://tools.ietf.org/html/rfc6455#section-1.2) to Websocket, ALWAYS includes the `client-id` as __query parameter__:
+
+```
+GET /chsk?client-id=bd5ee0f2-dc22-47b5-98ab-618711f34b45 HTTP/1.1
+Host: localhost:3000
+Connection: Upgrade
+Upgrade: websocket
+Origin: http://localhost:3000
+Sec-WebSocket-Version: 13
+...
+```
+This is very important also if you want to emulate `sente`'s behavior using benchmarking tools like [tcpkali](https://github.com/machinezone/tcpkali). Without it `sente` throws an exception and the benchmark will not run correctly.
+Afterwards, you will see a series of `TCP` packets as per the Websocket protocol and containing the `[<ev-id> <?ev-data>]` vector encoded according to the installed packer. For instance with `transit`:
+
+```
+`e@7.KcJam
+43C-["~:chsk/handshake",["bd5ee0f2-dc22-47b5-98ab-618711f34b45",null]]
+```
+
+#### What is the `+` character I see attached to my Websocket `?ev-data`?
+
+The payload does not go on the wire untouched. Some additional information is added, the most notable of which is the `client-id`.
+In order to do that, `sente` might wrap the payload in an additional vector and even prepend it with custom characters. [Here](https://github.com/arichiardi/sente/blob/master/src/taoensso/sente.cljc#L212) are the gory details if you need to reproduce this behavior.
+
 > [1] The cost of _not_ doing this is actually negligible (a single parked go thread).
 
 There's also a couple lifecycle libraries that include Sente components:
