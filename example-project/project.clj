@@ -11,8 +11,8 @@
 
   :dependencies
   [[org.clojure/clojure       "1.8.0"]
-   [org.clojure/clojurescript "1.9.225"]
-   [org.clojure/core.async    "0.2.385"]
+   [org.clojure/clojurescript "1.9.229"]
+   [org.clojure/core.async    "0.2.391"]
    [org.clojure/tools.nrepl   "0.2.12"] ; Optional, for Cider
 
    [com.taoensso/sente        "1.11.0-SNAPSHOT"] ; <--- Sente
