@@ -1497,8 +1497,15 @@
 
 (defn- -start-chsk-router!
   [server? ch-recv event-msg-handler opts]
-  (let [{:keys [trace-evs? error-handler]} opts
-        ch-ctrl (chan)]
+  (let [{:keys [trace-evs? error-handler simple-auto-threading?]} opts
+        ch-ctrl (chan)
+
+        execute1
+        #?(:cljs (fn [f] (f))
+           :clj
+           (if simple-auto-threading?
+             (fn [f] (future-call f))
+             (fn [f] (f))))]
 
     (go-loop []
       (let [[v p] (async/alts! [ch-recv ch-ctrl])
@@ -1507,19 +1514,21 @@
         (when-not stop?
           (let [{:as event-msg :keys [event]} v]
 
-            (enc/catching
-              (do
-                (when trace-evs? (tracef "Pre-handler event: %s" event))
-                (event-msg-handler
-                  (if server?
-                    (have! server-event-msg? event-msg)
-                    (have! client-event-msg? event-msg))))
-              e1
-              (enc/catching
-                (if-let [eh error-handler]
-                  (error-handler e1 event-msg)
-                  (errorf e1 "Chsk router `event-msg-handler` error: %s" event))
-                e2 (errorf e2 "Chsk router `error-handler` error: %s" event)))
+            (execute1
+              (fn []
+                (enc/catching
+                  (do
+                    (when trace-evs? (tracef "Pre-handler event: %s" event))
+                    (event-msg-handler
+                      (if server?
+                        (have! server-event-msg? event-msg)
+                        (have! client-event-msg? event-msg))))
+                  e1
+                  (enc/catching
+                    (if-let [eh error-handler]
+                      (error-handler e1 event-msg)
+                       (errorf e1 "Chsk router `event-msg-handler` error: %s" event))
+                    e2 (errorf e2 "Chsk router `error-handler` error: %s"     event)))))
 
             (recur)))))
 
@@ -1527,40 +1536,33 @@
 
 (defn start-server-chsk-router!
   "Creates a simple go-loop to call `(event-msg-handler <server-event-msg>)`
-  and log any errors. Returns a `(fn stop! [])`.
+  and log any errors. Returns a `(fn stop! [])`. Note that advanced users may
+  prefer to just write their own loop against `ch-recv`.
 
   Nb performance note: since your `event-msg-handler` fn will be executed
   within a simple go block, you'll want this fn to be ~non-blocking
   (you'll especially want to avoid blocking IO) to avoid starving the
-  core.async thread pool under load.
+  core.async thread pool under load. To avoid blocking, you can use futures,
+  agents, core.async, etc. as appropriate.
 
-  To avoid blocking, Clojure offers a rich variety of tools incl. futures,
-  agents, core.async, etc. The correct tool/s to use will depend on your
-  application (and on the particular request/s), so this isn't something the
-  router can/should handle for you automatically.
-
-  Note that advanced users may also prefer to just write their own loop
-  against `ch-recv`."
-  [ch-recv event-msg-handler & [{:as opts :keys [trace-evs? error-handler]}]]
+  Or for simple automatic future-based threading of every request, enable
+  the `:simple-auto-threading?` opt (disabled by default)."
+  [ch-recv event-msg-handler &
+   [{:as opts :keys [trace-evs? error-handler simple-auto-threading?]}]]
   (-start-chsk-router! :server ch-recv event-msg-handler opts))
 
 (defn start-client-chsk-router!
   "Creates a simple go-loop to call `(event-msg-handler <server-event-msg>)`
-  and log any errors. Returns a `(fn stop! [])`.
+  and log any errors. Returns a `(fn stop! [])`. Note that advanced users may
+  prefer to just write their own loop against `ch-recv`.
 
   Nb performance note: since your `event-msg-handler` fn will be executed
   within a simple go block, you'll want this fn to be ~non-blocking
   (you'll especially want to avoid blocking IO) to avoid starving the
-  core.async thread pool under load.
-
-  To avoid blocking, Clojure offers a rich variety of tools incl. futures,
-  agents, core.async, etc. The correct tool/s to use will depend on your
-  application (and on the particular request/s), so this isn't something the
-  router can/should handle for you automatically.
-
-  Note that advanced users may also prefer to just write their own loop
-  against `ch-recv`."
-  [ch-recv event-msg-handler & [{:as opts :keys [trace-evs? error-handler]}]]
+  core.async thread pool under load. To avoid blocking, you can use futures,
+  agents, core.async, etc. as appropriate."
+  [ch-recv event-msg-handler &
+   [{:as opts :keys [trace-evs? error-handler]}]]
   (-start-chsk-router! (not :server) ch-recv event-msg-handler opts))
 
 ;;;; Platform aliases
