@@ -812,6 +812,11 @@
                      new-state
                      (if (:first-open? old-state)
                        (assoc new-state :first-open? false)
+                       new-state)
+
+                     new-state
+                     (if (:open? new-state)
+                       (dissoc new-state :udt-next-reconnect)
                        new-state)]
 
                  (swapped new-state [old-state new-state]))))]
@@ -831,9 +836,10 @@
                    :unexpected}] reason)
      (if (or (:open? state) (not= reason :unexpected))
        (-> state
-           (dissoc :next-reconnect)
-           (assoc :open? false
-                  :last-close {:udt (enc/now-udt) :reason reason}))
+           (dissoc :udt-next-reconnect)
+           (assoc
+             :open? false
+             :last-close {:udt (enc/now-udt) :reason reason}))
        state)))
 
 #?(:cljs
@@ -998,12 +1004,12 @@
                            (when (have-handle?)
                              (let [retry-count* (swap! retry-count_ inc)
                                    backoff-ms (backoff-ms-fn retry-count*)
-                                   next-reconnect (+ (enc/now-udt) backoff-ms)]
+                                   udt-next-reconnect (+ (enc/now-udt) backoff-ms)]
                                (warnf "Chsk is closed: will try reconnect attempt (%s) in %s ms"
                                  retry-count* backoff-ms)
                                (.setTimeout goog/global connect-fn backoff-ms)
                                (swap-chsk-state! chsk
-                                 #(assoc % :next-reconnect next-reconnect)))))
+                                 #(assoc % :udt-next-reconnect udt-next-reconnect)))))
 
                          ?socket
                          (try
@@ -1049,9 +1055,7 @@
                                    (when (handshake? clj)
                                      (receive-handshake! :ws chsk clj)
                                      (reset! retry-count_ 0)
-                                     (swap-chsk-state! chsk
-                                       #(dissoc % :next-reconnect))
-                                     true)
+                                     :handshake)
 
                                    (when (= clj :chsk/ws-ping)
                                      (put! (:<server chs) [:chsk/ws-ping])
@@ -1220,14 +1224,14 @@
                          (when (have-handle?)
                            (let [retry-count* (inc retry-count)
                                  backoff-ms (backoff-ms-fn retry-count*)
-                                 next-reconnect (+ (enc/now-udt) backoff-ms)]
+                                 udt-next-reconnect (+ (enc/now-udt) backoff-ms)]
                              (warnf "Chsk is closed: will try reconnect attempt (%s) in %s ms"
                                     retry-count* backoff-ms)
                              (.setTimeout goog/global
                                (fn [] (poll-fn retry-count*))
                                backoff-ms)
                              (swap-chsk-state! chsk
-                               #(assoc % :next-reconnect next-reconnect)))))]
+                               #(assoc % :udt-next-reconnect udt-next-reconnect)))))]
 
                    (reset! curr-xhr_
                      (ajax-lite url
@@ -1270,9 +1274,8 @@
                                  [clj] (unpack packer ppstr)
                                  handshake? (handshake? clj)]
 
-                             (when handshake? (receive-handshake! :ajax chsk clj)
-                                              (swap-chsk-state! chsk
-                                                #(dissoc % :next-reconnect)))
+                             (when handshake?
+                               (receive-handshake! :ajax chsk clj))
 
                              (swap-chsk-state! chsk #(assoc % :open? true))
                              (poll-fn 0) ; Repoll asap
