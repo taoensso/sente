@@ -42,20 +42,20 @@
         [:chsk/ws-ping]
 
   Channel socket state map:
-    :type           - e/o #{:auto :ws :ajax}
-    :open?          - Truthy iff chsk appears to be open (connected) now
-    :ever-opened?   - Truthy iff chsk handshake has ever completed successfully
-    :first-open?    - Truthy iff chsk just completed first successful handshake
-    :uid            - User id provided by server on handshake,    or nil
-    :csrf-token     - CSRF token provided by server on handshake, or nil
-    :handshake-data - Arb user data provided by server on handshake
-    :last-ws-error  - ?{:udt _ :ev <WebSocket-on-error-event>}
-    :last-ws-close  - ?{:udt _ :ev <WebSocket-on-close-event>
-                        :clean? _ :code _ :reason _}
-    :last-close     - ?{:udt _ :reason _}, with reason e/o
-                        #{nil :requested-disconnect :requested-reconnect
-                         :downgrading-ws-to-ajax :unexpected}
-    :next-reconnect - ?udt of next reconnect attempt
+    :type               - e/o #{:auto :ws :ajax}
+    :open?              - Truthy iff chsk appears to be open (connected) now
+    :ever-opened?       - Truthy iff chsk handshake has ever completed successfully
+    :first-open?        - Truthy iff chsk just completed first successful handshake
+    :uid                - User id provided by server on handshake,    or nil
+    :csrf-token         - CSRF token provided by server on handshake, or nil
+    :handshake-data     - Arb user data provided by server on handshake
+    :last-ws-error      - ?{:udt _ :ev <WebSocket-on-error-event>}
+    :last-ws-close      - ?{:udt _ :ev <WebSocket-on-close-event>
+                            :clean? _ :code _ :reason _}
+    :last-close         - ?{:udt _ :reason _}, with reason e/o
+                            #{nil :requested-disconnect :requested-reconnect
+                             :downgrading-ws-to-ajax :unexpected}
+    :udt-next-reconnect - Approximate udt of next scheduled auto-reconnect attempt
 
   Notable implementation details:
     * core.async is used liberally where brute-force core.async allows for
@@ -829,12 +829,12 @@
                    :requested-reconnect
                    :downgrading-ws-to-ajax
                    :unexpected}] reason)
-     (let [state (dissoc state :next-reconnect)]
-       (if (or (:open? state) (not= reason :unexpected))
-         (assoc state
-           :open? false
-           :last-close {:udt (enc/now-udt) :reason reason})
-         state))))
+     (if (or (:open? state) (not= reason :unexpected))
+       (-> state
+           (dissoc :next-reconnect)
+           (assoc :open? false
+                  :last-close {:udt (enc/now-udt) :reason reason}))
+       state)))
 
 #?(:cljs
    (defn- cb-chan-as-fn
@@ -1050,7 +1050,8 @@
                                      (receive-handshake! :ws chsk clj)
                                      (reset! retry-count_ 0)
                                      (swap-chsk-state! chsk
-                                       #(dissoc % :next-reconnect)))
+                                       #(dissoc % :next-reconnect))
+                                     true)
 
                                    (when (= clj :chsk/ws-ping)
                                      (put! (:<server chs) [:chsk/ws-ping])
