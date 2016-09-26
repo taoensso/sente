@@ -1372,11 +1372,15 @@
 
 #?(:cljs
    (defn- get-chsk-url [protocol host path type]
-     (let [protocol (case protocol :http "http:" :https "https:" protocol)
-           protocol (have [:el #{"http:" "https:"}] protocol)
-           protocol (case type
-                      :ajax     protocol
-                      :ws (case protocol "https:" "wss:" "http:" "ws:"))]
+     (let [;; Some users require other protocols here (e.g. "file:"), so we
+           ;; explicitly allow pass-through:
+           protocol (case protocol :http "http:" :https "https:" protocol)
+           protocol
+           (case (str/lower-case (str protocol))
+             "http:"  (if (= type :ws) "ws:"  protocol)
+             "https:" (if (= type :ws) "wss:" protocol)
+             protocol)]
+
        (str protocol "//" (enc/path host path)))))
 
 #?(:cljs
