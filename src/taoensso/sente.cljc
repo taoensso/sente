@@ -698,11 +698,7 @@
   Allows some time for possible Ajax poller reconnects."
   [conns_ uid buffered-evs-pstr]
   (tracef "send-buffered-server-evs>ajax-clients!: %s" buffered-evs-pstr)
-  (let [nmax-attempts 7
-        ms-base 90
-        ms-rand 90
-        ;; (* 7 (+ 90 (/ 90 2.0))) ~= 945ms
-
+  (let [ms-backoffs [90 180 360 720 1440] ; Mean 2790s
         ;; All connected/possibly-reconnecting client uuids:
         client-ids-unsatisfied (keys (get-in @conns_ [:ajax uid]))]
 
@@ -746,11 +742,12 @@
                 now-satisfied (into client-ids-satisfied ?newly-satisfied)]
 
             ;; (tracef "now-satisfied: %s" now-satisfied)
-            (when (and (< n nmax-attempts)
-                       (some (complement now-satisfied) client-ids-unsatisfied))
-              ;; Allow some time for possible poller reconnects:
-              (<! (async/timeout (+ ms-base (rand-int ms-rand))))
-              (recur (inc n) now-satisfied))))))))
+            (when-let [ms-backoff (get ms-backoffs n)]
+              (when (enc/rsome (complement now-satisfied) client-ids-unsatisfied)
+                (let [ms-timeout (+ ms-backoff (rand-int ms-backoff))]
+                  ;; Allow some time for possible poller reconnects:
+                  (<! (async/timeout ms-timeout))
+                  (recur (inc n) now-satisfied))))))))))
 
 ;;;; Client API
 
