@@ -13,7 +13,7 @@
   :dependencies
   [[org.clojure/clojure      "1.5.1"]
    [org.clojure/core.async   "0.2.391"]
-   [com.taoensso/encore      "2.81.1"]
+   [com.taoensso/encore      "2.82.1"]
    [org.clojure/tools.reader "0.10.0"]
    [com.taoensso/timbre      "4.7.4"]]
 
@@ -31,7 +31,7 @@
    :1.7  {:dependencies [[org.clojure/clojure "1.7.0"]]}
    :1.8  {:dependencies [[org.clojure/clojure "1.8.0"]]}
    :1.9  {:dependencies [[org.clojure/clojure "1.9.0-alpha10"]]}
-   :test {:dependencies [[com.cognitect/transit-clj  "0.8.288"]
+   :test {:dependencies [[com.cognitect/transit-clj  "0.8.290"]
                          [com.cognitect/transit-cljs "0.8.239"]
                          [org.clojure/test.check     "0.9.0"]]
           :plugins []}

@@ -34,7 +34,7 @@
 
    ;;; Transit deps optional; may be used to aid perf. of larger data payloads
    ;;; (see reference example for details):
-   [com.cognitect/transit-clj  "0.8.288"]
+   [com.cognitect/transit-clj  "0.8.290"]
    [com.cognitect/transit-cljs "0.8.239"]]
 
   :plugins
