@@ -1,5 +1,22 @@
 > This project uses [Break Versioning](https://github.com/ptaoussanis/encore/blob/master/BREAK-VERSIONING.md) as of **Aug 16, 2014**.
 
+## v1.11.0-RC1 - 2016 Oct 2
+
+```clojure
+[com.taoensso/sente "1.11.0-RC1"]
+```
+
+> This is a non-breaking feature release
+
+* [#255] **New**: Client chsk state: now include cause of chsk disconnections
+* [#263] **New**: Client chsk state: add :next-reconnect key (@danielcompton)
+* [#259] **New**: Allow clients to detect sudden abnormal disconnects (e.g. airplane mode)
+* [#265] **New**: Add :simple-auto-threading? option to routers
+* [#257] **New**: Add disconnect and reconnect buttons to ref example (@danielcompton)
+* [#270] **Impl**: Better Ajax broadcast reliability on very poor connections
+* [#254] **Fix**: Make sure pending retries are subject to normal cancellation
+
+
 ## v1.10.0 - 2016 Jul 24
 
 ```clojure
