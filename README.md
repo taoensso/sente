@@ -237,6 +237,7 @@ Key             | Value
 Link                           | Description
 ------------------------------ | --------------------------------------------------------
 **[Official example]**         | **Official Sente reference example**, always up-to-date
+[@tiensonqin/lymchat]          | Example chat app using React Native
 [@danielsz/system-websockets]  | Client-side UI, login and wiring of components
 [@timothypratley/snakelake]    | Multiplayer snake game with screencast walkthrough
 [@theasp/sente-nodejs-example] | Ref. example adapted for Node.js servers ([Express], [Dog Fort]), as well as a node.js client
@@ -408,6 +409,7 @@ Copyright &copy; 2014-2016 [Peter Taoussanis].
 [reference example project]: https://github.com/ptaoussanis/sente/tree/master/example-project
 [Cider]: https://github.com/clojure-emacs/cider
 
+[@tiensonqin/lymchat]: https://github.com/tiensonqin/lymchat
 [@danielsz/sente-boot]: https://github.com/danielsz/sente-boot
 [@danielsz/sente-system]: https://github.com/danielsz/sente-system
 [@danielsz/system-websockets]: https://github.com/danielsz/system-websockets
