@@ -104,6 +104,9 @@
   (enc/assert-min-encore-version [2 79 1])
   (enc/assert-min-encore-version  2.79))
 
+(def sente-version "Useful for identifying client/server mismatch"
+  [1 11 0])
+
 #?(:cljs (def ^:private node-target? (= *target* "nodejs")))
 
 ;; (timbre/set-level! :trace) ; Uncomment for debugging
