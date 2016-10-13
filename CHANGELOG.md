@@ -1,9 +1,9 @@
 > This project uses [Break Versioning](https://github.com/ptaoussanis/encore/blob/master/BREAK-VERSIONING.md) as of **Aug 16, 2014**.
 
-## v1.11.0-RC1 - 2016 Oct 2
+## v1.11.0 - 2016 Oct 13
 
 ```clojure
-[com.taoensso/sente "1.11.0-RC1"]
+[com.taoensso/sente "1.11.0"]
 ```
 
 > This is a non-breaking feature release
@@ -15,7 +15,6 @@
 * [#257] **New**: Add disconnect and reconnect buttons to ref example (@danielcompton)
 * [#270] **Impl**: Better Ajax broadcast reliability on very poor connections
 * [#254] **Fix**: Make sure pending retries are subject to normal cancellation
-
 
 ## v1.10.0 - 2016 Jul 24
 
