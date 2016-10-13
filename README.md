@@ -351,6 +351,10 @@ There's also a couple lifecycle libraries that include Sente components:
  1. [@danielsz/system] for use with [@stuartsierra/component]
  2. [@palletops/bakery] for use with [@palletops/leaven]
 
+#### How to debug/benchmark Sente at the protocol level?
+
+[@arichiardi] has kindly provided notes on some of Sente's current implementation details [here](https://github.com/ptaoussanis/sente/wiki/Debugging-and-benchmarking-at-the-protocol-level).
+
 #### Any other questions?
 
 If I've missed something here, feel free to open a GitHub issue or pop me an email!
@@ -421,6 +425,7 @@ Copyright &copy; 2014-2016 [Peter Taoussanis].
 [Reagent]: http://reagent-project.github.io/
 [Joda-Time]: http://www.joda.org/joda-time/
 [@danielsz]: https://github.com/danielsz
+[@arichiardi]: https://github.com/arichiardi
 
 [@stuartsierra/component]: https://github.com/stuartsierra/component
 [@palletops/leaven]: https://github.com/palletops/leaven
