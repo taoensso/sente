@@ -117,31 +117,34 @@
 ;;   - `event`s have the same form client+server side,
 ;;   - `event-msg`s have a similar but not identical form
 
-(defn- validate-event [x]
+(defn- expected [expected x] {:expected expected :actual {:type (type x) :value x}})
+(defn validate-event
+  "Returns nil if given argument is a valid [ev-id ?ev-data] form. Otherwise
+  returns a map of validation errors like `{:wrong-type {:expected _ :actual _}}`."
+  [x]
   (cond
-    (not (vector? x))        :wrong-type
-    (not (#{1 2} (count x))) :wrong-length
-    :else (let [[ev-id _] x]
-            (cond (not (keyword?  ev-id)) :wrong-id-type
-                  (not (namespace ev-id)) :unnamespaced-id
-                  :else nil))))
+    (not (vector? x))        {:wrong-type   (expected :vector x)}
+    (not (#{1 2} (count x))) {:wrong-length (expected #{1 2}  x)}
+    :else
+    (let [[ev-id _] x]
+      (cond
+        (not (keyword? ev-id))  {:wrong-id-type   (expected :keyword            ev-id)}
+        (not (namespace ev-id)) {:unnamespaced-id (expected :namespaced-keyword ev-id)}
+        :else nil))))
+
+(defn assert-event
+  "Returns given argument if it is a valid [ev-id ?ev-data] form. Otherwise
+  throws a validation exception."
+  [x]
+  (when-let [errs (validate-event x)]
+    (throw (ex-info "Invalid event" {:given x :errors errs}))))
 
 (defn event? "Valid [ev-id ?ev-data] form?" [x] (nil? (validate-event x)))
-
-(defn as-event [x] (if (event? x) x [:chsk/bad-event x]))
-
-(defn assert-event [x]
-  (when-let [?err (validate-event x)]
-    (let [err-msg
-          (str
-            (case ?err
-              :wrong-type   "Malformed event (wrong type)."
-              :wrong-length "Malformed event (wrong length)."
-              (:wrong-id-type :unnamespaced-id)
-              "Malformed event (`ev-id` should be a namespaced keyword)."
-              :else "Malformed event (unknown error).")
-            " Event should be of `[ev-id ?ev-data]` form: " x)]
-      (throw (ex-info err-msg {:malformed-event x})))))
+(defn as-event [x]
+  (if-let [errs (validate-event x)]
+    ;; [:chsk/bad-event {:given x :errors errs}] ; Breaking change
+    [:chsk/bad-event x]
+    x))
 
 (defn client-event-msg? [x]
   (and
