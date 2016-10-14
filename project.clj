@@ -11,30 +11,26 @@
                 *assert* true}
 
   :dependencies
-  [[org.clojure/clojure      "1.5.1"]
+  [[org.clojure/clojure      "1.7.0"]
    [org.clojure/core.async   "0.2.395"]
    [com.taoensso/encore      "2.84.2"]
    [org.clojure/tools.reader "0.10.0"]
    [com.taoensso/timbre      "4.7.4"]]
 
-  :plugins [[lein-cljsbuild "1.1.4"]
-            ;;
-            [lein-pprint "1.1.2"]
-            [lein-ancient "0.6.10"]
-            ;; [com.cemerick/austin          "0.1.4"]
-            [com.cemerick/clojurescript.test "0.3.3"]
-            [lein-codox "0.10.1"]]
+  :plugins
+  [[lein-pprint    "1.1.2"]
+   [lein-ancient   "0.6.10"]
+   [lein-codox     "0.10.1"]
+   [lein-cljsbuild "1.1.4"]]
 
   :profiles
   {;; :default [:base :system :user :provided :dev]
    :server-jvm {:jvm-opts ^:replace ["-server"]}
-   :1.7  {:dependencies [[org.clojure/clojure "1.7.0"]]}
    :1.8  {:dependencies [[org.clojure/clojure "1.8.0"]]}
-   :1.9  {:dependencies [[org.clojure/clojure "1.9.0-alpha10"]]}
+   :1.9  {:dependencies [[org.clojure/clojure "1.9.0-alpha13"]]}
    :test {:dependencies [[com.cognitect/transit-clj  "0.8.290"]
                          [com.cognitect/transit-cljs "0.8.239"]
-                         [org.clojure/test.check     "0.9.0"]]
-          :plugins []}
+                         [org.clojure/test.check     "0.9.0"]]}
 
    :provided {:dependencies [[org.clojure/clojurescript "1.9.229"]]}
 
@@ -59,11 +55,7 @@
   :test-paths ["test" "src"]
 
   :aliases
-  {"test-all"   ["do" "clean,"
-                 "with-profile" "+1.9:+1.8:+1.7" "test,"
-                 ;; "with-profile" "+test" "cljsbuild" "test"
-                 ]
-   "build-once" ["cljsbuild" "once"]
+  {"build-once" ["cljsbuild" "once"]
    "deploy-lib" ["do" "build-once," "deploy" "clojars," "install"]
    "start-dev"  ["with-profile" "+dev" "repl" ":headless"]}
 
