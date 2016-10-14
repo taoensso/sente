@@ -46,3 +46,28 @@
   arbitrary Clojure data <-> serialized strings."
   (pack   [_ x])
   (unpack [_ x]))
+
+
+;;;; Client sockets
+
+(defprotocol IClientWebSocket ; cws
+  ;; Wraps a client's socket interface to abstract away
+  ;; implementation differences.
+  
+  (cws-close! [cws] "If the channel is open when called: closes the channel and returns true.
+    Otherwise noops and returns false.")
+  (cws-send! [cws msg]
+   "If the socket is open when called: sends a message over socket and
+    returns true. Otherwise noops and returns false."))
+
+
+;; Client websocket creator can be provided in the field :cws-creator.
+;; The result should implement IClientWebsocket.
+;; Here are the arguments the creator should expect :
+;; [url callbacks-map]
+;; Where `callbacks-map` has the following entry:
+;;      on-msg    - [msg] the message (ppstr)
+;;      on-error  - [evt]
+;;      on-close  - [evt]
+;; The websocket creator should return nil if it can't connect.
+
