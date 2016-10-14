@@ -9,7 +9,7 @@
 > This is a non-breaking feature release
 
 * [#255] **New**: Client chsk state: now include cause of chsk disconnections
-* [#263] **New**: Client chsk state: add :next-reconnect key (@danielcompton)
+* [#263] **New**: Client chsk state: add :udt-next-reconnect key (@danielcompton)
 * [#259] **New**: Allow clients to detect sudden abnormal disconnects (e.g. airplane mode)
 * [#265] **New**: Add :simple-auto-threading? option to routers
 * [#257] **New**: Add disconnect and reconnect buttons to ref example (@danielcompton)
