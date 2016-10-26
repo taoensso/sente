@@ -214,24 +214,20 @@
     (tracef "Unpacking: %s -> %s" prefixed-pstr [clj ?cb-uuid])
     [clj ?cb-uuid]))
 
-(defn- with-?meta [x ?m] (if (seq ?m) (with-meta x ?m) x))
-
 (defn- pack "clj->prefixed-pstr"
-  ([packer ?packer-meta clj]
-   (let [pstr
-         (str "-" ; => Unwrapped (no cb metadata)
-           (interfaces/pack packer (with-?meta clj ?packer-meta)))]
-     (tracef "Packing (unwrapped): %s -> %s" [?packer-meta clj] pstr)
+  ([packer clj]
+   (let [;; "-" prefix => Unwrapped (has no callback)
+         pstr (str "-" (interfaces/pack packer clj))]
+     (tracef "Packing (unwrapped): %s -> %s" clj pstr)
      pstr))
 
-  ([packer ?packer-meta clj ?cb-uuid]
+  ([packer clj ?cb-uuid]
    (let [;;; Keep wrapping as light as possible:
          ?cb-uuid    (if (= ?cb-uuid :ajax-cb) 0 ?cb-uuid)
          wrapped-clj (if ?cb-uuid [clj ?cb-uuid] [clj])
-         pstr
-         (str "+" ; => Wrapped (cb metadata)
-           (interfaces/pack packer (with-?meta wrapped-clj ?packer-meta)))]
-     (tracef "Packing (wrapped): %s -> %s" [?packer-meta clj ?cb-uuid] pstr)
+         ;; "+" prefix => Wrapped (has callback)
+         pstr (str "+" (interfaces/pack packer wrapped-clj))]
+     (tracef "Packing (wrapped): %s -> %s" wrapped-clj pstr)
      pstr)))
 
 (deftype EdnPacker []
@@ -432,15 +428,8 @@
                       (have? vector? buffered-evs)
                       (have? set?    ev-uuids)
 
-                      (let [packer-metas         (mapv meta buffered-evs)
-                            combined-packer-meta (reduce merge {} packer-metas)
-                            buffered-evs-ppstr   (pack packer
-                                                   combined-packer-meta
-                                                   buffered-evs)]
-
-                        (tracef "buffered-evs-ppstr: %s (with meta %s)"
-                          buffered-evs-ppstr combined-packer-meta)
-
+                      (let [buffered-evs-ppstr (pack packer buffered-evs)]
+                        (tracef "buffered-evs-ppstr: %s" buffered-evs-ppstr)
                         (case conn-type
                           :ws   (send-buffered-server-evs>ws-clients! conns_
                                   uid buffered-evs-ppstr upd-conn!)
@@ -520,7 +509,7 @@
                       (when (compare-and-set! replied?_ false true)
                         (tracef "Chsk send (ajax post reply): %s" resp-clj)
                         (interfaces/sch-send! server-ch websocket?
-                          (pack packer (meta resp-clj) resp-clj)))))]
+                          (pack packer resp-clj)))))]
 
               (put-server-event-msg>ch-recv! ch-recv
                 (merge ev-msg-const
@@ -570,7 +559,7 @@
                        [:chsk/handshake [uid csrf-token]]
                        [:chsk/handshake [uid csrf-token ?handshake-data]])]
                  (interfaces/sch-send! server-ch websocket?
-                   (pack packer nil handshake-ev))))]
+                   (pack packer handshake-ev))))]
 
          (if (str/blank? client-id)
            (let [err-msg "Client's Ring request doesn't have a client id. Does your server have the necessary keyword Ring middleware (`wrap-params` & `wrap-keyword-params`)?"]
@@ -608,7 +597,7 @@
                               ;; ->client (should auto-close conn if it's
                               ;; gone dead).
                               (interfaces/sch-send! server-ch websocket?
-                                (pack packer nil :chsk/ws-ping)))
+                                (pack packer :chsk/ws-ping)))
                             (recur udt-t1))))))
 
                   ;; Ajax handshake/poll
@@ -632,7 +621,7 @@
                               ;; (assert (= _sch server-ch))
                               ;; Appears to still be the active sch
                               (interfaces/sch-send! server-ch websocket?
-                                (pack packer nil :chsk/timeout))))))))))
+                                (pack packer :chsk/timeout))))))))))
 
               :on-msg
               (fn [server-ch websocket? req-ppstr]
@@ -645,7 +634,7 @@
                         (tracef "Chsk send (ws reply): %s" resp-clj)
                         ;; true iff apparent success:
                         (interfaces/sch-send! server-ch websocket?
-                          (pack packer (meta resp-clj) resp-clj ?cb-uuid)))))))
+                          (pack packer resp-clj ?cb-uuid)))))))
 
               :on-close ; We rely on `on-close` to trigger for _every_ conn!
               (fn [server-ch websocket? _status]
@@ -968,7 +957,7 @@
 
            ;; TODO Buffer before sending (but honor `:flush?`)
            (let [?cb-uuid (when ?cb-fn (enc/uuid-str 6))
-                 ppstr (pack packer (meta ev) ev ?cb-uuid)]
+                 ppstr (pack packer ev ?cb-uuid)]
 
              (when-let [cb-uuid ?cb-uuid]
                (reset-in! cbs-waiting_ [cb-uuid] (have ?cb-fn))
@@ -1180,7 +1169,7 @@
                     {:X-CSRF-Token csrf-token})
 
                   :params
-                  (let [ppstr (pack packer (meta ev) ev (when ?cb-fn :ajax-cb))]
+                  (let [ppstr (pack packer ev (when ?cb-fn :ajax-cb))]
                     (merge params ; 1st (don't clobber impl.):
                       {:udt        (enc/now-udt) ; Force uncached resp
 
