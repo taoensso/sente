@@ -196,6 +196,29 @@
 ;; * Payloads are packed for client<->server transit.
 ;; * Packing includes ->str encoding, and may incl. wrapping to carry cb info.
 
+(do ; Experimental ; TODO [#276] [Ref. 7a82137c]
+  ;;
+  ;; Main motivation: to help eliminate repacking waste during broadcasts.
+  ;;
+  ;; Un/packing would be a lot easier to efficiently cache in general if we
+  ;; moved cb-uuid *out* of encoded payload as part of + prefix. An easy
+  ;; change, but would require breaking compatibility with older clients. As
+  ;; an interim solution, choosing to cache only non-cb un/packing (the nb
+  ;; case since it affects broadcasting).
+  ;;
+  ;; In future, may (instead/also?) like to support a proper broadcast API
+  ;; mechanism that just generates a single payload before looping. That
+  ;; *could* cause difficulties with buffering; need to think on it some.
+  ;; For example, might (?) be preferable to change buffered format to a
+  ;; delimited string (or payload) of individually packed payloads?
+  ;;
+  (def ^:private unpack-cached (enc/memoize* 128 nil interfaces/unpack))
+  (def ^:private unpack-uncached                     interfaces/unpack)
+  (def ^:private pack-cached   (enc/memoize* 128 nil interfaces/pack))
+  (def ^:private pack-uncached                       interfaces/pack))
+
+;; (comment (enc/pr-edn ["encoded1" "encoded2"]))
+
 (defn- unpack "prefixed-pstr->[clj ?cb-uuid]"
   [packer prefixed-pstr]
   (have? string? prefixed-pstr)
@@ -203,7 +226,10 @@
         pstr     (subs prefixed-pstr 1)
         clj
         (try
-          (interfaces/unpack packer pstr)
+          (if wrapped?
+            (unpack-uncached packer pstr) ; Ref. 7a82137c
+            (unpack-cached   packer pstr))
+
           (catch #?(:clj Throwable :cljs :default) t
             (debugf "Bad package: %s (%s)" pstr t)
             [:chsk/bad-package pstr]))
@@ -216,17 +242,16 @@
 
 (defn- pack "clj->prefixed-pstr"
   ([packer clj]
-   (let [;; "-" prefix => Unwrapped (has no callback)
-         pstr (str "-" (interfaces/pack packer clj))]
+   ;; "-" prefix => unwrapped (has no callback)
+   (let [pstr (str "-" (pack-cached packer clj))]
      (tracef "Packing (unwrapped): %s -> %s" clj pstr)
      pstr))
 
   ([packer clj ?cb-uuid]
-   (let [;;; Keep wrapping as light as possible:
-         ?cb-uuid    (if (= ?cb-uuid :ajax-cb) 0 ?cb-uuid)
+   ;; "+" prefix => wrapped (has callback), Ref. 7a82137c
+   (let [?cb-uuid    (if (= ?cb-uuid :ajax-cb) 0 ?cb-uuid)
          wrapped-clj (if ?cb-uuid [clj ?cb-uuid] [clj])
-         ;; "+" prefix => Wrapped (has callback)
-         pstr (str "+" (interfaces/pack packer wrapped-clj))]
+         pstr (str "+" (pack-uncached packer wrapped-clj))]
      (tracef "Packing (wrapped): %s -> %s" wrapped-clj pstr)
      pstr)))
 
@@ -241,6 +266,19 @@
   (if (= x :edn)
     default-edn-packer
     (have #(satisfies? interfaces/IPacker %) x)))
+
+;; Possibility if/when we update pack+broadcast formats to better support
+;; efficient auto caching? ; TODO
+;;
+;; (deftype CachedPacker [cached-pack-fn cached-unpack-fn]
+;;   interfaces/IPacker
+;;   (pack   [_ x] (cached-pack-fn   x))
+;;   (unpack [_ x] (cached-unpack-fn x)))
+;;
+;; (defn- cached-packer [packer]
+;;   (CachedPacker.
+;;     (enc/memoize* 128 nil (fn [x] (interfaces/pack   packer x)))
+;;     (enc/memoize* 128 nil (fn [x] (interfaces/unpack packer x)))))
 
 (comment
   (do
@@ -320,7 +358,7 @@
          {:lp-timeout-ms lp-timeout-ms
           :default-client-side-ajax-timeout-ms max-ms}))))
 
-  (let [packer  (coerce-packer packer)
+  (let [packer  (do #_cache-packer (coerce-packer packer))
         ch-recv (chan recv-buf-or-n)
 
         user-id-fn
