@@ -196,40 +196,6 @@
 ;; * Payloads are packed for client<->server transit.
 ;; * Packing includes ->str encoding, and may incl. wrapping to carry cb info.
 
-(defn- unpack "prefixed-pstr->[clj ?cb-uuid]"
-  [packer prefixed-pstr]
-  (have? string? prefixed-pstr)
-  (let [wrapped? (enc/str-starts-with? prefixed-pstr "+")
-        pstr     (subs prefixed-pstr 1)
-        clj
-        (try
-          (interfaces/unpack packer pstr)
-          (catch #?(:clj Throwable :cljs :default) t
-            (debugf "Bad package: %s (%s)" pstr t)
-            [:chsk/bad-package pstr]))
-
-        [clj ?cb-uuid] (if wrapped? clj [clj nil])
-        ?cb-uuid (if (= 0 ?cb-uuid) :ajax-cb ?cb-uuid)]
-
-    (tracef "Unpacking: %s -> %s" prefixed-pstr [clj ?cb-uuid])
-    [clj ?cb-uuid]))
-
-(defn- pack "clj->prefixed-pstr"
-  ([packer clj]
-   (let [;; "-" prefix => Unwrapped (has no callback)
-         pstr (str "-" (interfaces/pack packer clj))]
-     (tracef "Packing (unwrapped): %s -> %s" clj pstr)
-     pstr))
-
-  ([packer clj ?cb-uuid]
-   (let [;;; Keep wrapping as light as possible:
-         ?cb-uuid    (if (= ?cb-uuid :ajax-cb) 0 ?cb-uuid)
-         wrapped-clj (if ?cb-uuid [clj ?cb-uuid] [clj])
-         ;; "+" prefix => Wrapped (has callback)
-         pstr (str "+" (interfaces/pack packer wrapped-clj))]
-     (tracef "Packing (wrapped): %s -> %s" wrapped-clj pstr)
-     pstr)))
-
 (deftype EdnPacker []
   interfaces/IPacker
   (pack   [_ x] (enc/pr-edn   x))
@@ -251,17 +217,47 @@
         unpack interfaces/unpack
         data   {:a :A :b :B :c "hello world"}]
 
-    (enc/qb 10000
+    (enc/qb 1e3
       (let [pk default-edn-packer]          (unpack pk (pack pk data)))
       (let [pk default-transit-json-packer] (unpack pk (pack pk data))))))
+
+(defn- unpack "prefixed-pstr->[clj ?cb-uuid]"
+  [packer prefixed-pstr]
+  (have? string? prefixed-pstr)
+  (let [wrapped? (enc/str-starts-with? prefixed-pstr "+")
+        pstr     (subs prefixed-pstr 1)
+        clj      (enc/catching
+                   (interfaces/unpack packer pstr) _
+                   [:chsk/bad-package pstr])
+
+        [clj ?cb-uuid] (if wrapped? clj [clj nil])
+        ?cb-uuid (if (= ?cb-uuid 0) :ajax-cb ?cb-uuid)]
+
+    (tracef "Unpacking: %s -> %s" prefixed-pstr [clj ?cb-uuid])
+    [clj ?cb-uuid]))
+
+(defn- pack "clj->prefixed-pstr"
+  ([packer clj] ; "-" prefix => unwrapped (without callback)
+   (let [pstr (str "-" (interfaces/pack packer clj))]
+     (tracef "Packing (unwrapped): %s -> %s" clj pstr)
+     pstr))
+
+  ([packer clj ?cb-uuid] ; "+" prefix => wrapped (with callback)
+   (let [?cb-uuid    (if (= ?cb-uuid :ajax-cb) 0 ?cb-uuid)
+         wrapped-clj (if ?cb-uuid [clj ?cb-uuid] [clj])
+         pstr (str "+" (interfaces/pack packer wrapped-clj))]
+     (tracef "Packing (wrapped): %s -> %s" wrapped-clj pstr)
+     pstr)))
+
+(comment (unpack default-edn-packer (pack default-edn-packer "foo" "uuid")))
 
 ;;;; Server API
 
 (def ^:private next-idx! (enc/idx-fn))
 
 (declare
-  ^:private send-buffered-server-evs>ws-clients!
-  ^:private send-buffered-server-evs>ajax-clients!
+  ^:private send-evs>ws-clients!
+  ^:private send-evs>ajax-clients!
   ^:private default-client-side-ajax-timeout-ms)
 
 (defn make-channel-socket-server!
@@ -332,7 +328,7 @@
         ;; :ws udts used for ws-kalive (to check for activity in window period)
         ;; :ajax udts used for lp-timeout (as a way to check active conn identity)
         conns_          (atom {:ws  {} :ajax  {}}) ; {<uid> {<client-id> [<?sch> <udt>]}}
-        send-buffers_   (atom {:ws  {} :ajax  {}}) ; {<uid> [<buffered-evs> <#{ev-uuids}>]}
+        send-buffers_   (atom {:ws  {} :ajax  {}}) ; {<uid> [<evs> <#{ev-uuids}>]}
         connected-uids_ (atom {:ws #{} :ajax #{} :any #{}}) ; Public
 
         upd-conn!
@@ -396,88 +392,100 @@
             newly-disconnected?))
 
         send-fn ; server>user (by uid) push
-        (fn [user-id ev & [{:as opts :keys [flush?]}]]
-          (let [uid (if (= user-id :sente/all-users-without-uid) ::nil-uid user-id)
-                _   (tracef "Chsk send: (->uid %s) %s" uid ev)
-                _   (assert uid
-                    (str "Support for sending to `nil` user-ids has been REMOVED. "
-                         "Please send to `:sente/all-users-without-uid` instead."))
-                _   (assert-event ev)
+        (fn self [user-id-or-ids ev & [{:as opts :keys [flush?]}]]
+          (tracef "Chsk send -> %s: %s" user-id-or-ids ev)
+          (assert-event ev)
 
-                ev-uuid (enc/uuid-str)
+          (if (coll? user-id-or-ids) ; Experimental
+            (let [uids user-id-or-ids]
 
-                flush-buffer!
-                (fn [conn-type]
-                  (when-let
-                      [pulled
-                       (swap-in! send-buffers_ [conn-type]
-                         (fn [m]
-                           ;; Don't actually flush unless the event buffered
-                           ;; with _this_ send call is still buffered (awaiting
-                           ;; flush). This means that we'll have many (go
-                           ;; block) buffer flush calls that'll noop. They're
-                           ;; cheap, and this approach is preferable to
-                           ;; alternatives like flush workers.
-                           (let [[_ ev-uuids] (get m uid)]
-                             (if (contains? ev-uuids ev-uuid)
-                               (swapped (dissoc m uid)
-                                        (get    m uid))
-                               (swapped m nil)))))]
+              (if (= ev [:chsk/close]) ; Currently undocumented
+                (doseq [uid uids] (self uid ev opts))
 
-                    (let [[buffered-evs ev-uuids] pulled]
-                      (have? vector? buffered-evs)
-                      (have? set?    ev-uuids)
+                ;; Skip buffering in exchange for single pack
+                (let [evs-ppstr (pack packer [ev])]
+                  (doseq [uid uids]
+                    (send-evs>ws-clients!   conns_ uid evs-ppstr upd-conn!)
+                    (send-evs>ajax-clients! conns_ uid evs-ppstr)))))
 
-                      (let [buffered-evs-ppstr (pack packer buffered-evs)]
-                        (tracef "buffered-evs-ppstr: %s" buffered-evs-ppstr)
-                        (case conn-type
-                          :ws   (send-buffered-server-evs>ws-clients! conns_
-                                  uid buffered-evs-ppstr upd-conn!)
-                          :ajax (send-buffered-server-evs>ajax-clients! conns_
-                                  uid buffered-evs-ppstr))))))]
+            (let [uid user-id-or-ids
+                  uid (if (= uid :sente/all-users-without-uid) ::nil-uid uid)
+                  _   (assert uid
+                        (str "Support for sending to `nil` user-ids has been REMOVED. "
+                          "Please send to `:sente/all-users-without-uid` instead."))
 
-            (if (= ev [:chsk/close]) ; Currently undocumented
-              (do
-                (debugf "Chsk closing (client may reconnect): %s" uid)
-                (when flush?
-                  (flush-buffer! :ws)
-                  (flush-buffer! :ajax))
+                  ev-uuid (enc/uuid-str)
 
-                (doseq [[?sch _udt] (vals (get-in @conns_ [:ws uid]))]
-                  (when-let [sch ?sch] (interfaces/sch-close! sch)))
+                  flush-buffer!
+                  (fn [conn-type]
+                    (when-let
+                        [pulled
+                         (swap-in! send-buffers_ [conn-type]
+                           (fn [m]
+                             ;; Don't actually flush unless the event buffered
+                             ;; with _this_ send call is still buffered (awaiting
+                             ;; flush). This means that we'll have many (go
+                             ;; block) buffer flush calls that'll noop. They're
+                             ;; cheap, and this approach is preferable to
+                             ;; alternatives like flush workers.
+                             (let [[_ ev-uuids] (get m uid)]
+                               (if (contains? ev-uuids ev-uuid)
+                                 (swapped (dissoc m uid)
+                                   (get    m uid))
+                                 (swapped m nil)))))]
 
-                (doseq [[?sch _udt] (vals (get-in @conns_ [:ajax uid]))]
-                  (when-let [sch ?sch] (interfaces/sch-close! sch))))
+                      (let [[buffered-evs ev-uuids] pulled]
+                        (have? vector? buffered-evs)
+                        (have? set?    ev-uuids)
 
-              (do
-                ;; Buffer event
-                (doseq [conn-type [:ws :ajax]]
-                  (swap-in! send-buffers_ [conn-type uid]
-                    (fn [?v]
-                      (if-not ?v
-                        [[ev] #{ev-uuid}]
-                        (let [[buffered-evs ev-uuids] ?v]
-                          [(conj buffered-evs ev)
-                           (conj ev-uuids     ev-uuid)])))))
+                        (let [evs-ppstr (pack packer buffered-evs)]
+                          (tracef "evs-ppstr: %s" evs-ppstr)
+                          (case conn-type
+                            :ws   (send-evs>ws-clients! conns_  uid
+                                    evs-ppstr upd-conn!)
+                            :ajax (send-evs>ajax-clients! conns_ uid
+                                    evs-ppstr))))))]
 
-                ;;; Flush event buffers after relevant timeouts:
-                ;; * May actually flush earlier due to another timeout.
-                ;; * We send to _all_ of a uid's connections.
-                ;; * Broadcasting is possible but I'd suggest doing it rarely,
-                ;;   and only to users we know/expect are actually online.
-                ;;
-                (if flush?
-                  (do
+              (if (= ev [:chsk/close]) ; Currently undocumented
+                (do
+                  (debugf "Chsk closing (client may reconnect): %s" uid)
+                  (when flush?
                     (flush-buffer! :ws)
                     (flush-buffer! :ajax))
-                  (let [ws-timeout   (async/timeout send-buf-ms-ws)
-                        ajax-timeout (async/timeout send-buf-ms-ajax)]
-                    (go
-                      (<! ws-timeout)
-                      (flush-buffer! :ws))
-                    (go
-                      (<! ajax-timeout)
-                      (flush-buffer! :ajax)))))))
+
+                  (doseq [[?sch _udt] (vals (get-in @conns_ [:ws uid]))]
+                    (when-let [sch ?sch] (interfaces/sch-close! sch)))
+
+                  (doseq [[?sch _udt] (vals (get-in @conns_ [:ajax uid]))]
+                    (when-let [sch ?sch] (interfaces/sch-close! sch))))
+
+                (do
+                  ;; Buffer event
+                  (doseq [conn-type [:ws :ajax]]
+                    (swap-in! send-buffers_ [conn-type uid]
+                      (fn [?v]
+                        (if-not ?v
+                          [[ev] #{ev-uuid}]
+                          (let [[buffered-evs ev-uuids] ?v]
+                            [(conj buffered-evs ev)
+                             (conj ev-uuids     ev-uuid)])))))
+
+                ;;; Flush event buffers after relevant timeouts:
+                  ;; * May actually flush earlier due to another timeout.
+                  ;; * We send to _all_ of a uid's connections.
+                  ;;
+                  (if flush?
+                    (do
+                      (flush-buffer! :ws)
+                      (flush-buffer! :ajax))
+                    (let [ws-timeout   (async/timeout send-buf-ms-ws)
+                          ajax-timeout (async/timeout send-buf-ms-ajax)]
+                      (go
+                        (<! ws-timeout)
+                        (flush-buffer! :ws))
+                      (go
+                        (<! ajax-timeout)
+                        (flush-buffer! :ajax))))))))
 
           ;; Server-side send is async so nothing useful to return (currently
           ;; undefined):
@@ -679,20 +687,20 @@
                 (errorf "ring-req->server-ch-resp error: %s (%s)"
                   error uid sch-uuid))}))))}))
 
-(defn- send-buffered-server-evs>ws-clients!
-  "Actually pushes buffered events (as packed-str) to all uid's WebSocket conns."
-  [conns_ uid buffered-evs-pstr upd-conn!]
-  (tracef "send-buffered-server-evs>ws-clients!: %s" buffered-evs-pstr)
+(defn- send-evs>ws-clients!
+  "Actually pushes events (as packed-str) to all uid's WebSocket conns."
+  [conns_ uid evs-pstr upd-conn!]
+  (tracef "send-evs>ws-clients!: %s" evs-pstr)
   (doseq [[client-id [?sch _udt]] (get-in @conns_ [:ws uid])]
     (when-let [sch ?sch]
       (upd-conn! :ws uid client-id)
-      (interfaces/sch-send! sch :websocket buffered-evs-pstr))))
+      (interfaces/sch-send! sch :websocket evs-pstr))))
 
-(defn- send-buffered-server-evs>ajax-clients!
-  "Actually pushes buffered events (as packed-str) to all uid's Ajax conns.
+(defn- send-evs>ajax-clients!
+  "Actually pushes events (as packed-str) to all uid's Ajax conns.
   Allows some time for possible Ajax poller reconnects."
-  [conns_ uid buffered-evs-pstr]
-  (tracef "send-buffered-server-evs>ajax-clients!: %s" buffered-evs-pstr)
+  [conns_ uid evs-pstr]
+  (tracef "send-evs>ajax-clients!: %s" evs-pstr)
   (let [ms-backoffs [90 180 360 720 1440] ; Mean 2790s
         ;; All connected/possibly-reconnecting client uuids:
         client-ids-unsatisfied (keys (get-in @conns_ [:ajax uid]))]
@@ -729,7 +737,7 @@
                             (when-let [sch ?sch]
                               ;; Will noop + return false if sch already closed:
                               (interfaces/sch-send! ?sch (not :websocket)
-                                buffered-evs-pstr))]
+                                evs-pstr))]
 
                         (if sent? (conj s client-id) s)))
                     #{} ?pulled))
@@ -853,10 +861,10 @@
                 reply])))))))
 
 #?(:cljs
-   (defn- receive-buffered-evs! [chs clj]
-     (tracef "receive-buffered-evs!: %s" clj)
-     (let [buffered-evs (have vector? clj)]
-       (doseq [ev buffered-evs]
+   (defn- receive-evs! [chs clj]
+     (tracef "receive-evs!: %s" clj)
+     (let [evs (have vector? clj)]
+       (doseq [ev evs]
          (assert-event ev)
          ;; Should never receive :chsk/* events from server here:
          (let [[id] ev] (assert (not= (namespace id) "chsk")))
@@ -1058,8 +1066,8 @@
                                                       cb-uuid)]
                                        (cb-fn clj)
                                        (warnf "Cb reply w/o local cb-fn: %s" clj))
-                                     (let [buffered-evs clj]
-                                       (receive-buffered-evs! chs buffered-evs)))))))
+
+                                     (let [evs clj] (receive-evs! chs evs)))))))
 
                            ;; Fires repeatedly (on each connection attempt) while
                            ;; server is down:
@@ -1276,11 +1284,11 @@
                                (or
                                  (when (= clj :chsk/timeout)
                                    (when @debug-mode?_
-                                     (receive-buffered-evs! chs [[:debug/timeout]]))
+                                     (receive-evs! chs [[:debug/timeout]]))
                                    :noop)
 
-                                 (let [buffered-evs clj] ; An application reply
-                                   (receive-buffered-evs! chs buffered-evs))))))))))))]
+                                 ;; An application reply:
+                                 (let [evs clj] (receive-evs! chs evs))))))))))))]
 
          (poll-fn 0)
          chsk))))
