@@ -12,7 +12,7 @@
 
   :dependencies
   [[org.clojure/clojure      "1.7.0"]
-   [org.clojure/core.async   "0.2.395"]
+   [org.clojure/core.async   "0.3.442"]
    [com.taoensso/encore      "2.84.2"]
    [org.clojure/tools.reader "0.10.0"]
    [com.taoensso/timbre      "4.7.4"]]
@@ -40,7 +40,7 @@
      [[http-kit         "2.2.0"]
       [org.immutant/web "2.1.5"]
       [nginx-clojure    "0.4.4"]
-      [aleph            "0.4.1"]]}]}
+      [aleph            "0.4.3"]]}]}
 
   :cljsbuild
   {:test-commands {"node"    ["node" :node-runner "target/main.js"]
