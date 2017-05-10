@@ -251,8 +251,6 @@ Your link here?                | **PR's welcome!**
 
 #### What is the `user-id` provided to the server>user push fn?
 
-> There's now also a full `user-id`, `client-id` summary up [here](https://github.com/ptaoussanis/sente/issues/118#issuecomment-87378277)
-
 For the server to push events, we need a destination. Traditionally we might push to a _client_ (e.g. browser tab). But with modern rich web applications and the increasing use of multiple simultaneous devices (tablets, mobiles, etc.) - the value of a _client_ push is diminishing. You'll often see applications (even by Google) struggling to deal with these cases.
 
 Sente offers an out-the-box solution by pulling the concept of identity one level higher and dealing with unique _users_ rather than clients. **What constitutes a user is entirely at the discretion of each application**:
@@ -267,6 +265,74 @@ If you want a simple _per-session_ identity, generate a _random uuid_. If you wa
 > Note that user-ids are used **only** for server>user push. client>server requests don't take a user-id.
 
 As of Sente v0.13.0+ it's also possible to send events to `:sente/all-users-without-uid`.
+
+Sente currently uses two identifiers: a **client-id** and a **user-id**.
+
+##### Client id (determined client-side)
+
+A _client_ is one particular ClojureScript invocation of `make-channel-socket!`. In practice this usually means **one particular browser tab** [on one device].
+
+**Default client-id value**: a random uuid generated when `make-channel-socket!` is invoked.
+
+Notes:  
+1\. Each client chooses its _own_ client-id with no input from server.  
+2\. By default, each tab has _its own_ client-id.  
+3\. By default, reloading a tab (or closing a tab + opening a new one) means a _new_ client-id.
+
+**Overriding default client-id value**: `(sente/make-channel-socket! <path> {:client-id <client-id>})`.  
+I.e. you can override a client's (random uuid) client-id by providing a `:client-id` key to the (ClojureScript-side) `make-channel-socket!` opts map.
+
+##### User id (determined server-side)
+
+Sente supports async event pushing from the server (Clojure-side) to clients (ClojureScript-side) using the server-side `(fn chsk-send! [user-id event])` function.
+
+So a user-id just specifies destination/s for async event pushing from the server.
+
+A user-id is determined server-side as: `(fn user-id [ring-req client-id])`. I.e. as a function of the channel socket Ring request, and of the requesting client's client-id.
+
+**Default user-id value**: `(get-in ring-req [:session :uid])`. I.e. a sessionized `:uid` value.
+
+Notes:  
+1\. The definition we have allows one user-id to refer/map to _zero, one, or many_ destination clients.  
+2\. By default (i.e. with the sessionized `:uid` value), user-ids are persistent and shared among multiple tabs in one browser. This is just a property of how browser sessions work.
+
+**Overriding default user-id value**: `(sente/make-channel-socket! <web-server-adapter> {:user-id-fn (fn [ring-req-with-client-id])})`. I.e. you can override the server's default ring-req-with-client-id->user-id function with your own.
+
+* * *
+
+So the knobs you have to work with are:  
+ClojureScript (client) side: `make-channel-socket!`'s `:client-id` opt.  
+Clojure (server) side: `make-channel-socket!`'s `:user-id-fn` opt.
+
+Between these two, you should have the control necessary to do just about anything you'd like.
+
+#### Some examples
+
+##### You want a per-tab transient user-id
+
+> Each tab has its own user-id, and reloading a tab means a new user-id.
+
+1.  `:client-id`: leave unchanged.
+2.  `:user-id-fn`: `(fn [ring-req] (:client-id ring-req))`
+
+I.e. we don't use sessions for anything. User-ids are equal to client-ids, which are random per-tab uuids.
+
+##### You want a per-tab transient user-id with session security
+
+> As above, but users must be signed in with a session.
+
+1.  `:client-id`: leave unchanged.
+2.  `:user-id-fn`: `(fn [ring-req] (str (get-in ring-req [:session :base-user-id]) "/" (:client-id ring-req)))`
+
+I.e. sessions (+ some kind of login procedure) are used to determine a `:base-user-id`. That base user-id is then joined with each unique client-id. Each tab therefore retains its own user-id, but each user-id is dependent on a secure login procedure.
+
+##### You want a per-tab persistent user-id (i.e. that survives tab reloading)
+
+This one's tricky since you'll need a way of persisting tab identity, and I'm not sure if browsers even have a concept of persistent tab identity or what that might look like. The first step would be to very clearly define what behaviour you're actually looking for and then Google around to see if the necessary info is actually available to browsers client-side.
+
+If it is, you can pass it along as your `:client-id` value. Does that make sense?
+
+Something like HTML5 LocalStorage might be useful, but I haven't looked into the specifics to confirm.
 
 #### How do I integrate Sente with my usual login/auth procedure?
 
