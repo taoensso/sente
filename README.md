@@ -245,6 +245,8 @@ Link                           | Description
 [@danielsz/sente-boot]         | Ref example adapted for [boot]
 [@seancorfield/om-sente]       | ??
 [@tfoldi/data15-blackjack]     | Multiplayer blackjack game with documented source code
+[@laforge49/sente-boot]        | Example using Sente and boot
+[@laforge49/sente-boot-reagent] | Example using Sente, boot, and reagent
 Your link here?                | **PR's welcome!**
 
 ### FAQ
