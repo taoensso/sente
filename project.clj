@@ -41,7 +41,8 @@
      [[http-kit         "2.3.0"]
       [org.immutant/web "2.1.10"]
       [nginx-clojure    "0.4.5"]
-      [aleph            "0.4.6"]]}]}
+      [aleph            "0.4.6"]
+      [macchiato/core   "0.2.14"]]}]}
 
   :cljsbuild
   {:test-commands {"node"    ["node" :node-runner "target/main.js"]
