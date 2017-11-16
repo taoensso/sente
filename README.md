@@ -7,6 +7,8 @@
 [com.taoensso/sente "1.11.0"] ; See CHANGELOG for details
 ```
 
+[![Dependencies Status](https://versions.deps.co/ptaoussanis/sente/status.svg)](https://versions.deps.co/ptaoussanis/sente)
+
 > Please consider helping to [support my continued open-source Clojure/Script work]? 
 > 
 > Even small contributions can add up + make a big difference to help sustain my time writing, maintaining, and supporting Sente and other Clojure/Script libraries. **Thank you!**
