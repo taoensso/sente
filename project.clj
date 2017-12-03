@@ -11,36 +11,36 @@
                 *assert* true}
 
   :dependencies
-  [[org.clojure/clojure      "1.7.0"]
-   [org.clojure/core.async   "0.3.442"]
-   [com.taoensso/encore      "2.84.2"]
-   [org.clojure/tools.reader "0.10.0"]
-   [com.taoensso/timbre      "4.7.4"]]
+  [[org.clojure/clojure      "1.8.0"]
+   [org.clojure/core.async   "0.3.465"]
+   [com.taoensso/encore      "2.92.0"]
+   [org.clojure/tools.reader "1.1.1"]
+   [com.taoensso/timbre      "4.10.0"]]
 
   :plugins
-  [[lein-pprint    "1.1.2"]
-   [lein-ancient   "0.6.10"]
-   [lein-codox     "0.10.1"]
-   [lein-cljsbuild "1.1.4"]]
+  [[lein-pprint    "1.2.0"]
+   [lein-ancient   "0.6.14"]
+   [lein-codox     "0.10.3"]
+   [lein-cljsbuild "1.1.7"]]
 
   :profiles
   {;; :default [:base :system :user :provided :dev]
    :server-jvm {:jvm-opts ^:replace ["-server"]}
    :1.8  {:dependencies [[org.clojure/clojure "1.8.0"]]}
    :1.9  {:dependencies [[org.clojure/clojure "1.9.0-alpha13"]]}
-   :test {:dependencies [[com.cognitect/transit-clj  "0.8.290"]
-                         [com.cognitect/transit-cljs "0.8.239"]
+   :test {:dependencies [[com.cognitect/transit-clj  "0.8.300"]
+                         [com.cognitect/transit-cljs "0.8.243"]
                          [org.clojure/test.check     "0.9.0"]]}
 
-   :provided {:dependencies [[org.clojure/clojurescript "1.9.229"]]}
+   :provided {:dependencies [[org.clojure/clojurescript "1.9.946"]]}
 
    :dev
    [:1.9 :test :server-jvm
     {:dependencies
      [[http-kit         "2.2.0"]
-      [org.immutant/web "2.1.5"]
-      [nginx-clojure    "0.4.4"]
-      [aleph            "0.4.3"]]}]}
+      [org.immutant/web "2.1.9"]
+      [nginx-clojure    "0.4.5"]
+      [aleph            "0.4.4"]]}]}
 
   :cljsbuild
   {:test-commands {"node"    ["node" :node-runner "target/main.js"]
