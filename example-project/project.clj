@@ -10,12 +10,12 @@
                 *assert* true}
 
   :dependencies
-  [[org.clojure/clojure       "1.8.0"]
+  [[org.clojure/clojure       "1.9.0"]
    [org.clojure/clojurescript "1.9.946"]
    [org.clojure/core.async    "0.3.465"]
    [org.clojure/tools.nrepl   "0.2.13"] ; Optional, for Cider
 
-   [com.taoensso/sente        "1.12.0"] ; <--- Sente
+   [com.taoensso/sente        "1.11.0"] ; <--- Sente
    [com.taoensso/timbre       "4.10.0"]
 
    ;;; TODO Choose (uncomment) a supported web server -----------------------

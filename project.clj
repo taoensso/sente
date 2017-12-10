@@ -13,7 +13,7 @@
   :dependencies
   [[org.clojure/clojure      "1.8.0"]
    [org.clojure/core.async   "0.3.465"]
-   [com.taoensso/encore      "2.92.0"]
+   [com.taoensso/encore      "2.93.0"]
    [org.clojure/tools.reader "1.1.1"]
    [com.taoensso/timbre      "4.10.0"]]
 
@@ -27,7 +27,7 @@
   {;; :default [:base :system :user :provided :dev]
    :server-jvm {:jvm-opts ^:replace ["-server"]}
    :1.8  {:dependencies [[org.clojure/clojure "1.8.0"]]}
-   :1.9  {:dependencies [[org.clojure/clojure "1.9.0-alpha13"]]}
+   :1.9  {:dependencies [[org.clojure/clojure "1.9.0"]]}
    :test {:dependencies [[com.cognitect/transit-clj  "0.8.300"]
                          [com.cognitect/transit-cljs "0.8.243"]
                          [org.clojure/test.check     "0.9.0"]]}
