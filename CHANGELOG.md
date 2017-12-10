@@ -1,5 +1,16 @@
 > This project uses [Break Versioning](https://github.com/ptaoussanis/encore/blob/master/BREAK-VERSIONING.md) as of **Aug 16, 2014**.
 
+## v1.12.0 - 2017 Dec 3
+
+```clojure
+[com.taoensso/sente "1.12.0"]
+```
+
+> This is a non-breaking bugfix release which updates some dependencies
+
+* [#315 #314 #311] **Fix**: Updated dependencies (@theasp)
+
+
 ## v1.11.0 - 2016 Oct 13
 
 ```clojure
