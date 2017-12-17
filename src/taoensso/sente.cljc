@@ -1517,7 +1517,7 @@
 
     (go-loop []
       (let [[v p] (async/alts! [ch-recv ch-ctrl])
-            stop? (= p ch-ctrl)]
+            stop? (or (= p ch-ctrl) (nil? v))]
 
         (when-not stop?
           (let [{:as event-msg :keys [event]} v]
