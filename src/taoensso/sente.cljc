@@ -1523,20 +1523,20 @@
           (let [{:as event-msg :keys [event]} v]
 
             (execute1
-              (fn []
+             (fn []
+               (enc/catching
+                (do
+                  (when trace-evs? (tracef "Pre-handler event: %s" event))
+                  (event-msg-handler
+                   (if server?
+                     (have! server-event-msg? event-msg)
+                     (have! client-event-msg? event-msg))))
+                e1
                 (enc/catching
-                  (do
-                    (when trace-evs? (tracef "Pre-handler event: %s" event))
-                    (event-msg-handler
-                      (if server?
-                        (have! server-event-msg? event-msg)
-                        (have! client-event-msg? event-msg))))
-                  e1
-                  (enc/catching
-                    (if-let [eh error-handler]
-                      (error-handler e1 event-msg)
-                       (errorf e1 "Chsk router `event-msg-handler` error: %s" event))
-                    e2 (errorf e2 "Chsk router `error-handler` error: %s"     event)))))
+                 (if-let [eh error-handler]
+                   (error-handler e1 event-msg)
+                   (errorf e1 "Chsk router `event-msg-handler` error: %s" event))
+                 e2 (errorf e2 "Chsk router `error-handler` error: %s"     event)))))
 
             (recur)))))
 
