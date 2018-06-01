@@ -304,7 +304,8 @@
               send-buf-ms-ws   30
               user-id-fn    (fn [ring-req] (get-in ring-req [:session :uid]))
               csrf-token-fn (fn [ring-req]
-                              (or (get-in ring-req [:session :csrf-token])
+                              (or (:anti-forgery-token ring-req)
+                                  (get-in ring-req [:session :csrf-token])
                                   (get-in ring-req [:session :ring.middleware.anti-forgery/anti-forgery-token])
                                   (get-in ring-req [:session "__anti-forgery-token"])))
               handshake-data-fn (fn [ring-req] nil)
