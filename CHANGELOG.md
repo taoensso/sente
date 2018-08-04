@@ -1,5 +1,16 @@
 > This project uses [Break Versioning](https://github.com/ptaoussanis/encore/blob/master/BREAK-VERSIONING.md) as of **Aug 16, 2014**.
 
+## v1.13.0 - 2018 Aug 4
+
+```clojure
+[com.taoensso/sente "1.13.0"]
+```
+
+> This is a maintenance release, should be non-breaking in most cases
+
+* Updated all dependencies
+
+
 ## v1.12.1 - 2018 Aug 4
 
 ```clojure
