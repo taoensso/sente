@@ -1,5 +1,16 @@
 > This project uses [Break Versioning](https://github.com/ptaoussanis/encore/blob/master/BREAK-VERSIONING.md) as of **Aug 16, 2014**.
 
+## v1.12.1 - 2018 Aug 4
+
+```clojure
+[com.taoensso/sente "1.12.1"]
+```
+
+> This is a non-breaking maintenance release
+
+* [#323] **Fix**: Work correctly with new versions of `ring-anti-forgery` (@timothypratley)
+
+
 ## v1.12.0 - 2017 Dec 10
 
 ```clojure
