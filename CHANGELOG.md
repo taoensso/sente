@@ -1,5 +1,16 @@
 > This project uses [Break Versioning](https://github.com/ptaoussanis/encore/blob/master/BREAK-VERSIONING.md) as of **Aug 16, 2014**.
 
+## v1.13.1 - 2018 Aug 22
+
+```clojure
+[com.taoensso/sente "1.13.1"]
+```
+
+> This is a hotfix release, should be non-breaking
+
+* [#327 #326] Fix broken ws->ajax downgrade logic (@michaelcameron)
+
+
 ## v1.13.0 - 2018 Aug 4
 
 ```clojure
