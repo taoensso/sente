@@ -1344,7 +1344,7 @@
                      (when-let [impl @impl_]
                        (when-let [ever-opened?_ (:ever-opened?_ impl)]
                          (when-not @ever-opened?_
-                           (when (:last-error new-state)
+                           (when (:last-ws-error new-state)
                              (when (compare-and-set! downgraded?_ false true)
                                (warnf "Permanently downgrading :auto chsk -> :ajax")
                                (-chsk-disconnect! impl :downgrading-ws-to-ajax)
