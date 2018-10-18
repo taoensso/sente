@@ -20,7 +20,8 @@
 
    ;;; TODO Choose (uncomment) a supported web server -----------------------
    [http-kit                             "2.3.0"] ; Default
-   ;; [org.immutant/web                  "2.1.4"]
+   ;; [org.immutant/web                  "2.1.4"
+   ;;  :exclusions [ring/ring-core]]
    ;; [nginx-clojure/nginx-clojure-embed "0.4.4"] ; Needs v0.4.2+
    ;; [aleph                             "0.4.1"]
    ;; -----------------------------------------------------------------------
