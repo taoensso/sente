@@ -10,9 +10,9 @@
                 *assert* true}
 
   :dependencies
-  [[org.clojure/clojure       "1.9.0"]
-   [org.clojure/clojurescript "1.10.339"]
-   [org.clojure/core.async    "0.4.474"]
+  [[org.clojure/clojure       "1.10.0"]
+   [org.clojure/clojurescript "1.10.439"]
+   [org.clojure/core.async    "0.4.490"]
    [org.clojure/tools.nrepl   "0.2.13"] ; Optional, for Cider
 
    [com.taoensso/sente        "1.13.1"] ; <--- Sente
@@ -42,7 +42,7 @@
    [lein-ancient        "0.6.15"]
    [com.cemerick/austin "0.1.6"]
    [lein-cljsbuild      "1.1.7"]
-   [cider/cider-nrepl   "0.17.0"]] ; Optional, for use with Emacs
+   [cider/cider-nrepl   "0.19.0"]] ; Optional, for use with Emacs
 
   :cljsbuild
   {:builds
