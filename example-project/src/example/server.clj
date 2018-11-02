@@ -5,6 +5,7 @@
   (:require
    [clojure.string     :as str]
    [ring.middleware.defaults]
+   [ring.middleware.anti-forgery :as anti-forgery]
    [compojure.core     :as comp :refer (defroutes GET POST)]
    [compojure.route    :as route]
    [hiccup.core        :as hiccup]
@@ -65,6 +66,7 @@
 (defn landing-pg-handler [ring-req]
   (hiccup/html
     [:h1 "Sente reference example"]
+    [:div#sente-csrf-token {:data-csrf-token anti-forgery/*anti-forgery-token*}]
     [:p "An Ajax/WebSocket" [:strong " (random choice!)"] " has been configured for this example"]
     [:hr]
     [:p [:strong "Step 1: "] " try hitting the buttons:"]
@@ -116,7 +118,10 @@
   "**NB**: Sente requires the Ring `wrap-params` + `wrap-keyword-params`
   middleware to work. These are included with
   `ring.middleware.defaults/wrap-defaults` - but you'll need to ensure
-  that they're included yourself if you're not using `wrap-defaults`."
+  that they're included yourself if you're not using `wrap-defaults`.
+
+  You're also STRONGLY recommended to use `ring.middleware.anti-forgery`
+  or something similar."
   (ring.middleware.defaults/wrap-defaults
     ring-routes ring.middleware.defaults/site-defaults))
 

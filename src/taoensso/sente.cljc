@@ -29,7 +29,7 @@
     * Callback replies: :chsk/closed, :chsk/timeout, :chsk/error
 
     * Client-side events:
-        [:chsk/handshake [<?uid> <?csrf-token> <?handshake-data> <first-handshake?>]]
+        [:chsk/handshake [<?uid> nil[4] <?handshake-data> <first-handshake?>]]
         [:chsk/state [<old-state-map> <new-state-map>]]
         [:chsk/recv <ev-as-pushed-from-server>] ; Server>user push
         [:chsk/ws-ping]
@@ -47,7 +47,6 @@
     :ever-opened?       - Truthy iff chsk handshake has ever completed successfully
     :first-open?        - Truthy iff chsk just completed first successful handshake
     :uid                - User id provided by server on handshake,    or nil
-    :csrf-token         - CSRF token provided by server on handshake, or nil
     :handshake-data     - Arb user data provided by server on handshake
     :last-ws-error      - ?{:udt _ :ev <WebSocket-on-error-event>}
     :last-ws-close      - ?{:udt _ :ev <WebSocket-on-close-event>
@@ -74,7 +73,10 @@
     * Single HTTP req+session persists over entire chsk session but cannot
       modify sessions! Use standard a/sync HTTP Ring req/resp for logins, etc.
     * Easy to wrap standard HTTP Ring resps for transport over chsks. Prefer
-      this approach to modifying handlers (better portability)."
+      this approach to modifying handlers (better portability).
+
+  [4] Used to be a csrf-token. Was removed in v1.14 for security reasons.
+  A `nil` remains for semi-backwards-compatibility with pre-v1.14 clients."
 
   {:author "Peter Taoussanis (@ptaoussanis)"}
 
@@ -101,8 +103,8 @@
       [taoensso.sente :as sente-macros :refer (elide-require)])))
 
 (if (vector? taoensso.encore/encore-version)
-  (enc/assert-min-encore-version [2 79 1])
-  (enc/assert-min-encore-version  2.79))
+  (enc/assert-min-encore-version [2 105 0])
+  (enc/assert-min-encore-version  2.105))
 
 (def sente-version "Useful for identifying client/server mismatch"
   [1 11 0])
@@ -273,8 +275,9 @@
     :connected-uids ; Watchable, read-only (atom {:ws #{_} :ajax #{_} :any #{_}}).
 
   Common options:
-    :user-id-fn        ; (fn [ring-req]) -> unique user-id for server>user push.
-    :csrf-token-fn     ; (fn [ring-req]) -> CSRF token for Ajax POSTs.
+    :user-id-fn        ;  (fn [ring-req]) -> unique user-id for server>user push.
+    :csrf-token-fn     ; ?(fn [ring-req]) -> CSRF-token for Ajax POSTs and WS handshake.
+                       ;                    CSRF check will be skipped iff nil (NOT RECOMMENDED!).
     :handshake-data-fn ; (fn [ring-req]) -> arb user data to append to handshake evs.
     :ws-kalive-ms      ; Ping to keep a WebSocket conn alive if no activity
                        ; w/in given msecs. Should be different to client's :ws-kalive-ms.
@@ -296,18 +299,21 @@
   [web-server-ch-adapter
    & [{:keys [recv-buf-or-n ws-kalive-ms lp-timeout-ms
               send-buf-ms-ajax send-buf-ms-ws
-              user-id-fn csrf-token-fn handshake-data-fn packer]
+              user-id-fn bad-csrf-fn csrf-token-fn handshake-data-fn packer]
        :or   {recv-buf-or-n    (async/sliding-buffer 1000)
               ws-kalive-ms     (enc/ms :secs 25) ; < Heroku 55s timeout
               lp-timeout-ms    (enc/ms :secs 20) ; < Heroku 30s timeout
               send-buf-ms-ajax 100
               send-buf-ms-ws   30
               user-id-fn    (fn [ring-req] (get-in ring-req [:session :uid]))
+              bad-csrf-fn   (fn [ring-req] {:status 403 :body "Bad CSRF token"})
               csrf-token-fn (fn [ring-req]
                               (or (:anti-forgery-token ring-req)
                                   (get-in ring-req [:session :csrf-token])
                                   (get-in ring-req [:session :ring.middleware.anti-forgery/anti-forgery-token])
-                                  (get-in ring-req [:session "__anti-forgery-token"])))
+                                  (get-in ring-req [:session "__anti-forgery-token"])
+                                  #_:sente/no-reference-csrf-token
+                                  ))
               handshake-data-fn (fn [ring-req] nil)
               packer :edn}}]]
 
@@ -484,6 +490,26 @@
           ;; undefined):
           nil)
 
+        bad-csrf?
+        (fn [ring-req]
+          (if (nil? csrf-token-fn) ; Provides a way to disable CSRF check
+            false
+            (if-let [reference-csrf-token (csrf-token-fn ring-req)]
+              (let [csrf-token-from-client
+                    (or
+                      (get-in ring-req [:params    :csrf-token])
+                      (get-in ring-req [:headers "x-csrf-token"])
+                      (get-in ring-req [:headers "x-xsrf-token"]))]
+
+                (not
+                  (enc/const-str=
+                    reference-csrf-token
+                    csrf-token-from-client)))
+
+              true ; By default fail if no CSRF token
+              )))
+
+
         ev-msg-const
         {:ch-recv        ch-recv
          :send-fn        send-fn
@@ -496,39 +522,44 @@
      ;; Does not participate in `conns_` (has specific req->resp)
      :ajax-post-fn
      (fn [ring-req]
-       (interfaces/ring-req->server-ch-resp web-server-ch-adapter ring-req
-         {:on-open
-          (fn [server-ch websocket?]
-            (assert (not websocket?))
-            (let [params        (get ring-req :params)
-                  ppstr         (get params   :ppstr)
-                  client-id     (get params   :client-id)
-                  [clj has-cb?] (unpack packer ppstr)
-                  reply-fn
-                  (let [replied?_ (atom false)]
-                    (fn [resp-clj] ; Any clj form
-                      (when (compare-and-set! replied?_ false true)
-                        (tracef "Chsk send (ajax post reply): %s" resp-clj)
-                        (interfaces/sch-send! server-ch websocket?
-                          (pack packer resp-clj)))))]
+       (cond
+         (bad-csrf?   ring-req)
+         (bad-csrf-fn ring-req)
 
-              (put-server-event-msg>ch-recv! ch-recv
-                (merge ev-msg-const
-                  {;; Note that the client-id is provided here just for the
-                   ;; user's convenience. non-lp-POSTs don't actually need a
-                   ;; client-id for Sente's own implementation:
-                   :client-id client-id #_"unnecessary-for-non-lp-POSTs"
-                   :ring-req  ring-req
-                   :event     clj
-                   :uid       (user-id-fn ring-req client-id)
-                   :?reply-fn (when has-cb? reply-fn)}))
+         :else
+         (interfaces/ring-req->server-ch-resp web-server-ch-adapter ring-req
+           {:on-open
+            (fn [server-ch websocket?]
+              (assert (not websocket?))
+              (let [params        (get ring-req :params)
+                    ppstr         (get params   :ppstr)
+                    client-id     (get params   :client-id)
+                    [clj has-cb?] (unpack packer ppstr)
+                    reply-fn
+                    (let [replied?_ (atom false)]
+                      (fn [resp-clj] ; Any clj form
+                        (when (compare-and-set! replied?_ false true)
+                          (tracef "Chsk send (ajax post reply): %s" resp-clj)
+                          (interfaces/sch-send! server-ch websocket?
+                            (pack packer resp-clj)))))]
 
-              (if has-cb?
-                (when-let [ms lp-timeout-ms]
-                  (go
-                    (<! (async/timeout ms))
-                    (reply-fn :chsk/timeout)))
-                (reply-fn :chsk/dummy-cb-200))))}))
+                (put-server-event-msg>ch-recv! ch-recv
+                  (merge ev-msg-const
+                    {;; Note that the client-id is provided here just for the
+                     ;; user's convenience. non-lp-POSTs don't actually need a
+                     ;; client-id for Sente's own implementation:
+                     :client-id client-id #_"unnecessary-for-non-lp-POSTs"
+                     :ring-req  ring-req
+                     :event     clj
+                     :uid       (user-id-fn ring-req client-id)
+                     :?reply-fn (when has-cb? reply-fn)}))
+
+                (if has-cb?
+                  (when-let [ms lp-timeout-ms]
+                    (go
+                      (<! (async/timeout ms))
+                      (reply-fn :chsk/timeout)))
+                  (reply-fn :chsk/dummy-cb-200))))})))
 
      ;; Ajax handshake/poll, or WebSocket handshake
      :ajax-get-or-ws-handshake-fn
@@ -536,7 +567,6 @@
        (let [sch-uuid   (enc/uuid-str 6)
              params     (get ring-req :params)
              client-id  (get params   :client-id)
-             csrf-token (csrf-token-fn ring-req)
              uid        (user-id-fn    ring-req client-id)
 
              receive-event-msg! ; Partial
@@ -557,16 +587,22 @@
                (let [?handshake-data (handshake-data-fn ring-req)
                      handshake-ev
                      (if (nil? ?handshake-data) ; Micro optimization
-                       [:chsk/handshake [uid csrf-token]]
-                       [:chsk/handshake [uid csrf-token ?handshake-data]])]
+                       [:chsk/handshake [uid nil]]
+                       [:chsk/handshake [uid nil ?handshake-data]])]
                  (interfaces/sch-send! server-ch websocket?
                    (pack packer handshake-ev))))]
 
-         (if (str/blank? client-id)
+         (cond
+
+           (str/blank? client-id)
            (let [err-msg "Client's Ring request doesn't have a client id. Does your server have the necessary keyword Ring middleware (`wrap-params` & `wrap-keyword-params`)?"]
              (errorf (str err-msg ": %s") ring-req) ; Careful re: % in req
              (throw (ex-info err-msg {:ring-req ring-req})))
 
+           (bad-csrf?   ring-req)
+           (bad-csrf-fn ring-req)
+
+           :else
            (interfaces/ring-req->server-ch-resp web-server-ch-adapter ring-req
              {:on-open
               (fn [server-ch websocket?]
@@ -873,7 +909,7 @@
      (have? [:el #{:ws :ajax}] chsk-type)
      (have? handshake? clj)
      (tracef "receive-handshake! (%s): %s" chsk-type clj)
-     (let [[_ [?uid ?csrf-token ?handshake-data]] clj
+     (let [[_ [?uid _ ?handshake-data]] clj
            {:keys [chs ever-opened?_]} chsk
            first-handshake? (compare-and-set! ever-opened?_ false true)
            new-state
@@ -881,18 +917,14 @@
             :open?          true
             :ever-opened?   true
             :uid            ?uid
-            :csrf-token     ?csrf-token
             :handshake-data ?handshake-data
             :first-open?    first-handshake?}
 
            handshake-ev
            [:chsk/handshake
-            [?uid ?csrf-token ?handshake-data first-handshake?]]]
+            [?uid nil ?handshake-data first-handshake?]]]
 
        (assert-event handshake-ev)
-       (when (str/blank? ?csrf-token)
-         (warnf "SECURITY WARNING: no CSRF token available for use by Sente"))
-
        (swap-chsk-state! chsk #(merge % new-state))
        (put! (:internal chs) handshake-ev)
 
@@ -1009,7 +1041,8 @@
                            (WebSocket.
                              (enc/merge-url-with-query-string url
                                (merge params ; 1st (don't clobber impl.):
-                                 {:client-id client-id})))
+                                 {:client-id client-id
+                                  :csrf-token (:csrf-token @state_)})))
 
                            (catch :default e
                              (errorf e "WebSocket error")
@@ -1112,10 +1145,10 @@
            chsk)))))
 
 #?(:cljs
-   (defn- new-ChWebSocket [opts]
+   (defn- new-ChWebSocket [opts csrf-token]
      (map->ChWebSocket
        (merge
-         {:state_ (atom {:type :ws :open? false :ever-opened? false})
+         {:state_ (atom {:type :ws :open? false :ever-opened? false :csrf-token csrf-token})
           :instance-handle_ (atom nil)
           :retry-count_     (atom 0)
           :ever-opened?_    (atom false)
@@ -1166,7 +1199,8 @@
                                   default-client-side-ajax-timeout-ms)
                   :resp-type  :text ; We'll do our own pstr decoding
                   :headers
-                  (merge (:headers ajax-opts) ; 1st (don't clobber impl.):
+                  (merge
+                    (:headers ajax-opts) ; 1st (don't clobber impl.)
                     {:X-CSRF-Token csrf-token})
 
                   :params
@@ -1248,7 +1282,12 @@
                             ;; reply immediately with a handshake response,
                             ;; letting us confirm that our client<->server comms
                             ;; are working:
-                            (when-not (:open? @state_) {:handshake? true}))})
+                            (when-not (:open? @state_) {:handshake? true}))
+
+                          :headers
+                          (merge
+                            (:headers ajax-opts) ; 1st (don't clobber impl.)
+                            {:X-CSRF-Token (:csrf-token @state_)})})
 
                        (fn ajax-cb [{:keys [?error ?content]}]
                          (if ?error
@@ -1287,10 +1326,10 @@
          chsk))))
 
 #?(:cljs
-   (defn- new-ChAjaxSocket [opts]
+   (defn- new-ChAjaxSocket [opts csrf-token]
      (map->ChAjaxSocket
        (merge
-         {:state_           (atom {:type :ajax :open? false :ever-opened? false})
+         {:state_           (atom {:type :ajax :open? false :ever-opened? false :csrf-token csrf-token})
           :instance-handle_ (atom nil)
           :ever-opened?_    (atom false)
           :curr-xhr_        (atom nil)}
@@ -1333,7 +1372,7 @@
              (fn []
                ;; Remove :auto->:ajax downgrade watch
                (remove-watch state_ :chsk/auto-ajax-downgrade)
-               (-chsk-connect! (new-ChAjaxSocket ajax-chsk-opts)))
+               (-chsk-connect! (new-ChAjaxSocket ajax-chsk-opts (:csrf-token @state_))))
 
              ws-conn!
              (fn []
@@ -1350,16 +1389,16 @@
                                (-chsk-disconnect! impl :downgrading-ws-to-ajax)
                                (reset! impl_ (ajax-conn!))))))))))
 
-               (-chsk-connect! (new-ChWebSocket ws-chsk-opts)))]
+               (-chsk-connect! (new-ChWebSocket ws-chsk-opts (:csrf-token @state_))))]
 
          (reset! impl_ (or (ws-conn!) (ajax-conn!)))
          chsk))))
 
 #?(:cljs
-   (defn- new-ChAutoSocket [opts]
+   (defn- new-ChAutoSocket [opts csrf-token]
      (map->ChAutoSocket
        (merge
-         {:state_ (atom {:type :auto :open? false :ever-opened? false})
+         {:state_ (atom {:type :auto :open? false :ever-opened? false :csrf-token csrf-token})
           :impl_  (atom nil)}
          opts))))
 
@@ -1393,7 +1432,7 @@
        :ws-kalive-ms   ; Ping to keep a WebSocket conn alive if no activity
                        ; w/in given msecs. Should be different to server's :ws-kalive-ms."
 
-     [path &
+     [path ?csrf-token &
       [{:keys [type protocol host params recv-buf-or-n packer ws-kalive-ms
                client-id ajax-opts wrap-recv-evs? backoff-ms-fn]
         :as   opts
@@ -1413,6 +1452,9 @@
 
      (when (not (nil? _deprecated-more-opts)) (warnf "`make-channel-socket-client!` fn signature CHANGED with Sente v0.10.0."))
      (when (contains? opts :lp-timeout) (warnf ":lp-timeout opt has CHANGED; please use :lp-timout-ms."))
+
+     (when (str/blank? ?csrf-token)
+       (warnf "WARNING: no CSRF token provided. Connections will FAIL if server-side CSRF check is enabled (as it is by default)."))
 
      (let [packer (coerce-packer packer)
 
@@ -1465,9 +1507,9 @@
            ?chsk
            (-chsk-connect!
              (case type
-               :ws   (new-ChWebSocket    ws-chsk-opts)
-               :ajax (new-ChAjaxSocket ajax-chsk-opts)
-               :auto (new-ChAutoSocket auto-chsk-opts)))]
+               :ws   (new-ChWebSocket    ws-chsk-opts ?csrf-token)
+               :ajax (new-ChAjaxSocket ajax-chsk-opts ?csrf-token)
+               :auto (new-ChAutoSocket auto-chsk-opts ?csrf-token)))]
 
        (if-let [chsk ?chsk]
          (let [chsk-state_ (:state_ chsk)
