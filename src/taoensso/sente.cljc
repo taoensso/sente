@@ -1453,7 +1453,7 @@
      (when (not (nil? _deprecated-more-opts)) (warnf "`make-channel-socket-client!` fn signature CHANGED with Sente v0.10.0."))
      (when (contains? opts :lp-timeout) (warnf ":lp-timeout opt has CHANGED; please use :lp-timout-ms."))
 
-     (when (str/blank? ?csrf-token)
+     (when (or (not (string? ?csrf-token)) (str/blank? ?csrf-token))
        (warnf "WARNING: no CSRF token provided. Connections will FAIL if server-side CSRF check is enabled (as it is by default)."))
 
      (let [packer (coerce-packer packer)
