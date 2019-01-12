@@ -1,5 +1,52 @@
 > This project uses [Break Versioning](https://github.com/ptaoussanis/encore/blob/master/BREAK-VERSIONING.md) as of **Aug 16, 2014**.
 
+## v1.14.0-RC2 - 2019 Jan 12
+
+```clojure
+[com.taoensso/sente "1.14.0-RC2"]
+```
+
+> This is a **CRITICAL** bugfix release, please upgrade ASAP
+
+* [#137] **SECURITY FIX, BREAKING**: fix badly broken CSRF protection (@danielcompton, @awkay, @eerohele), more info below
+
+> My sincere apologies for this mistake. Please write if I can provide more details or any other assistance. Further testing/auditing/input very much welcome! - @ptaoussanis
+
+### Security bug details
+
+- All previous versions of Sente (< v1.14.0) contain a critical security design bug identified and reported by @danielcompton, @awkay, @eerohele. (Thank you to them for the report!).
+- **Bug**: Previous versions of Sente were leaking the server-side CSRF token to the client during the (unauthenticated) WebSocket handshake process.
+- **Impact**: An attacker could initiate a WebSocket handshake against the Sente server to discover a logged-in user's CSRF token. With the token, the attacker could then issue cross-site requests against Sente's endpoints. Worse, since Sente often shares a CSRF token with the rest of the web server, it may be possible for an attacker to issue **cross-site requests against the rest of the web server** (not just Sente's endpoints).
+
+### Security fix details
+
+- The fix [commit](https://github.com/ptaoussanis/sente/commit/ae3afd5cf92591c9f756c3177142bee7cccb8b6b) stops the CSRF token leak, introducing a **BREAKING API CHANGE** (details below).
+- Sente will now (by default) refuse to service any requests unless a CSRF token is detected (e.g. via `ring-anti-forgery`).
+
+### Breaking changes
+
+#### `make-channel-socket-client!` now takes an extra mandatory argment
+
+It now takes an explicit `csrf-token` that you must provide. The value for the token can be manually extracted from the page HTML ([example](https://github.com/ptaoussanis/sente/blob/548af55c5eb13a53e451b5214f58ecd45f20b0a5/example-project/src/example/client.cljs#L33)).
+
+In most cases the change will involve three steps:
+
+1. You need to include the server's CSRF token somewhere in your page HTML: [example](https://github.com/ptaoussanis/sente/blob/548af55c5eb13a53e451b5214f58ecd45f20b0a5/example-project/src/example/server.clj#L69).
+2. You need to extract the CSRF token from your page HTML: [example](https://github.com/ptaoussanis/sente/blob/548af55c5eb13a53e451b5214f58ecd45f20b0a5/example-project/src/example/client.cljs#L33).
+3. You'll then use the extracted CSRF token as an argument when calling `make-channel-socket-client!`: [example](https://github.com/ptaoussanis/sente/blob/548af55c5eb13a53e451b5214f58ecd45f20b0a5/example-project/src/example/client.cljs#L52).
+
+#### Client-side `:chsk/handshake` event has changed
+
+It now always has `nil` where it once provided the csrf-token provided by the server.
+
+```
+   I.e. before: [:chsk/handshake [<?uid> <csrf-token> <?handshake-data> <first-handshake?>]]
+         after: [:chsk/handshake [<?uid> nil          <?handshake-data> <first-handshake?>]]
+```
+
+Most users won't be affected by this change.
+
+
 ## v1.13.1 - 2018 Aug 22
 
 ```clojure
