@@ -66,7 +66,11 @@
 (defn landing-pg-handler [ring-req]
   (hiccup/html
     [:h1 "Sente reference example"]
-    [:div#sente-csrf-token {:data-csrf-token anti-forgery/*anti-forgery-token*}]
+    (let [csrf-token
+          ;; (:anti-forgery-token ring-req) ; Also an option
+          (force anti-forgery/*anti-forgery-token*)]
+
+      [:div#sente-csrf-token {:data-csrf-token csrf-token}])
     [:p "An Ajax/WebSocket" [:strong " (random choice!)"] " has been configured for this example"]
     [:hr]
     [:p [:strong "Step 1: "] " try hitting the buttons:"]
