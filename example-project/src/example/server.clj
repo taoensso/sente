@@ -185,7 +185,7 @@
         uid     (:uid     session)]
     (debugf "Unhandled event: %s" event)
     (when ?reply-fn
-      (?reply-fn {:umatched-event-as-echoed-from-from-server event}))))
+      (?reply-fn {:umatched-event-as-echoed-from-server event}))))
 
 (defmethod -event-msg-handler :example/test-rapid-push
   [ev-msg] (test-fast-server>user-pushes))
