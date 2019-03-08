@@ -700,7 +700,7 @@
                                 (fn [[_sch udt-t1]]
                                   (if (= udt-t1 udt-close)
                                     (swapped :swap/dissoc true)
-                                    (swapped udt-t1       false))))]
+                                    (swapped [_sch udt-t1] false))))]
 
                           (when disconnect?
 
