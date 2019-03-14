@@ -266,6 +266,28 @@
   ^:private send-buffered-server-evs>ajax-clients!
   ^:private default-client-side-ajax-timeout-ms)
 
+(defn- bad-origin?
+  [allowed-origins {:as ring-req :keys [headers]}]
+  (let [origin  (get headers "origin")
+        referer (get headers "referer" "")]
+    (cond
+      (do        (=   allowed-origins :all))   false
+      (contains? (set allowed-origins) origin) false
+      (enc/rsome #(str/starts-with? referer (str % "/")) allowed-origins) false
+      :else true)))
+
+(comment
+  ;; good (pass)
+  (bad-origin? :all                 {:headers {"origin"  "http://site.com"}})
+  (bad-origin? #{"http://site.com"} {:headers {"origin"  "http://site.com"}})
+  (bad-origin? #{"http://site.com"} {:headers {"referer" "http://site.com/"}})
+
+  ;; bad (fail)
+  (bad-origin? #{"http://site.com"} {:headers nil})
+  (bad-origin? #{"http://site.com"} {:headers {"origin"  "http://attacker.com"}})
+  (bad-origin? #{"http://site.com"} {:headers {"referer" "http://attacker.com/"}})
+  (bad-origin? #{"http://site.com"} {:headers {"referer" "http://site.com.attacker.com/"}}))
+
 (defn make-channel-socket-server!
   "Takes a web server adapter[1] and returns a map with keys:
     :ch-recv ; core.async channel to receive `event-msg`s (internal or from clients).
@@ -285,6 +307,7 @@
     :send-buf-ms-ajax  ; [2]
     :send-buf-ms-ws    ; [2]
     :packer            ; :edn (default), or an IPacker implementation.
+    :allowed-origins   ; e.g. #{\"http://site.com\" ...}, defaults to :all. ; Alpha
 
   [1] e.g. `(taoensso.sente.server-adapters.http-kit/get-sch-adapter)` or
            `(taoensso.sente.server-adapters.immutant/get-sch-adapter)`.
@@ -299,14 +322,15 @@
   [web-server-ch-adapter
    & [{:keys [recv-buf-or-n ws-kalive-ms lp-timeout-ms
               send-buf-ms-ajax send-buf-ms-ws
-              user-id-fn bad-csrf-fn csrf-token-fn handshake-data-fn packer]
+              user-id-fn bad-csrf-fn bad-origin-fn csrf-token-fn handshake-data-fn packer allowed-origins]
        :or   {recv-buf-or-n    (async/sliding-buffer 1000)
               ws-kalive-ms     (enc/ms :secs 25) ; < Heroku 55s timeout
               lp-timeout-ms    (enc/ms :secs 20) ; < Heroku 30s timeout
               send-buf-ms-ajax 100
               send-buf-ms-ws   30
               user-id-fn    (fn [ring-req] (get-in ring-req [:session :uid]))
-              bad-csrf-fn   (fn [ring-req] {:status 403 :body "Bad CSRF token"})
+              bad-csrf-fn   (fn [_ring-req] {:status 403 :body "Bad CSRF token"})
+              bad-origin-fn (fn [_ring-req] {:status 403 :body "Unauthorized origin"})
               csrf-token-fn (fn [ring-req]
                               (or (:anti-forgery-token ring-req)
                                   (get-in ring-req [:session :csrf-token])
@@ -315,7 +339,8 @@
                                   #_:sente/no-reference-csrf-token
                                   ))
               handshake-data-fn (fn [ring-req] nil)
-              packer :edn}}]]
+              packer :edn
+              allowed-origins :all}}]]
 
   (have? enc/pos-int? send-buf-ms-ajax send-buf-ms-ws)
   (have? #(satisfies? interfaces/IServerChanAdapter %) web-server-ch-adapter)
@@ -327,7 +352,8 @@
          {:lp-timeout-ms lp-timeout-ms
           :default-client-side-ajax-timeout-ms max-ms}))))
 
-  (let [packer  (coerce-packer packer)
+  (let [allowed-origins (have [:or set? #{:all}] allowed-origins)
+        packer  (coerce-packer packer)
         ch-recv (chan recv-buf-or-n)
 
         user-id-fn
@@ -526,6 +552,9 @@
          (bad-csrf?   ring-req)
          (bad-csrf-fn ring-req)
 
+         (bad-origin? allowed-origins ring-req)
+         (bad-origin-fn               ring-req)
+
          :else
          (interfaces/ring-req->server-ch-resp web-server-ch-adapter ring-req
            {:on-open
@@ -601,6 +630,9 @@
 
            (bad-csrf?   ring-req)
            (bad-csrf-fn ring-req)
+
+           (bad-origin? allowed-origins ring-req)
+           (bad-origin-fn               ring-req)
 
            :else
            (interfaces/ring-req->server-ch-resp web-server-ch-adapter ring-req
