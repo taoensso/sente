@@ -266,6 +266,28 @@
   ^:private send-buffered-server-evs>ajax-clients!
   ^:private default-client-side-ajax-timeout-ms)
 
+(defn- bad-origin?
+  [allowed-origins {:keys [headers]}]
+  (let [origin  (get headers "origin")
+        referer (get headers "referer" "")]
+    (cond (= allowed-origins :all) false
+          (contains? (set allowed-origins) origin) false
+          (some #(str/starts-with? referer (str % "/")) allowed-origins) false
+          :else true)))
+
+(comment
+  ;; good
+  (bad-origin? :all {:headers {"origin" "http://site.com"}})
+  (bad-origin? #{"http://site.com"} {:headers {"origin" "http://site.com"}})
+  (bad-origin? #{"http://site.com"} {:headers {"referer" "http://site.com/"}})
+
+  ;; bad
+  (bad-origin? #{"http://site.com"} {:headers nil})
+  (bad-origin? #{"http://site.com"} {:headers {"origin" "http://attacker.com"}})
+  (bad-origin? #{"http://site.com"} {:headers {"referer" "http://attacker.com/"}})
+  (bad-origin? #{"http://site.com"} {:headers {"referer" "http://site.com.attacker.com/"}})
+  )
+
 (defn make-channel-socket-server!
   "Takes a web server adapter[1] and returns a map with keys:
     :ch-recv ; core.async channel to receive `event-msg`s (internal or from clients).
@@ -299,7 +321,7 @@
   [web-server-ch-adapter
    & [{:keys [recv-buf-or-n ws-kalive-ms lp-timeout-ms
               send-buf-ms-ajax send-buf-ms-ws
-              user-id-fn bad-csrf-fn csrf-token-fn handshake-data-fn packer]
+              user-id-fn bad-csrf-fn bad-origin-fn csrf-token-fn handshake-data-fn packer allowed-origins]
        :or   {recv-buf-or-n    (async/sliding-buffer 1000)
               ws-kalive-ms     (enc/ms :secs 25) ; < Heroku 55s timeout
               lp-timeout-ms    (enc/ms :secs 20) ; < Heroku 30s timeout
@@ -307,6 +329,8 @@
               send-buf-ms-ws   30
               user-id-fn    (fn [ring-req] (get-in ring-req [:session :uid]))
               bad-csrf-fn   (fn [ring-req] {:status 403 :body "Bad CSRF token"})
+              allowed-origins :all
+              bad-origin-fn (fn [_] {:status 403 :body "Unauthorized origin"})
               csrf-token-fn (fn [ring-req]
                               (or (:anti-forgery-token ring-req)
                                   (get-in ring-req [:session :csrf-token])
@@ -526,6 +550,9 @@
          (bad-csrf?   ring-req)
          (bad-csrf-fn ring-req)
 
+         (bad-origin? allowed-origins ring-req)
+         (bad-origin-fn ring-req)
+
          :else
          (interfaces/ring-req->server-ch-resp web-server-ch-adapter ring-req
            {:on-open
@@ -601,6 +628,9 @@
 
            (bad-csrf?   ring-req)
            (bad-csrf-fn ring-req)
+
+           (bad-origin? allowed-origins ring-req)
+           (bad-origin-fn ring-req)
 
            :else
            (interfaces/ring-req->server-ch-resp web-server-ch-adapter ring-req
