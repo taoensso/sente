@@ -3,6 +3,7 @@ pom.xml*
 .nrepl-port
 *.jar
 *.class
+*.js
 .env
 .DS_Store
 /lib/
