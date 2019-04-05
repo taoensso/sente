@@ -49,11 +49,13 @@
   {:builds
    [{:id :cljs-client
      :source-paths ["src"]
-     :compiler {:output-to "target/main.js"
+     :compiler {:output-to "resources/public/main.js"
                 :optimizations :whitespace #_:advanced
                 :pretty-print true}}]}
 
   :main example.server
+
+  :clean-targets ^{:protect false} ["resources/public/main.js"]
 
   ;; Call `lein start-repl` to get a (headless) development repl that you can
   ;; connect to with Cider+emacs or your IDE of choice:

@@ -1,1 +1,0 @@
-../../target/main.js
