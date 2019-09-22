@@ -249,6 +249,7 @@ Link                            | Description
 [@danielsz/sente-boot]          | Ref example adapted for [boot]
 [@seancorfield/om-sente]        | ??
 [@tfoldi/data15-blackjack]      | Multiplayer blackjack game with documented source code
+[@dimovich/roll/example]        | Minimal example using [@dimovich/roll].
 Your link here?                 | **PR's welcome!**
 
 ### FAQ
@@ -420,6 +421,8 @@ Copyright &copy; 2014-2016 [Peter Taoussanis].
 [@ebellani/carpet]: https://github.com/ebellani/carpet
 [@theasp/sente-nodejs-example]: https://github.com/theasp/sente-nodejs-example
 [@timothypratley/snakelake]: https://github.com/timothypratley/snakelake
+[@dimovich/roll/example]: https://github.com/dimovich/roll/blob/master/example
+[@dimovich/roll]: https://github.com/dimovich/roll
 [@tfoldi/data15-blackjack]: https://github.com/tfoldi/data15-blackjack
 [Express]: http://expressjs.com/
 [Dog Fort]: https://github.com/whamtet/dogfort
