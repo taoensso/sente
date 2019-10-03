@@ -1424,6 +1424,7 @@
        :type           ; e/o #{:auto :ws :ajax}. You'll usually want the default (:auto).
        :protocol       ; Server protocol, e/o #{:http :https}.
        :host           ; Server host (defaults to current page's host).
+       :port           ; Port to connect to the wss with (OPTIONAL)
        :params         ; Map of any params to incl. in chsk Ring requests (handy
                        ; for application-level auth, etc.).
        :packer         ; :edn (default), or an IPacker implementation.
@@ -1433,7 +1434,7 @@
                        ; w/in given msecs. Should be different to server's :ws-kalive-ms."
 
      [path ?csrf-token &
-      [{:keys [type protocol host params recv-buf-or-n packer ws-kalive-ms
+      [{:keys [type protocol host port params recv-buf-or-n packer ws-kalive-ms
                client-id ajax-opts wrap-recv-evs? backoff-ms-fn]
         :as   opts
         :or   {type           :auto
@@ -1468,7 +1469,9 @@
                 (f path win-loc :ajax)]
 
                (let [protocol (or protocol (:protocol win-loc) :http)
-                     host     (or host     (:host     win-loc))]
+                     host     (if port
+                                (str (:hostname win-loc) ":" port)
+                                (:host win-loc))]
                  [(get-chsk-url protocol host path :ws)
                   (get-chsk-url protocol host path :ajax)])))
 
