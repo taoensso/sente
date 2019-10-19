@@ -299,7 +299,7 @@
   Common options:
     :user-id-fn        ;  (fn [ring-req]) -> unique user-id for server>user push.
     :csrf-token-fn     ; ?(fn [ring-req]) -> CSRF-token for Ajax POSTs and WS handshake.
-                       ;                    CSRF check will be skipped iff nil (NOT RECOMMENDED!).
+                       ;                     CSRF check will be skipped iff nil (NOT RECOMMENDED!).
     :handshake-data-fn ; (fn [ring-req]) -> arb user data to append to handshake evs.
     :ws-kalive-ms      ; Ping to keep a WebSocket conn alive if no activity
                        ; w/in given msecs. Should be different to client's :ws-kalive-ms.
