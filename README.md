@@ -4,7 +4,7 @@
 **[CHANGELOG]** | [API] | current [Break Version]:
 
 ```clojure
-[com.taoensso/sente "1.14.0-RC2"] ; NB Critical security update, see CHANGELOG for details
+[com.taoensso/sente "1.14.0"] ; NB Critical security update, see CHANGELOG for details
 ```
 
 > Please consider helping to [support my continued open-source Clojure/Script work]? 

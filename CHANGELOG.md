@@ -1,5 +1,20 @@
 > This project uses [Break Versioning](https://github.com/ptaoussanis/encore/blob/master/BREAK-VERSIONING.md) as of **Aug 16, 2014**.
 
+## v1.14.0 - 2019 Oct 19
+
+```clojure
+[com.taoensso/sente "1.14.0"]
+```
+
+As `v1.14.0-RC2`, but also includes:
+
+* [#307] **New**: Add server adapter for Macchiato Framework on Node.js (@theasp)
+* [#137 #338] **New**: Add support for origin/referrer checking (@eerohele)
+* [#349 #348] **New**: Add support for specifying chsk port when connecting from client (@pieterbreed)
+* [#337] **Fix**: Incorrect value (only udt) swapped into conns_ (@osbert)
+* [#341] **Fix**: Make cljsbuild output-to resources/public/main.js directly (@shaolang)
+
+
 ## v1.14.0-RC2 - 2019 Jan 12
 
 ```clojure
