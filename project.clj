@@ -12,15 +12,15 @@
 
   :dependencies
   [[org.clojure/clojure      "1.9.0"]
-   [org.clojure/core.async   "0.4.490"]
-   [com.taoensso/encore      "2.105.0"]
+   [org.clojure/core.async   "0.4.500"]
+   [com.taoensso/encore      "2.116.0"]
    [org.clojure/tools.reader "1.3.2"]
    [com.taoensso/timbre      "4.10.0"]]
 
   :plugins
   [[lein-pprint    "1.2.0"]
    [lein-ancient   "0.6.15"]
-   [lein-codox     "0.10.5"]
+   [lein-codox     "0.10.7"]
    [lein-cljsbuild "1.1.7"]]
 
   :profiles
@@ -28,12 +28,12 @@
    :server-jvm {:jvm-opts ^:replace ["-server"]}
    :1.8  {:dependencies [[org.clojure/clojure "1.8.0"]]}
    :1.9  {:dependencies [[org.clojure/clojure "1.9.0"]]}
-   :1.10 {:dependencies [[org.clojure/clojure "1.10.0"]]}
-   :test {:dependencies [[com.cognitect/transit-clj  "0.8.313"]
+   :1.10 {:dependencies [[org.clojure/clojure "1.10.1"]]}
+   :test {:dependencies [[com.cognitect/transit-clj  "0.8.319"]
                          [com.cognitect/transit-cljs "0.8.256"]
-                         [org.clojure/test.check     "0.9.0"]]}
+                         [org.clojure/test.check     "0.10.0"]]}
 
-   :provided {:dependencies [[org.clojure/clojurescript "1.10.439"]]}
+   :provided {:dependencies [[org.clojure/clojurescript "1.10.520"]]}
 
    :dev
    [:1.9 :test :server-jvm
@@ -42,7 +42,7 @@
       [org.immutant/web "2.1.10"]
       [nginx-clojure    "0.4.5"]
       [aleph            "0.4.6"]
-      [macchiato/core   "0.2.14"]]}]}
+      [macchiato/core   "0.2.16"]]}]}
 
   :cljsbuild
   {:test-commands {"node"    ["node" :node-runner "target/main.js"]

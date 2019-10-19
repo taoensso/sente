@@ -10,9 +10,9 @@
                 *assert* true}
 
   :dependencies
-  [[org.clojure/clojure       "1.10.0"]
-   [org.clojure/clojurescript "1.10.439"]
-   [org.clojure/core.async    "0.4.490"]
+  [[org.clojure/clojure       "1.10.1"]
+   [org.clojure/clojurescript "1.10.520"]
+   [org.clojure/core.async    "0.4.500"]
    [org.clojure/tools.nrepl   "0.2.13"] ; Optional, for Cider
 
    [com.taoensso/sente        "1.14.0-RC1"] ; <--- Sente
@@ -35,7 +35,7 @@
 
    ;;; Transit deps optional; may be used to aid perf. of larger data payloads
    ;;; (see reference example for details):
-   [com.cognitect/transit-clj  "0.8.313"]
+   [com.cognitect/transit-clj  "0.8.319"]
    [com.cognitect/transit-cljs "0.8.256"]]
 
   :plugins
@@ -43,7 +43,7 @@
    [lein-ancient        "0.6.15"]
    [com.cemerick/austin "0.1.6"]
    [lein-cljsbuild      "1.1.7"]
-   [cider/cider-nrepl   "0.19.0"]] ; Optional, for use with Emacs
+   [cider/cider-nrepl   "0.22.4"]] ; Optional, for use with Emacs
 
   :cljsbuild
   {:builds
