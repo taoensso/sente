@@ -1503,7 +1503,7 @@
                (let [protocol (or protocol (:protocol win-loc) :http)
                      host     (if port
                                 (str (:hostname win-loc) ":" port)
-                                (do  (:host     win-loc)))]
+                                (or host (:host win-loc)))]
                  [(get-chsk-url protocol host path :ws)
                   (get-chsk-url protocol host path :ajax)])))
 
