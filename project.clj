@@ -1,4 +1,4 @@
-(defproject com.taoensso/sente "1.14.0"
+(defproject com.taoensso/sente "1.15.0"
   :author "Peter Taoussanis <https://www.taoensso.com>"
   :description "Realtime web comms for Clojure/Script"
   :url "https://github.com/ptaoussanis/sente"

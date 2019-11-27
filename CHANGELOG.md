@@ -1,5 +1,16 @@
 > This project uses [Break Versioning](https://github.com/ptaoussanis/encore/blob/master/BREAK-VERSIONING.md) as of **Aug 16, 2014**.
 
+## v1.15.0 - 2019 Nov 27
+
+```clojure
+[com.taoensso/sente "1.15.0"]
+```
+
+> Just updates some dependencies. Should be non-breaking.
+
+* [#355] **Fix**: Bump encore dependency to fix deprecated `goog.structs/Map` issue.
+
+
 ## v1.14.0 - 2019 Oct 19
 
 ```clojure
