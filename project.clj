@@ -12,8 +12,8 @@
 
   :dependencies
   [[org.clojure/clojure      "1.9.0"]
-   [org.clojure/core.async   "0.4.500"]
-   [com.taoensso/encore      "2.116.0"]
+   [org.clojure/core.async   "0.5.527"]
+   [com.taoensso/encore      "2.117.0"]
    [org.clojure/tools.reader "1.3.2"]
    [com.taoensso/timbre      "4.10.0"]]
 
@@ -33,14 +33,14 @@
                          [com.cognitect/transit-cljs "0.8.256"]
                          [org.clojure/test.check     "0.10.0"]]}
 
-   :provided {:dependencies [[org.clojure/clojurescript "1.10.520"]]}
+   :provided {:dependencies [[org.clojure/clojurescript "1.10.597"]]}
 
    :dev
    [:1.9 :test :server-jvm
     {:dependencies
      [[http-kit         "2.3.0"]
       [org.immutant/web "2.1.10"]
-      [nginx-clojure    "0.4.5"]
+      [nginx-clojure    "0.5.1"]
       [aleph            "0.4.6"]
       [macchiato/core   "0.2.16"]]}]}
 

@@ -11,8 +11,8 @@
 
   :dependencies
   [[org.clojure/clojure       "1.10.1"]
-   [org.clojure/clojurescript "1.10.520"]
-   [org.clojure/core.async    "0.4.500"]
+   [org.clojure/clojurescript "1.10.597"]
+   [org.clojure/core.async    "0.5.527"]
    [org.clojure/tools.nrepl   "0.2.13"] ; Optional, for Cider
 
    [com.taoensso/sente        "1.14.0"] ; <--- Sente
@@ -26,7 +26,7 @@
    ;; [aleph                             "0.4.1"]
    ;; -----------------------------------------------------------------------
 
-   [ring                      "1.7.1"]
+   [ring                      "1.8.0"]
    [ring/ring-defaults        "0.3.2"] ; Includes `ring-anti-forgery`, etc.
    ;; [ring-anti-forgery      "1.3.0"]
 
