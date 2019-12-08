@@ -980,15 +980,19 @@
 
      [1] Ref. https://www.npmjs.com/package/websocket
      [2] Ref. https://github.com/RyanMcG/lein-npm"
-     (delay ; Eager eval causes issues with React Native, Ref. #247,
-       (elide-require
-         (when (and node-target? (exists? js/require))
-           (try
-             (js/require "websocket")
-             ;; In particular, catch 'UnableToResolveError'
-             (catch :default e
-               ;; (errorf e "Unable to load npm websocket lib")
-               nil)))))))
+     (let [make-package-name (fn [prefix] (str prefix "socket"))
+           require-fn (if (exists? js/require)
+                        js/require
+                        (constantly :no-op))]
+       (delay ; Eager eval causes issues with React Native, Ref. #247,
+         (elide-require
+           (when (and node-target? (exists? js/require))
+             (try
+               (require-fn (make-package-name "web"))
+               ;; In particular, catch 'UnableToResolveError'
+               (catch :default e
+                 ;; (errorf e "Unable to load npm websocket lib")
+                 nil))))))))
 
 #?(:cljs
    (defrecord ChWebSocket
@@ -1501,9 +1505,8 @@
                 (f path win-loc :ajax)]
 
                (let [protocol (or protocol (:protocol win-loc) :http)
-                     host     (if port
-                                (str (:hostname win-loc) ":" port)
-                                (do  (:host     win-loc)))]
+                     host     (cond-> (or host (:host win-loc))
+                                port (str/replace-first #"(:\d+)?$" (str ":" port)))]
                  [(get-chsk-url protocol host path :ws)
                   (get-chsk-url protocol host path :ajax)])))
 
