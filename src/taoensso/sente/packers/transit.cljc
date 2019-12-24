@@ -99,7 +99,7 @@
   ([transit-fmt] (get-transit-packer transit-fmt {} {}))
   ([transit-fmt writer-opts reader-opts]
    ;; No transit-cljs support for msgpack atm
-   (have? [:el #{:json #_:msgpack}] transit-fmt)
+   (have? [:el #{:json :json-verbose #_:msgpack}] transit-fmt)
    (have? map? writer-opts reader-opts)
    (TransitPacker. transit-fmt writer-opts reader-opts)))
 
