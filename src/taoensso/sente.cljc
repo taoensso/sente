@@ -151,7 +151,7 @@
 (defn client-event-msg? [x]
   (and
     (map? x)
-    (enc/ks= #{:ch-recv :send-fn :state :event :id :?data} x)
+    (enc/ks>= #{:ch-recv :send-fn :state :event :id :?data} x)
     (let [{:keys [ch-recv send-fn state event]} x]
       (and
         (enc/chan? ch-recv)
@@ -162,9 +162,9 @@
 (defn server-event-msg? [x]
   (and
     (map? x)
-    (enc/ks= #{:ch-recv :send-fn :connected-uids
-               :ring-req :client-id
-               :event :id :?data :?reply-fn :uid} x)
+    (enc/ks>= #{:ch-recv :send-fn :connected-uids
+                :ring-req :client-id
+                :event :id :?data :?reply-fn :uid} x)
     (let [{:keys [ch-recv send-fn connected-uids
                   ring-req client-id event ?reply-fn]} x]
       (and
