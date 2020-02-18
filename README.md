@@ -81,7 +81,7 @@ For Sente, we're going to add 2 new URLs and setup their handlers:
   (:require
     ;; <other stuff>
     [taoensso.sente :as sente] ; <--- Add this
-
+    [ring.middleware.anti-forgery :as anti-forgery :refer [wrap-anti-forgery]]
     ;; Uncomment a web-server adapter --->
     ;; [taoensso.sente.server-adapters.http-kit      :refer (get-sch-adapter)]
     ;; [taoensso.sente.server-adapters.immutant      :refer (get-sch-adapter)]
@@ -113,10 +113,19 @@ For Sente, we're going to add 2 new URLs and setup their handlers:
   (-> my-app-routes
       ;; Add necessary Ring middleware:
       ring.middleware.keyword-params/wrap-keyword-params
-      ring.middleware.params/wrap-params))
+      ring.middleware.params/wrap-params
+      ring.middleware.anti-forgery/wrap-anti-forgery
+      ring.middleware.session/wrap-session))
 ```
 
 > The `ring-ajax-post` and `ring-ajax-get-or-ws-handshake` fns will automatically handle Ring GET and POST requests to our channel socket URL (`"/chsk"`). Together these take care of the messy details of establishing + maintaining WebSocket or long-polling requests.
+
+You will also need to embed the CSRF token in your HTML for discovery
+
+```
+    (let [csrf-token (force anti-forgery/*anti-forgery-token*)]
+      [:div#sente-csrf-token {:data-csrf-token csrf-token}])
+```
 
 ### On the client (ClojureScript) side
 
@@ -133,8 +142,18 @@ You'll setup something similar on the client side:
   ))
 
 ;;; Add this: --->
+
+(def ?csrf-token
+  (when-let [el (.getElementById js/document "sente-csrf-token")]
+    (.getAttribute el "data-csrf-token")))
+
+(if ?csrf-token
+  (->output! "CSRF token detected in HTML, great!")
+  (->output! "CSRF token NOT detected in HTML, default Sente config will reject requests"))
+  
 (let [{:keys [chsk ch-recv send-fn state]}
-      (sente/make-channel-socket! "/chsk" ; Note the same path as before
+      (sente/make-channel-socket-client! "/chsk" ; Note the same path as before
+       ?csrf-token
        {:type :auto ; e/o #{:auto :ajax :ws}
        })]
   (def chsk       chsk)
@@ -314,7 +333,7 @@ Yup, it's automatic for both Ajax and WebSockets. If the page serving your JavaS
 
 #### Security: CSRF protection?
 
-**This is important**. Sente has support, but you'll need to use middleware like `ring-anti-forgery` to generate and check CSRF codes. The `ring-ajax-post` handler should be covered (i.e. protected).
+Sente support for CSRF is now mandatory.  Sente has support, but you'll need to use middleware like `ring-anti-forgery` to generate and check CSRF codes. The `ring-ajax-post` handler should be covered (i.e. protected).
 
 Please see one of the [example projects] for a fully-baked example.
 
