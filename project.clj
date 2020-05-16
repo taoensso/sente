@@ -42,7 +42,8 @@
       [org.immutant/web "2.1.10"]
       [nginx-clojure    "0.5.1"]
       [aleph            "0.4.6"]
-      [macchiato/core   "0.2.19"]]}]}
+      [macchiato/core   "0.2.19"]
+      [luminus/ring-undertow-adapter "1.1.1"]]}]}
 
   :cljsbuild
   {:test-commands {"node"    ["node" :node-runner "target/main.js"]
