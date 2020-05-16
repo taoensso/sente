@@ -38,11 +38,12 @@
    :dev
    [:1.9 :test :server-jvm
     {:dependencies
-     [[http-kit         "2.3.0"]
-      [org.immutant/web "2.1.10"]
-      [nginx-clojure    "0.5.1"]
-      [aleph            "0.4.6"]
-      [macchiato/core   "0.2.16"]]}]}
+     [[http-kit                      "2.3.0"]
+      [org.immutant/web              "2.1.10"]
+      [nginx-clojure                 "0.5.1"]
+      [aleph                         "0.4.6"]
+      [macchiato/core                "0.2.16"]
+      [luminus/ring-undertow-adapter "1.0.4"]]}]}
 
   :cljsbuild
   {:test-commands {"node"    ["node" :node-runner "target/main.js"]
