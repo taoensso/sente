@@ -3,7 +3,6 @@
   {:author "Nik Peric"}
   (:require
     [clojure.core.async :as async]
-    [clojure.string :as string]
     [ring.adapter.undertow.websocket :as websocket]
     [ring.adapter.undertow.response :as response]
     [taoensso.sente.interfaces :as i])
@@ -19,10 +18,6 @@
   (sch-open? [this] (.isOpen this))
   (sch-close! [this] (.sendClose this))
   (sch-send! [this websocket? msg] (websocket/send msg this)))
-
-(defn websocket-req? [ring-req]
-  (when-let [s (get-in ring-req [:headers "upgrade"])]
-    (= "websocket" (string/lower-case s))))
 
 (extend-protocol response/RespondBody
   WebSocketConnectionCallback
@@ -77,7 +72,7 @@
   i/IServerChanAdapter
   (ring-req->server-ch-resp [sch-adapter ring-req callbacks-map]
     ;; Returns {:body <websocket-implementation-channel> ...}:
-    {:body (if (websocket-req? ring-req)
+    {:body (if (:websocket? ring-req)
              (ws-ch callbacks-map)
              (ajax-ch callbacks-map))}))
 
