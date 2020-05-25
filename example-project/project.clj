@@ -11,22 +11,22 @@
 
   :dependencies
   [[org.clojure/clojure       "1.10.1"]
-   [org.clojure/clojurescript "1.10.597"]
-   [org.clojure/core.async    "0.5.527"]
+   [org.clojure/clojurescript "1.10.773"]
+   [org.clojure/core.async    "1.2.603"]
    [org.clojure/tools.nrepl   "0.2.13"] ; Optional, for Cider
 
    [com.taoensso/sente        "1.15.0"] ; <--- Sente
    [com.taoensso/timbre       "4.10.0"]
 
    ;;; TODO Choose (uncomment) a supported web server -----------------------
-   [http-kit                             "2.3.0"] ; Default
+   [http-kit                             "2.4.0-beta1" #_"2.3.0"] ; Default
    ;; [org.immutant/web                  "2.1.4"
    ;;  :exclusions [ring/ring-core]]
    ;; [nginx-clojure/nginx-clojure-embed "0.4.4"] ; Needs v0.4.2+
    ;; [aleph                             "0.4.1"]
    ;; -----------------------------------------------------------------------
 
-   [ring                      "1.8.0"]
+   [ring                      "1.8.1"]
    [ring/ring-defaults        "0.3.2"] ; Includes `ring-anti-forgery`, etc.
    ;; [ring-anti-forgery      "1.3.0"]
 
@@ -35,15 +35,15 @@
 
    ;;; Transit deps optional; may be used to aid perf. of larger data payloads
    ;;; (see reference example for details):
-   [com.cognitect/transit-clj  "0.8.319"]
-   [com.cognitect/transit-cljs "0.8.256"]]
+   [com.cognitect/transit-clj  "1.0.324"]
+   [com.cognitect/transit-cljs "0.8.264"]]
 
   :plugins
-  [[lein-pprint         "1.2.0"]
+  [[lein-pprint         "1.3.2"]
    [lein-ancient        "0.6.15"]
    [com.cemerick/austin "0.1.6"]
-   [lein-cljsbuild      "1.1.7"]
-   [cider/cider-nrepl   "0.22.4"]] ; Optional, for use with Emacs
+   [lein-cljsbuild      "1.1.8"]
+   [cider/cider-nrepl   "0.25.2"]] ; Optional, for use with Emacs
 
   :cljsbuild
   {:builds
