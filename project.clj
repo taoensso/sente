@@ -43,7 +43,7 @@
       [nginx-clojure                 "0.5.1"]
       [aleph                         "0.4.6"]
       [macchiato/core                "0.2.17"]
-      [luminus/ring-undertow-adapter "1.1.0"]]]}]}
+      [luminus/ring-undertow-adapter "1.1.0"]]}]}
 
   :cljsbuild
   {:test-commands {"node"    ["node" :node-runner "target/main.js"]
