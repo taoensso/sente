@@ -4,7 +4,8 @@
 **[CHANGELOG]** | [API] | current [Break Version]:
 
 ```clojure
-[com.taoensso/sente "1.15.0"] ; Stable, see CHANGELOG for details
+[com.taoensso/sente "1.15.0"]        ; Stable, see CHANGELOG      for details
+[com.taoensso/sente "1.16.0-alpha1"] ; Dev,    see commit history for details
 ```
 
 > Please consider helping to [support my continued open-source Clojure/Script work]? 
