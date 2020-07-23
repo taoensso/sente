@@ -14,6 +14,7 @@
   [[org.clojure/clojure      "1.10.1" :scope "provided"]
    [org.clojure/core.async   "1.2.603"]
    [com.taoensso/encore      "2.122.0"]
+   [org.java-websocket/Java-WebSocket "1.4.0"]
    [org.clojure/tools.reader "1.3.2"]
    [com.taoensso/timbre      "4.10.0"]]
 
