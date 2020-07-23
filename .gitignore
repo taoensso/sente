@@ -13,3 +13,5 @@ pom.xml*
 /logs/
 /docs/
 /doc/
+/sente.iml
+/.idea/
