@@ -162,15 +162,16 @@
 (defn server-event-msg? [x]
   (and
     (map? x)
-    (enc/ks>= #{:ch-recv :send-fn :connected-uids
+    (enc/ks>= #{:ch-recv :send-fn :connected-uids :send-buffers
                 :ring-req :client-id
                 :event :id :?data :?reply-fn :uid} x)
-    (let [{:keys [ch-recv send-fn connected-uids
+    (let [{:keys [ch-recv send-fn connected-uids send-buffers
                   ring-req client-id event ?reply-fn]} x]
       (and
         (enc/chan?       ch-recv)
         (ifn?            send-fn)
         (enc/atom?       connected-uids)
+        (enc/atom?       send-buffers)
         (map?            ring-req)
         (enc/nblank-str? client-id)
         (event?          event)
@@ -294,7 +295,8 @@
     :send-fn ; (fn [user-id ev] for server>user push.
     :ajax-post-fn                ; (fn [ring-req]) for Ring CSRF-POST + chsk URL.
     :ajax-get-or-ws-handshake-fn ; (fn [ring-req]) for Ring GET + chsk URL.
-    :connected-uids ; Watchable, read-only (atom {:ws #{_} :ajax #{_} :any #{_}}).
+    :connected-uids ;             Watchable, read-only (atom {:ws #{_} :ajax #{_} :any #{_}}).
+    :send-buffers   ; Implementation detail, read-only (atom {:ws #{_} :ajax #{_} :any #{_}}).
 
   Common options:
     :user-id-fn        ;  (fn [ring-req]) -> unique user-id for server>user push.
@@ -539,11 +541,13 @@
         ev-msg-const
         {:ch-recv        ch-recv
          :send-fn        send-fn
-         :connected-uids connected-uids_}]
+         :connected-uids connected-uids_
+         :send-buffers   send-buffers_}]
 
     {:ch-recv        ch-recv
      :send-fn        send-fn
      :connected-uids connected-uids_
+     :send-buffers   send-buffers_
 
      ;; Does not participate in `conns_` (has specific req->resp)
      :ajax-post-fn
