@@ -17,15 +17,22 @@
    ;;; TODO Choose (uncomment) a supported web server + adapter -------------
    [org.httpkit.server :as http-kit]
    [taoensso.sente.server-adapters.http-kit :refer (get-sch-adapter)]
-   ;;
+
    ;; [immutant.web :as immutant]
    ;; [taoensso.sente.server-adapters.immutant :refer (get-sch-adapter)]
-   ;;
+
    ;; [nginx.clojure.embed :as nginx-clojure]
    ;; [taoensso.sente.server-adapters.nginx-clojure :refer (get-sch-adapter)]
-   ;;
+
    ;; [aleph.http :as aleph]
    ;; [taoensso.sente.server-adapters.aleph :refer (get-sch-adapter)]
+
+   ;; [ring.adapter.jetty9.websocket :as jetty9.websocket]
+   ;; [taoensso.sente.server-adapters.jetty9 :refer (get-sch-adapter)]
+   ;;
+   ;; See https://gist.github.com/wavejumper/40c4cbb21d67e4415e20685710b68ea0
+   ;; for full example using Jetty 9
+
    ;; -----------------------------------------------------------------------
 
    ;; Optional, for Transit encoding:

@@ -24,6 +24,7 @@
    ;;  :exclusions [ring/ring-core]]
    ;; [nginx-clojure/nginx-clojure-embed "0.4.4"] ; Needs v0.4.2+
    ;; [aleph                             "0.4.1"]
+   ;; [info.sunng/ring-jetty9-adapter    "0.13.0"]
    ;; -----------------------------------------------------------------------
 
    [ring                      "1.8.1"]
