@@ -15,7 +15,7 @@
 
 (defn ajax-cbs [ws]
   {:write-failed  (fn [_] (jetty9.websocket/close! ws))
-   :write-success (fn [_] (jetty9.websocket/close! ws))})
+   :write-success (fn [] (jetty9.websocket/close! ws))})
 
 (extend-protocol i/IServerChan
   WebSocketAdapter
