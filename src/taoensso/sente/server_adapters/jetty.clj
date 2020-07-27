@@ -30,22 +30,16 @@
       (jetty9.websocket/send! ws msg)
       (jetty9.websocket/send! ws msg (ajax-cbs ws)))))
 
-(defrecord JettyServerChanResponse [ws]
-  jetty9.websocket/IWebSocketAdapter
-  (ws-adapter [_] ws))
-
 (defn server-ch-resp
   [ws? {:keys [on-open on-close on-msg on-error]}]
-  (let [ws (jetty9.websocket/proxy-ws-adapter
-            {:on-connect (fn [ws]
-                           (on-open ws ws?))
-             :on-text    (fn [ws msg]
-                           (on-msg ws ws? msg))
-             :on-close   (fn [ws status-code _]
-                           (on-close ws ws? status-code))
-             :on-error   (fn [ws e]
-                           (on-error ws ws? e))})]
-    (JettyServerChanResponse. ws)))
+  {:on-connect (fn [ws]
+                 (on-open ws ws?))
+   :on-text    (fn [ws msg]
+                 (on-msg ws ws? msg))
+   :on-close   (fn [ws status-code _]
+                 (on-close ws ws? status-code))
+   :on-error   (fn [ws e]
+                 (on-error ws ws? e))})
 
 (defn- websocket-req? [ring-req]
   (when-let [s (get-in ring-req [:headers "upgrade"])]

@@ -44,7 +44,7 @@
       [aleph            "0.4.6"]
       [macchiato/core   "0.2.19"]
       [luminus/ring-undertow-adapter "1.1.1"]
-      [wavejumper/ring-jetty9-adapter "0.13.1-patch6"]]}]}
+      [info.sunng/ring-jetty9-adapter "0.13.0"]]}]}
 
   :cljsbuild
   {:test-commands {"node"    ["node" :node-runner "target/main.js"]
