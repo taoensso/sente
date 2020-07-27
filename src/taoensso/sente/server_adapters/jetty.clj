@@ -5,8 +5,7 @@
 
   Thus, stateful Ring middleware require a little extra configuration:
 
-  * ring-session: pass shared instance of :store
-  * ring-anti-forgery: pass shared instance of :strategy"
+  * ring-session: pass shared instance of :store"
   {:author "Thomas Crowley (@wavejumper)"}
   (:require [clojure.string :as str]
             [ring.adapter.jetty9.websocket :as jetty9.websocket]
