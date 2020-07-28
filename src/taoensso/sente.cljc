@@ -324,7 +324,9 @@
   [web-server-ch-adapter
    & [{:keys [recv-buf-or-n ws-kalive-ms lp-timeout-ms
               send-buf-ms-ajax send-buf-ms-ws
-              user-id-fn bad-csrf-fn bad-origin-fn csrf-token-fn handshake-data-fn packer allowed-origins]
+              user-id-fn bad-csrf-fn bad-origin-fn csrf-token-fn
+              handshake-data-fn packer allowed-origins]
+
        :or   {recv-buf-or-n    (async/sliding-buffer 1000)
               ws-kalive-ms     (enc/ms :secs 25) ; < Heroku 55s timeout
               lp-timeout-ms    (enc/ms :secs 20) ; < Heroku 30s timeout
@@ -333,13 +335,15 @@
               user-id-fn    (fn [ring-req] (get-in ring-req [:session :uid]))
               bad-csrf-fn   (fn [_ring-req] {:status 403 :body "Bad CSRF token"})
               bad-origin-fn (fn [_ring-req] {:status 403 :body "Unauthorized origin"})
-              csrf-token-fn (fn [ring-req]
-                              (or (:anti-forgery-token ring-req)
-                                  (get-in ring-req [:session :csrf-token])
-                                  (get-in ring-req [:session :ring.middleware.anti-forgery/anti-forgery-token])
-                                  (get-in ring-req [:session "__anti-forgery-token"])
-                                  #_:sente/no-reference-csrf-token
-                                  ))
+              csrf-token-fn
+              (fn [ring-req]
+                (or (:anti-forgery-token ring-req)
+                  (get-in ring-req [:session :csrf-token])
+                  (get-in ring-req [:session :ring.middleware.anti-forgery/anti-forgery-token])
+                  (get-in ring-req [:session "__anti-forgery-token"])
+                  #_:sente/no-reference-csrf-token
+                  ))
+
               handshake-data-fn (fn [ring-req] nil)
               packer :edn
               allowed-origins :all}}]]
@@ -348,11 +352,11 @@
   (have? #(satisfies? interfaces/IServerChanAdapter %) web-server-ch-adapter)
 
   (let [max-ms default-client-side-ajax-timeout-ms]
-   (when (>= lp-timeout-ms max-ms)
-     (throw
-       (ex-info (str ":lp-timeout-ms must be < " max-ms)
-         {:lp-timeout-ms lp-timeout-ms
-          :default-client-side-ajax-timeout-ms max-ms}))))
+    (when (>= lp-timeout-ms max-ms)
+      (throw
+        (ex-info (str ":lp-timeout-ms must be < " max-ms)
+          {:lp-timeout-ms lp-timeout-ms
+           :default-client-side-ajax-timeout-ms max-ms}))))
 
   (let [allowed-origins (have [:or set? #{:all}] allowed-origins)
         packer  (coerce-packer packer)
@@ -424,8 +428,8 @@
                       (swapped new-m
                         (let [old-any (:any old-m)
                               new-any (:any new-m)]
-                          (when (and      (contains? old-any uid)
-                                     (not (contains? new-any uid)))
+                          (when (and     (contains? old-any uid)
+                                    (not (contains? new-any uid)))
                             :newly-disconnected))))))]
 
             newly-disconnected?))
@@ -435,8 +439,8 @@
           (let [uid (if (= user-id :sente/all-users-without-uid) ::nil-uid user-id)
                 _   (tracef "Chsk send: (->uid %s) %s" uid ev)
                 _   (assert uid
-                    (str "Support for sending to `nil` user-ids has been REMOVED. "
-                         "Please send to `:sente/all-users-without-uid` instead."))
+                      (str "Support for sending to `nil` user-ids has been REMOVED. "
+                           "Please send to `:sente/all-users-without-uid` instead."))
                 _   (assert-event ev)
 
                 ev-uuid (enc/uuid-str)
@@ -455,8 +459,9 @@
                            ;; alternatives like flush workers.
                            (let [[_ ev-uuids] (get m uid)]
                              (if (contains? ev-uuids ev-uuid)
-                               (swapped (dissoc m uid)
-                                        (get    m uid))
+                               (swapped
+                                 (dissoc m uid)
+                                 (get    m uid))
                                (swapped m nil)))))]
 
                     (let [[buffered-evs ev-uuids] pulled]
@@ -683,7 +688,7 @@
                       (receive-event-msg! [:chsk/uidport-open uid]))
 
                     (if handshake?
-                      ; Client will immediately repoll
+                      ;; Client will immediately repoll
                       (send-handshake! server-ch websocket?)
 
                       (when-let [ms lp-timeout-ms]
@@ -856,15 +861,15 @@
      (assert-event x)
      (assert (or (and (nil? ?timeout-ms) (nil? ?cb))
                  (and (enc/nat-int? ?timeout-ms)))
-             (str "cb requires a timeout; timeout-ms should be a +ive integer: " ?timeout-ms))
+       (str "cb requires a timeout; timeout-ms should be a +ive integer: " ?timeout-ms))
      (assert (or (nil? ?cb) (ifn? ?cb) (enc/chan? ?cb))
-             (str "cb should be nil, an ifn, or a channel: " (type ?cb)))))
+       (str "cb should be nil, an ifn, or a channel: " (type ?cb)))))
 
 #?(:cljs
    (defn- pull-unused-cb-fn! [cbs-waiting_ ?cb-uuid]
      (when-let [cb-uuid ?cb-uuid]
        (swap-in! cbs-waiting_ [cb-uuid]
-                 (fn [?f] (swapped :swap/dissoc ?f))))))
+         (fn [?f] (swapped :swap/dissoc ?f))))))
 
 #?(:cljs
    (defn- swap-chsk-state!
@@ -901,10 +906,10 @@
                    :unexpected}] reason)
      (if (or (:open? state) (not= reason :unexpected))
        (-> state
-           (dissoc :udt-next-reconnect)
-           (assoc
-             :open? false
-             :last-close {:udt (enc/now-udt) :reason reason}))
+         (dissoc :udt-next-reconnect)
+         (assoc
+           :open? false
+           :last-close {:udt (enc/now-udt) :reason reason}))
        state)))
 
 #?(:cljs
@@ -938,7 +943,7 @@
 #?(:cljs
    (defn- handshake? [x]
      (and (vector? x) ; Nb support arb input (e.g. cb replies)
-          (let [[x1] x] (= x1 :chsk/handshake)))))
+       (let [[x1] x] (= x1 :chsk/handshake)))))
 
 #?(:cljs
    (defn- receive-handshake! [chsk-type chsk clj]
@@ -968,7 +973,7 @@
 
 #?(:clj
    (defmacro ^:private elide-require
-    "Experimental. The presence of `js/require` calls can cause issues with
+     "Experimental. The presence of `js/require` calls can cause issues with
     React Native, even if they never execute. Currently no other known
     workarounds. Ref. https://github.com/ptaoussanis/sente/issues/247."
      [& body]
@@ -1009,16 +1014,16 @@
 
 #?(:cljs
    (defrecord ChWebSocket
-     ;; WebSocket-only IChSocket implementation
-     ;; Handles (re)connections, cbs, etc.
+       ;; WebSocket-only IChSocket implementation
+       ;; Handles (re)connections, cbs, etc.
 
-     [client-id chs params packer url ws-kalive-ms
-      state_ ; {:type _ :open? _ :uid _ :csrf-token _ ...}
-      instance-handle_ retry-count_ ever-opened?_
-      backoff-ms-fn ; (fn [nattempt]) -> msecs
-      cbs-waiting_ ; {<cb-uuid> <fn> ...}
-      socket_
-      udt-last-comms_]
+       [client-id chs params packer url ws-kalive-ms
+        state_ ; {:type _ :open? _ :uid _ :csrf-token _ ...}
+        instance-handle_ retry-count_ ever-opened?_
+        backoff-ms-fn ; (fn [nattempt]) -> msecs
+        cbs-waiting_ ; {<cb-uuid> <fn> ...}
+        socket_
+        udt-last-comms_]
 
      IChSocket
      (-chsk-disconnect! [chsk reason]
@@ -1214,13 +1219,13 @@
 
 #?(:cljs
    (defrecord ChAjaxSocket
-     ;; Ajax-only IChSocket implementation
-     ;; Handles (re)polling, etc.
+       ;; Ajax-only IChSocket implementation
+       ;; Handles (re)polling, etc.
 
-     [client-id chs params packer url state_
-      instance-handle_ ever-opened?_
-      backoff-ms-fn
-      ajax-opts curr-xhr_]
+       [client-id chs params packer url state_
+        instance-handle_ ever-opened?_
+        backoff-ms-fn
+        ajax-opts curr-xhr_]
 
      IChSocket
      (-chsk-disconnect! [chsk reason]
@@ -1302,7 +1307,7 @@
                                  backoff-ms (backoff-ms-fn retry-count*)
                                  udt-next-reconnect (+ (enc/now-udt) backoff-ms)]
                              (warnf "Chsk is closed: will try reconnect attempt (%s) in %s ms"
-                                    retry-count* backoff-ms)
+                               retry-count* backoff-ms)
                              (.setTimeout goog/global
                                (fn [] (poll-fn retry-count*))
                                backoff-ms)
@@ -1386,12 +1391,12 @@
 
 #?(:cljs
    (defrecord ChAutoSocket
-     ;; Dynamic WebSocket/Ajax IChSocket implementation
-     ;; Wraps a swappable ChWebSocket/ChAjaxSocket
+       ;; Dynamic WebSocket/Ajax IChSocket implementation
+       ;; Wraps a swappable ChWebSocket/ChAjaxSocket
 
-     [ws-chsk-opts ajax-chsk-opts state_
-      impl_ ; ChWebSocket or ChAjaxSocket
-      ]
+       [ws-chsk-opts ajax-chsk-opts state_
+        impl_ ; ChWebSocket or ChAjaxSocket
+        ]
 
      IChSocket
      (-chsk-disconnect! [chsk reason]
@@ -1415,7 +1420,7 @@
        ;; Starting with a simple downgrade-only strategy here as a proof of concept
        ;; TODO Later consider smarter downgrade or downgrade+upgrade strategies?
        (let [ajax-chsk-opts (assoc ajax-chsk-opts :state_ state_)
-               ws-chsk-opts (assoc   ws-chsk-opts :state_ state_)
+             ws-chsk-opts (assoc   ws-chsk-opts :state_ state_)
 
              ajax-conn!
              (fn []
@@ -1630,7 +1635,7 @@
                   (enc/catching
                     (if-let [eh error-handler]
                       (error-handler e1 event-msg)
-                       (errorf e1 "Chsk router `event-msg-handler` error: %s" event))
+                      (errorf e1 "Chsk router `event-msg-handler` error: %s" event))
                     e2 (errorf e2 "Chsk router `error-handler` error: %s"     event)))))
 
             (recur)))))
