@@ -269,13 +269,14 @@
 
 (defn- bad-origin?
   [allowed-origins {:as ring-req :keys [headers]}]
-  (let [origin  (get headers "origin")
-        referer (get headers "referer" "")]
-    (cond
-      (do        (=   allowed-origins :all))   false
-      (contains? (set allowed-origins) origin) false
-      (enc/rsome #(str/starts-with? referer (str % "/")) allowed-origins) false
-      :else true)))
+  (if (= allowed-origins :all)
+    false
+    (let [origin  (get headers "origin")
+          referer (get headers "referer" "")]
+      (cond
+        (contains? (set allowed-origins) origin) false
+        (enc/rsome #(str/starts-with? referer (str % "/")) allowed-origins) false
+        :else true))))
 
 (comment
   ;; good (pass)
@@ -291,17 +292,31 @@
 
 (defn make-channel-socket-server!
   "Takes a web server adapter[1] and returns a map with keys:
+
     :ch-recv ; core.async channel to receive `event-msg`s (internal or from clients).
-    :send-fn ; (fn [user-id ev] for server>user push.
-    :ajax-post-fn                ; (fn [ring-req]) for Ring CSRF-POST + chsk URL.
-    :ajax-get-or-ws-handshake-fn ; (fn [ring-req]) for Ring GET + chsk URL.
+    :send-fn                     ; (fn [user-id ev] for server>user push.
+    :ajax-post-fn                ; (fn [ring-req])  for Ring CSRF-POST + chsk URL.
+    :ajax-get-or-ws-handshake-fn ; (fn [ring-req])  for Ring GET + chsk URL.
+
     :connected-uids ;             Watchable, read-only (atom {:ws #{_} :ajax #{_} :any #{_}}).
     :send-buffers   ; Implementation detail, read-only (atom {:ws #{_} :ajax #{_} :any #{_}}).
 
-  Common options:
-    :user-id-fn        ;  (fn [ring-req]) -> unique user-id for server>user push.
+  Security options:
+
+    :allowed-origins   ; e.g. #{\"http://site.com\" ...}, defaults to :all. ; Alpha
+
     :csrf-token-fn     ; ?(fn [ring-req]) -> CSRF-token for Ajax POSTs and WS handshake.
-                       ;                     CSRF check will be skipped iff nil (NOT RECOMMENDED!).
+                       ; CSRF check will be skipped iff nil (NOT RECOMMENDED!).
+
+    :authorized?-fn    ; ?(fn [ring-req]) -> When non-nil, (authorized?-fn <ring-req>)
+                       ; must return truthy, otherwise connection requests will be
+                       ; rejected with (unauthorized-fn <ring-req>) response.
+                       ;
+                       ; May check Authroization HTTP header, etc.
+
+  Other common options:
+
+    :user-id-fn        ; (fn [ring-req]) -> unique user-id for server>user push.
     :handshake-data-fn ; (fn [ring-req]) -> arb user data to append to handshake evs.
     :ws-kalive-ms      ; Ping to keep a WebSocket conn alive if no activity
                        ; w/in given msecs. Should be different to client's :ws-kalive-ms.
@@ -309,7 +324,6 @@
     :send-buf-ms-ajax  ; [2]
     :send-buf-ms-ws    ; [2]
     :packer            ; :edn (default), or an IPacker implementation.
-    :allowed-origins   ; e.g. #{\"http://site.com\" ...}, defaults to :all. ; Alpha
 
   [1] e.g. `(taoensso.sente.server-adapters.http-kit/get-sch-adapter)` or
            `(taoensso.sente.server-adapters.immutant/get-sch-adapter)`.
@@ -325,16 +339,18 @@
    & [{:keys [recv-buf-or-n ws-kalive-ms lp-timeout-ms
               send-buf-ms-ajax send-buf-ms-ws
               user-id-fn bad-csrf-fn bad-origin-fn csrf-token-fn
-              handshake-data-fn packer allowed-origins]
+              handshake-data-fn packer allowed-origins
+              authorized?-fn unauthorized-fn]
 
        :or   {recv-buf-or-n    (async/sliding-buffer 1000)
               ws-kalive-ms     (enc/ms :secs 25) ; < Heroku 55s timeout
               lp-timeout-ms    (enc/ms :secs 20) ; < Heroku 30s timeout
               send-buf-ms-ajax 100
               send-buf-ms-ws   30
-              user-id-fn    (fn [ring-req] (get-in ring-req [:session :uid]))
-              bad-csrf-fn   (fn [_ring-req] {:status 403 :body "Bad CSRF token"})
-              bad-origin-fn (fn [_ring-req] {:status 403 :body "Unauthorized origin"})
+              user-id-fn      (fn [ ring-req] (get-in ring-req [:session :uid]))
+              bad-csrf-fn     (fn [_ring-req] {:status 403 :body "Bad CSRF token"})
+              bad-origin-fn   (fn [_ring-req] {:status 403 :body "Unauthorized origin"})
+              unauthorized-fn (fn [_ring-req] {:status 401 :body "Unauthorized request"})
               csrf-token-fn
               (fn [ring-req]
                 (or (:anti-forgery-token ring-req)
@@ -542,6 +558,26 @@
               true ; By default fail if no CSRF token
               )))
 
+        unauthorized?
+        (fn [ring-req]
+          (if (nil? authorized?-fn)
+            false
+            (not (authorized?-fn))))
+
+        ;; nnil if connection attempt should be rejected
+        possible-rejection-resp
+        (fn [ring-req]
+          (cond
+            (bad-csrf?   ring-req)
+            (bad-csrf-fn ring-req)
+
+            (bad-origin? allowed-origins ring-req)
+            (bad-origin-fn               ring-req)
+
+            (unauthorized?   ring-req)
+            (unauthorized-fn ring-req)
+
+            :else nil))
 
         ev-msg-const
         {:ch-recv        ch-recv
@@ -557,13 +593,8 @@
      ;; Does not participate in `conns_` (has specific req->resp)
      :ajax-post-fn
      (fn [ring-req]
-       (cond
-         (bad-csrf?   ring-req)
-         (bad-csrf-fn ring-req)
-
-         (bad-origin? allowed-origins ring-req)
-         (bad-origin-fn               ring-req)
-
+       (enc/cond
+         :if-let [resp (possible-rejection-resp ring-req)] resp
          :else
          (interfaces/ring-req->server-ch-resp web-server-ch-adapter ring-req
            {:on-open
@@ -630,19 +661,14 @@
                  (interfaces/sch-send! server-ch websocket?
                    (pack packer handshake-ev))))]
 
-         (cond
+         (enc/cond
 
            (str/blank? client-id)
            (let [err-msg "Client's Ring request doesn't have a client id. Does your server have the necessary keyword Ring middleware (`wrap-params` & `wrap-keyword-params`)?"]
              (errorf (str err-msg ": %s") ring-req) ; Careful re: % in req
              (throw (ex-info err-msg {:ring-req ring-req})))
 
-           (bad-csrf?   ring-req)
-           (bad-csrf-fn ring-req)
-
-           (bad-origin? allowed-origins ring-req)
-           (bad-origin-fn               ring-req)
-
+           :if-let [resp (possible-rejection-resp ring-req)] resp
            :else
            (interfaces/ring-req->server-ch-resp web-server-ch-adapter ring-req
              {:on-open
