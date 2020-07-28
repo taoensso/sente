@@ -42,7 +42,7 @@
  * Standard **Ring security model**: auth as you like, HTTPS when available, CSRF support, etc.
  * **Fully documented, with examples**
  * **Small codebase**: ~1.5k lines for the entire client+server implementation
- * **Supported servers**: [http-kit], [Immutant v2+], [nginx-clojure], node.js, [Aleph]
+ * **Supported servers**: [http-kit], [Immutant v2+], [nginx-clojure], node.js, [Aleph], [ring-jetty9-adapter]
 
 ### Capabilities
 
@@ -422,6 +422,7 @@ Copyright &copy; 2014-2016 [Peter Taoussanis].
 [nginx-clojure]: https://github.com/nginx-clojure/nginx-clojure
 [Aleph]: https://github.com/ztellman/aleph
 [example projects]: #example-projects
+[ring-jetty9-adapter]: https://github.com/sunng87/ring-jetty9-adapter
 
 [supported web servers]: https://github.com/ptaoussanis/sente/issues/102
 
