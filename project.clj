@@ -38,7 +38,7 @@
    :dev
    [:1.10 :test :server-jvm
     {:dependencies
-     [[http-kit         "2.3.0"]
+     [[http-kit         "2.4.0"]
       [org.immutant/web "2.1.10"]
       [nginx-clojure    "0.5.1"]
       [aleph            "0.4.6"]
