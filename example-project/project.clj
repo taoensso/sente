@@ -12,7 +12,7 @@
   :dependencies
   [[org.clojure/clojure       "1.10.1"]
    [org.clojure/clojurescript "1.10.773"]
-   [org.clojure/core.async    "1.2.603"]
+   [org.clojure/core.async    "1.3.610"]
    [org.clojure/tools.nrepl   "0.2.13"] ; Optional, for Cider
 
    [com.taoensso/sente        "1.15.0"] ; <--- Sente
@@ -31,7 +31,7 @@
    [ring/ring-defaults        "0.3.2"] ; Includes `ring-anti-forgery`, etc.
    ;; [ring-anti-forgery      "1.3.0"]
 
-   [compojure                 "1.6.1"] ; Or routing lib of your choice
+   [compojure                 "1.6.2"] ; Or routing lib of your choice
    [hiccup                    "1.0.5"] ; Optional, just for HTML
 
    ;;; Transit deps optional; may be used to aid perf. of larger data payloads
@@ -42,9 +42,9 @@
   :plugins
   [[lein-pprint         "1.3.2"]
    [lein-ancient        "0.6.15"]
-   [com.cemerick/austin "0.1.6"]
+   ;[com.cemerick/austin "0.1.6"]
    [lein-cljsbuild      "1.1.8"]
-   [cider/cider-nrepl   "0.25.2"]] ; Optional, for use with Emacs
+   [cider/cider-nrepl   "0.25.3"]] ; Optional, for use with Emacs
 
   :cljsbuild
   {:builds

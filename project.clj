@@ -12,9 +12,9 @@
 
   :dependencies
   [[org.clojure/clojure      "1.10.1" :scope "provided"]
-   [org.clojure/core.async   "1.2.603"]
+   [org.clojure/core.async   "1.3.610"]
    [com.taoensso/encore      "2.122.0"]
-   [org.clojure/tools.reader "1.3.2"]
+   [org.clojure/tools.reader "1.3.3"]
    [com.taoensso/timbre      "4.10.0"]]
 
   :plugins
@@ -42,9 +42,9 @@
       [org.immutant/web "2.1.10"]
       [nginx-clojure    "0.5.1"]
       [aleph            "0.4.6"]
-      [macchiato/core   "0.2.19"]
-      [luminus/ring-undertow-adapter  "1.1.1"]
-      [info.sunng/ring-jetty9-adapter "0.13.0"]]}]}
+      [macchiato/core   "0.2.20"]
+      [luminus/ring-undertow-adapter  "1.1.2"]
+      [info.sunng/ring-jetty9-adapter "0.14.0"]]}]}
 
   :cljsbuild
   {:test-commands {"node"    ["node" :node-runner "target/main.js"]
