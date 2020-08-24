@@ -34,7 +34,7 @@ Some info on how to resolve dependency conflicts [here](https://github.com/ptaou
 #### Fixes since `1.15.0`
 
 * [#366 #353 #358] Make make-channel-socket-client! respect host option (@Rkiouak).
-* Use new http-kit v2.4.0 server API internally to fix possible race conditions.
+* Use new http-kit v2.4.0 server API internally to fix possible [race conditions](https://github.com/http-kit/http-kit/issues/318).
 * [#357 #247] Fix for React Native (@currentoor).
 
 
