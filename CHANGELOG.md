@@ -1,5 +1,43 @@
 > This project uses [Break Versioning](https://github.com/ptaoussanis/encore/blob/master/BREAK-VERSIONING.md) as of **Aug 16, 2014**.
 
+## v1.16.0-alpha2 - 2020 Aug 24
+
+```clojure
+[com.taoensso/sente "1.16.0-alpha2"]
+```
+
+> Major feature release. _Should_ be non-breaking, but users of http-kit **will need to update to >= [http-kit v2.4.0](https://github.com/http-kit/http-kit/releases/tag/v2.4.0)**.
+
+#### Tip! Recommended steps after any significant dependency update:
+
+1. Run `lein deps :tree` (or equivalent) to check for possible dependency conflicts.
+2. Run `lein clean` (or equivalent) to ensure no stale build artifacts remain.
+3. Please test carefully before running in production!
+
+Some info on how to resolve dependency conflicts [here](https://github.com/ptaoussanis/encore/blob/master/DEP-CONFLICT.md).
+
+#### Changes since `1.15.0`
+
+* **[NB]** http-kit users must now use >= http-kit v2.4.0.
+* [#362 #363] Allow additional keys in event-msg maps (@jjttjj).
+* [#365] README: incl. example CSRF code (@mattford63).
+
+#### New since `1.15.0`
+
+* [#371 #375] Add Jetty 9 server adapter (@wavejumper).
+* [#372] Add `ring-undertow` server adapter (@nikolap).
+* [#275 #374] Add Clj WebSocket client support (@kaosko).
+* Add optional auth fn to `make-channel-socket-server!` (@kaosko @ptaoussanis).
+* [#356] Expose `send-buffers_` as implementation detail (@kaosko).
+* [#359 #360] Add :json-verbose format to Transit packer (@p-himik).
+
+#### Fixes since `1.15.0`
+
+* [#366 #353 #358] Make make-channel-socket-client! respect host option (@Rkiouak).
+* Use new http-kit v2.4.0 server API internally to fix possible race conditions.
+* [#357 #247] Fix for React Native (@currentoor).
+
+
 ## v1.15.0 - 2019 Nov 27
 
 ```clojure
