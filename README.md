@@ -253,21 +253,22 @@ Key             | Value
 
 ### Example projects
 
-Link                            | Description
-------------------------------- | --------------------------------------------------------
-**[Official example]**          | **Official Sente reference example**, always up-to-date
-[@laforge49/sente-boot]         | Example using Sente v1.11.0, Boot (also works with Windows)
-[@laforge49/sente-boot-reagent] | Example using Sente v1.11.0, Boot, and Reagent
-[@tiensonqin/lymchat]           | Example chat app using React Native
-[@danielsz/system-websockets]   | Client-side UI, login and wiring of components
-[@timothypratley/snakelake]     | Multiplayer snake game with screencast walkthrough
-[@theasp/sente-nodejs-example]  | Ref. example adapted for Node.js servers ([Express], [Dog Fort]), as well as a node.js client
-[@ebellani/carpet]              | Web+mobile interface for a remmitance application
-[@danielsz/sente-system]        | Ref example adapted for [@danielsz/system]
-[@danielsz/sente-boot]          | Ref example adapted for [boot]
-[@seancorfield/om-sente]        | ??
-[@tfoldi/data15-blackjack]      | Multiplayer blackjack game with documented source code
-Your link here?                 | **PR's welcome!**
+Link                                          | Description
+--------------------------------------------- | --------------------------------------------------------
+**[Official example]**                        | **Official Sente reference example**, always up-to-date
+[@laforge49/sente-boot]                       | Example using Sente v1.11.0, Boot (also works with Windows)
+[@laforge49/sente-boot-reagent]               | Example using Sente v1.11.0, Boot, and Reagent
+[@tiensonqin/lymchat]                         | Example chat app using React Native
+[@danielsz/system-websockets]                 | Client-side UI, login and wiring of components
+[@timothypratley/snakelake]                   | Multiplayer snake game with screencast walkthrough
+[@theasp/sente-nodejs-example]                | Ref. example adapted for Node.js servers ([Express], [Dog Fort]), as well as a node.js client
+[@ebellani/carpet]                            | Web+mobile interface for a remmitance application
+[@danielsz/sente-system]                      | Ref example adapted for [@danielsz/system]
+[@danielsz/sente-boot]                        | Ref example adapted for [boot]
+[@seancorfield/om-sente]                      | ??
+[@tfoldi/data15-blackjack]                    | Multiplayer blackjack game with documented source code
+[@davidvujic/sente-with-reagent-and-re-frame] | Example code that combines Sente with Reagent and re-frame in a single page application
+Your link here?                               | **PR's welcome!**
 
 ### FAQ
 
@@ -440,6 +441,8 @@ Copyright &copy; 2014-2020 [Peter Taoussanis].
 [@theasp/sente-nodejs-example]: https://github.com/theasp/sente-nodejs-example
 [@timothypratley/snakelake]: https://github.com/timothypratley/snakelake
 [@tfoldi/data15-blackjack]: https://github.com/tfoldi/data15-blackjack
+[@davidvujic/sente-with-reagent-and-re-frame]: https://github.com/DavidVujic/sente-with-reagent-and-re-frame
+
 [Express]: http://expressjs.com/
 [Dog Fort]: https://github.com/whamtet/dogfort
 
