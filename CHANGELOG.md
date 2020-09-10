@@ -1,5 +1,16 @@
 > This project uses [Break Versioning](https://github.com/ptaoussanis/encore/blob/master/BREAK-VERSIONING.md) as of **Aug 16, 2014**.
 
+## v1.16.0-RC1 - 2020 Sep 10
+
+```clojure
+[com.taoensso/sente "1.16.0-RC1"]
+```
+
+Same as `v1.16.0-alpha2`.
+
+> See [here](https://github.com/ptaoussanis/encore#recommended-steps-after-any-significant-dependency-update) recommended steps when updating any Clojure/Script dependencies.
+
+
 ## v1.16.0-alpha2 - 2020 Aug 24
 
 ```clojure
