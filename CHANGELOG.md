@@ -1,5 +1,37 @@
 > This project uses [Break Versioning](https://github.com/ptaoussanis/encore/blob/master/BREAK-VERSIONING.md) as of **Aug 16, 2014**.
 
+## v1.16.0 - 2020 Sep 19
+
+```clojure
+[com.taoensso/sente "1.16.0"]
+```
+
+> Major feature release. Should be non-breaking, but see [here](https://github.com/ptaoussanis/encore#recommended-steps-after-any-significant-dependency-update) for recommended steps when updating any Clojure/Script dependencies.
+
+Same as `v1.16.0-RC1`, `v1.16.0-alpha2`.
+
+#### Changes since `v1.15.0`
+
+* **[NB]** http-kit users must now use >= http-kit [`v2.4.0`](https://github.com/http-kit/http-kit/releases/tag/v2.4.0) ([`v2.5.0`](https://github.com/http-kit/http-kit/releases/tag/v2.5.0) is latest as of writing)
+
+#### New since `v1.15.0`
+
+* [#371 #375] Add Jetty 9 server adapter (@wavejumper)
+* [#372] Add `ring-undertow` server adapter (@nikolap)
+* [#275 #374] Add Clj WebSocket client support (@kaosko)
+* Add optional auth fn to `make-channel-socket-server!` (@kaosko @ptaoussanis)
+* [#356] Expose `send-buffers_` as implementation detail (@kaosko)
+* [#359 #360] Add :json-verbose format to Transit packer (@p-himik)
+* [#362 #363] Allow additional keys in event-msg maps (@jjttjj)
+* [#365] README: incl. example CSRF code (@mattford63)
+
+#### Fixes since `v1.15.0`
+
+* [#366 #353 #358] Make make-channel-socket-client! respect host option (@Rkiouak)
+* Use new http-kit v2.4.0 server API internally to fix possible [race conditions](https://github.com/http-kit/http-kit/issues/318)
+* [#357 #247] Fix for React Native (@currentoor)
+
+
 ## v1.16.0-RC1 - 2020 Sep 10
 
 ```clojure
@@ -8,7 +40,7 @@
 
 Same as `v1.16.0-alpha2`.
 
-> See [here](https://github.com/ptaoussanis/encore#recommended-steps-after-any-significant-dependency-update) recommended steps when updating any Clojure/Script dependencies.
+> See [here](https://github.com/ptaoussanis/encore#recommended-steps-after-any-significant-dependency-update) for recommended steps when updating any Clojure/Script dependencies.
 
 
 ## v1.16.0-alpha2 - 2020 Aug 24
@@ -27,13 +59,11 @@ Same as `v1.16.0-alpha2`.
 
 Some info on how to resolve dependency conflicts [here](https://github.com/ptaoussanis/encore/blob/master/DEP-CONFLICT.md).
 
-#### Changes since `1.15.0`
+#### Changes since `v1.15.0`
 
 * **[NB]** http-kit users must now use >= http-kit v2.4.0.
-* [#362 #363] Allow additional keys in event-msg maps (@jjttjj).
-* [#365] README: incl. example CSRF code (@mattford63).
 
-#### New since `1.15.0`
+#### New since `v1.15.0`
 
 * [#371 #375] Add Jetty 9 server adapter (@wavejumper).
 * [#372] Add `ring-undertow` server adapter (@nikolap).
@@ -41,8 +71,10 @@ Some info on how to resolve dependency conflicts [here](https://github.com/ptaou
 * Add optional auth fn to `make-channel-socket-server!` (@kaosko @ptaoussanis).
 * [#356] Expose `send-buffers_` as implementation detail (@kaosko).
 * [#359 #360] Add :json-verbose format to Transit packer (@p-himik).
+* [#362 #363] Allow additional keys in event-msg maps (@jjttjj).
+* [#365] README: incl. example CSRF code (@mattford63).
 
-#### Fixes since `1.15.0`
+#### Fixes since `v1.15.0`
 
 * [#366 #353 #358] Make make-channel-socket-client! respect host option (@Rkiouak).
 * Use new http-kit v2.4.0 server API internally to fix possible [race conditions](https://github.com/http-kit/http-kit/issues/318).
