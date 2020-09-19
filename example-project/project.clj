@@ -19,7 +19,7 @@
    [com.taoensso/timbre       "4.10.0"]
 
    ;;; TODO Choose (uncomment) a supported web server -----------------------
-   [http-kit                             "2.4.0"] ; Default
+   [http-kit                             "2.5.0"] ; Default
    ;; [org.immutant/web                  "2.1.4"
    ;;  :exclusions [ring/ring-core]]
    ;; [nginx-clojure/nginx-clojure-embed "0.4.4"] ; Needs v0.4.2+

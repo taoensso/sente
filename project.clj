@@ -12,7 +12,7 @@
 
   :dependencies
   [[org.clojure/core.async   "1.3.610"]
-   [com.taoensso/encore      "3.0.0"]
+   [com.taoensso/encore      "3.1.0"]
    [org.java-websocket/Java-WebSocket "1.5.1"]
    [org.clojure/tools.reader "1.3.3"]
    [com.taoensso/timbre      "4.10.0"]]
@@ -37,7 +37,7 @@
               [[com.cognitect/transit-clj  "1.0.324"]
                [com.cognitect/transit-cljs "0.8.264"]
                [org.clojure/test.check     "1.1.0"]
-               [http-kit         "2.4.0"]
+               [http-kit         "2.5.0"]
                [org.immutant/web "2.1.10"]
                [nginx-clojure    "0.5.1"]
                [aleph            "0.4.6"]
