@@ -31,7 +31,7 @@
    :1.8      {:dependencies [[org.clojure/clojure "1.8.0"]]}
    :1.9      {:dependencies [[org.clojure/clojure "1.9.0"]]}
    :1.10     {:dependencies [[org.clojure/clojure "1.10.1"]]}
-   :depr     {:jvm-opts ["-Dtaoensso.elide-deprecated=true"]}
+;;   :depr     {:jvm-opts ["-Dtaoensso.elide-deprecated=true"]}
    :dev      [:1.10 :test :server-jvm :depr]
    :test     {:dependencies
               [[com.cognitect/transit-clj  "1.0.324"]

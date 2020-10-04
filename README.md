@@ -9,9 +9,7 @@
 
 > See [here](https://taoensso.com/clojure/backers) if you're interested in helping support my open-source work, thanks! - Peter Taoussanis
 
-# Sente
-
-### Realtime web comms for Clojure/Script
+# Sente: realtime web comms for Clojure/Script
 
 **Or**: We don't need no [Socket.IO]
 
@@ -55,7 +53,8 @@ So you can ignore the underlying protocol and deal directly with Sente's unified
 Add the necessary dependency to your project:
 
 ```clojure
-[com.taoensso/sente "1.16.0"]
+Leiningen: [com.taoensso/sente "1.6.0"] ; or
+deps.edn:   com.taoensso/sente {:mvn/version "1.6.0"}
 ```
 
 ### On the server (Clojure) side
