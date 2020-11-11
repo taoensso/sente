@@ -309,7 +309,7 @@ To add custom handlers to the TransitPacker, pass them in as `writer-opts` and `
             [taoensso.sente.packers.transit :as sente-transit])
   (:import [org.joda.time DateTime ReadableInstant]))
 
-;; From http://increasinglyfunctional.com/2014/09/02/custom-transit-writers-clojure-joda-time/
+;; From https://increasinglyfunctional.com/2014/09/02/custom-transit-writers-clojure-joda-time.html
 (def joda-time-writer
   (transit/write-handler
     (constantly "m")
