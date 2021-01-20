@@ -566,7 +566,7 @@
         (fn [ring-req]
           (if (nil? authorized?-fn)
             false
-            (not (authorized?-fn))))
+            (not (authorized?-fn ring-req))))
 
         ;; nnil if connection attempt should be rejected
         possible-rejection-resp
