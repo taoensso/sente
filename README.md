@@ -53,8 +53,8 @@ So you can ignore the underlying protocol and deal directly with Sente's unified
 Add the necessary dependency to your project:
 
 ```clojure
-Leiningen: [com.taoensso/sente "1.6.0"] ; or
-deps.edn:   com.taoensso/sente {:mvn/version "1.6.0"}
+Leiningen: [com.taoensso/sente "1.16.0"] ; or
+deps.edn:   com.taoensso/sente {:mvn/version "1.16.0"}
 ```
 
 ### On the server (Clojure) side
