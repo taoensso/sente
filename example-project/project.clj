@@ -10,24 +10,24 @@
                 *assert* true}
 
   :dependencies
-  [[org.clojure/clojure       "1.10.1"]
+  [[org.clojure/clojure       "1.10.2"]
    [org.clojure/clojurescript "1.10.773"]
    [org.clojure/core.async    "1.3.610"]
    [org.clojure/tools.nrepl   "0.2.13"] ; Optional, for Cider
 
-   [com.taoensso/sente        "1.16.0"] ; <--- Sente
-   [com.taoensso/timbre       "4.10.0"]
+   [com.taoensso/sente        "1.16.1"] ; <--- Sente
+   [com.taoensso/timbre       "5.1.1"]
 
    ;;; TODO Choose (uncomment) a supported web server -----------------------
-   [http-kit                             "2.5.0"] ; Default
-   ;; [org.immutant/web                  "2.1.4"
+   [http-kit                             "2.5.1"] ; Default
+   ;; [org.immutant/web                  "2.1.10"
    ;;  :exclusions [ring/ring-core]]
-   ;; [nginx-clojure/nginx-clojure-embed "0.4.4"] ; Needs v0.4.2+
+   ;; [nginx-clojure/nginx-clojure-embed "0.5.2"] ; Needs v0.4.2+
    ;; [aleph                             "0.4.1"]
-   ;; [info.sunng/ring-jetty9-adapter    "0.13.0"]
+   ;; [info.sunng/ring-jetty9-adapter    "0.14.2"]
    ;; -----------------------------------------------------------------------
 
-   [ring                      "1.8.1"]
+   [ring                      "1.8.2"]
    [ring/ring-defaults        "0.3.2"] ; Includes `ring-anti-forgery`, etc.
    ;; [ring-anti-forgery      "1.3.0"]
 
@@ -41,10 +41,10 @@
 
   :plugins
   [[lein-pprint         "1.3.2"]
-   [lein-ancient        "0.6.15"]
+   [lein-ancient        "0.7.0"]
    ;[com.cemerick/austin "0.1.6"]
    [lein-cljsbuild      "1.1.8"]
-   [cider/cider-nrepl   "0.25.3"]] ; Optional, for use with Emacs
+   [cider/cider-nrepl   "0.25.8"]] ; Optional, for use with Emacs
 
   :cljsbuild
   {:builds
