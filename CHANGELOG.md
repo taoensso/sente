@@ -1,5 +1,23 @@
 > This project uses [Break Versioning](https://github.com/ptaoussanis/encore/blob/master/BREAK-VERSIONING.md) as of **Aug 16, 2014**.
 
+## v1.16.1 - 2021 Jan 31
+
+```clojure
+[com.taoensso/sente "1.16.1"]
+```
+
+> This is a **minor maintenance release**.  
+> See [here](https://github.com/ptaoussanis/encore#recommended-steps-after-any-significant-dependency-update) for recommended steps when updating any Clojure/Script dependencies.
+
+### Fixes since `1.16.0`
+
+- [#385] Fix: pass ring-req to authorized?-fn (@viesti)
+
+### New since `1.16.0`
+
+- chsk server: add `:?unauthorized-fn` option
+
+
 ## v1.16.0 - 2020 Sep 19
 
 ```clojure

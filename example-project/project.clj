@@ -1,4 +1,4 @@
-(defproject com.taoensso.examples/sente "1.16.0"
+(defproject com.taoensso.examples/sente "1.16.1"
   :description "Sente, reference web-app example project"
   :url "https://github.com/ptaoussanis/sente"
   :license {:name "Eclipse Public License"
