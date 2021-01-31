@@ -318,6 +318,11 @@
                        ;
                        ; May check Authroization HTTP header, etc.
 
+    :?unauthorized-fn  ; An alternative API to `authorized?-fn`+`unauthorized-fn` pair.
+                       ; ?(fn [ring-req)) -> <?rejection-resp>. I.e. when return value
+                       ; is non-nil, connection requests will be rejected with that
+                       ; non-nil value.
+
   Other common options:
 
     :user-id-fn        ; (fn [ring-req]) -> unique user-id for server>user push.
@@ -344,7 +349,7 @@
               send-buf-ms-ajax send-buf-ms-ws
               user-id-fn bad-csrf-fn bad-origin-fn csrf-token-fn
               handshake-data-fn packer allowed-origins
-              authorized?-fn unauthorized-fn]
+              authorized?-fn unauthorized-fn ?unauthorized-fn]
 
        :or   {recv-buf-or-n    (async/sliding-buffer 1000)
               ws-kalive-ms     (enc/ms :secs 25) ; < Heroku 55s timeout
@@ -571,7 +576,7 @@
         ;; nnil if connection attempt should be rejected
         possible-rejection-resp
         (fn [ring-req]
-          (cond
+          (enc/cond
             (bad-csrf?   ring-req)
             (bad-csrf-fn ring-req)
 
@@ -580,6 +585,10 @@
 
             (unauthorized?   ring-req)
             (unauthorized-fn ring-req)
+
+            :if-some [unauthorized-resp (when-let [uf ?unauthorized-fn]
+                                          (uf ring-req))]
+            unauthorized-resp
 
             :else nil))
 
