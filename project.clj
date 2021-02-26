@@ -12,10 +12,10 @@
 
   :dependencies
   [[org.clojure/core.async   "1.3.610"]
-   [com.taoensso/encore      "3.10.1"]
+   [com.taoensso/encore      "3.12.1"]
    [org.java-websocket/Java-WebSocket "1.5.1"]
-   [org.clojure/tools.reader "1.3.4"]
-   [com.taoensso/timbre      "5.1.1"]]
+   [org.clojure/tools.reader "1.3.5"]
+   [com.taoensso/timbre      "5.1.2"]]
 
   :plugins
   [[lein-pprint    "1.3.2"]
@@ -31,18 +31,18 @@
    :1.8      {:dependencies [[org.clojure/clojure "1.8.0"]]}
    :1.9      {:dependencies [[org.clojure/clojure "1.9.0"]]}
    :1.10     {:dependencies [[org.clojure/clojure "1.10.2"]]}
-;;   :depr     {:jvm-opts ["-Dtaoensso.elide-deprecated=true"]}
+;; :depr     {:jvm-opts ["-Dtaoensso.elide-deprecated=true"]}
    :dev      [:1.10 :test :server-jvm :depr]
    :test     {:dependencies
               [[com.cognitect/transit-clj  "1.0.324"]
                [com.cognitect/transit-cljs "0.8.264"]
                [org.clojure/test.check     "1.1.0"]
-               [http-kit         "2.5.1"]
+               [http-kit         "2.5.3"]
                [org.immutant/web "2.1.10"]
                [nginx-clojure    "0.5.2"]
                [aleph            "0.4.6"]
                [macchiato/core   "0.2.21"]
-               [luminus/ring-undertow-adapter  "1.1.4"]
+               [luminus/ring-undertow-adapter  "1.2.0"]
                [info.sunng/ring-jetty9-adapter "0.14.2"]]}}
 
   :cljsbuild

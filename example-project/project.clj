@@ -16,10 +16,10 @@
    [org.clojure/tools.nrepl   "0.2.13"] ; Optional, for Cider
 
    [com.taoensso/sente        "1.16.1"] ; <--- Sente
-   [com.taoensso/timbre       "5.1.1"]
+   [com.taoensso/timbre       "5.1.2"]
 
    ;;; TODO Choose (uncomment) a supported web server -----------------------
-   [http-kit                             "2.5.1"] ; Default
+   [http-kit                             "2.5.3"] ; Default
    ;; [org.immutant/web                  "2.1.10"
    ;;  :exclusions [ring/ring-core]]
    ;; [nginx-clojure/nginx-clojure-embed "0.5.2"] ; Needs v0.4.2+
@@ -27,7 +27,7 @@
    ;; [info.sunng/ring-jetty9-adapter    "0.14.2"]
    ;; -----------------------------------------------------------------------
 
-   [ring                      "1.8.2"]
+   [ring                      "1.9.1"]
    [ring/ring-defaults        "0.3.2"] ; Includes `ring-anti-forgery`, etc.
    ;; [ring-anti-forgery      "1.3.0"]
 
@@ -44,7 +44,7 @@
    [lein-ancient        "0.7.0"]
    ;[com.cemerick/austin "0.1.6"]
    [lein-cljsbuild      "1.1.8"]
-   [cider/cider-nrepl   "0.25.8"]] ; Optional, for use with Emacs
+   [cider/cider-nrepl   "0.25.9"]] ; Optional, for use with Emacs
 
   :cljsbuild
   {:builds
