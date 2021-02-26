@@ -1,5 +1,23 @@
 > This project uses [Break Versioning](https://github.com/ptaoussanis/encore/blob/master/BREAK-VERSIONING.md) as of **Aug 16, 2014**.
 
+## v1.16.2 - 2021 Feb 26
+
+```clojure
+[com.taoensso/sente "1.16.2"]
+```
+
+> This is a non-breaking **minor maintenance release**.  
+> See [here](https://github.com/ptaoussanis/encore#recommended-steps-after-any-significant-dependency-update) for recommended steps when updating any Clojure/Script dependencies.
+
+### New since `1.16.1`
+
+- Add public `ring-allow-origin?` util fn
+
+### Changes since `1.16.1`
+
+- Updated dependencies (non-breaking)
+
+
 ## v1.16.1 - 2021 Jan 31
 
 ```clojure
