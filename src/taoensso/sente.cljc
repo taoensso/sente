@@ -271,28 +271,46 @@
   ^:private send-buffered-server-evs>ajax-clients!
   ^:private default-client-side-ajax-timeout-ms)
 
-(defn- bad-origin?
-  [allowed-origins {:as ring-req :keys [headers]}]
-  (if (= allowed-origins :all)
-    false
-    (let [origin  (get headers "origin")
-          referer (get headers "referer" "")]
-      (cond
-        (contains? (set allowed-origins) origin) false
-        (enc/rsome #(str/starts-with? referer (str % "/")) allowed-origins) false
-        :else true))))
+(defn allow-origin?
+  "Alpha, subject to change.
+  Returns true iff given Ring request is allowed by `allowed-origins`.
+  `allowed-origins` may be `:all` or #{<origin>}."
+
+  [allowed-origins ring-req]
+  (enc/cond
+    (= allowed-origins :all) true
+
+    :let
+    [headers (get ring-req :headers)
+     origin  (get headers  "origin" :nx)
+     have-origin? (not= origin      :nx)]
+
+    (and
+      have-origin?
+      (contains? (set allowed-origins) origin))
+    true
+
+    ;; As per OWASP CSRF Prevention Cheat Sheet
+    :let [referer (get headers "referer" "")]
+
+    (and
+      (not have-origin?)
+      (enc/rsome #(str/starts-with? referer (str % "/")) allowed-origins))
+    true
+
+    :else false))
 
 (comment
   ;; good (pass)
-  (bad-origin? :all                 {:headers {"origin"  "http://site.com"}})
-  (bad-origin? #{"http://site.com"} {:headers {"origin"  "http://site.com"}})
-  (bad-origin? #{"http://site.com"} {:headers {"referer" "http://site.com/"}})
+  (allow-origin? :all                 {:headers {"origin"  "http://site.com"}})
+  (allow-origin? #{"http://site.com"} {:headers {"origin"  "http://site.com"}})
+  (allow-origin? #{"http://site.com"} {:headers {"referer" "http://site.com/"}})
 
   ;; bad (fail)
-  (bad-origin? #{"http://site.com"} {:headers nil})
-  (bad-origin? #{"http://site.com"} {:headers {"origin"  "http://attacker.com"}})
-  (bad-origin? #{"http://site.com"} {:headers {"referer" "http://attacker.com/"}})
-  (bad-origin? #{"http://site.com"} {:headers {"referer" "http://site.com.attacker.com/"}}))
+  (allow-origin? #{"http://site.com"} {:headers nil})
+  (allow-origin? #{"http://site.com"} {:headers {"origin"  "http://attacker.com"}})
+  (allow-origin? #{"http://site.com"} {:headers {"referer" "http://attacker.com/"}})
+  (allow-origin? #{"http://site.com"} {:headers {"referer" "http://site.com.attacker.com/"}}))
 
 (defn make-channel-socket-server!
   "Takes a web server adapter[1] and returns a map with keys:
@@ -580,8 +598,8 @@
             (bad-csrf?   ring-req)
             (bad-csrf-fn ring-req)
 
-            (bad-origin? allowed-origins ring-req)
-            (bad-origin-fn               ring-req)
+            (not (allow-origin? allowed-origins ring-req))
+            (bad-origin-fn                      ring-req)
 
             (unauthorized?   ring-req)
             (unauthorized-fn ring-req)
