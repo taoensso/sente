@@ -274,7 +274,7 @@
 (defn allow-origin?
   "Alpha, subject to change.
   Returns true iff given Ring request is allowed by `allowed-origins`.
-  `allowed-origins` may be `:all` or #{<origin>}."
+  `allowed-origins` may be `:all` or #{<origin> ...}."
 
   [allowed-origins ring-req]
   (enc/cond
