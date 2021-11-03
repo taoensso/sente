@@ -1265,17 +1265,20 @@
 
                     ?socket
                     (try
-                      (create-websocket!
-                        {:onerror-fn   onerror-fn
-                         :onmessage-fn onmessage-fn
-                         :onclose-fn   onclose-fn
-                         :headers      headers
-                         :uri-str
-                         (enc/merge-url-with-query-string url
-                           (merge params ; 1st (don't clobber impl.):
-                             {:client-id client-id
-                              :csrf-token (:csrf-token @state_)}))})
-
+                      (let [csrf-token-or-fn (:csrf-token @state_)
+                            csrf-token       (if (fn? csrf-token-or-fn)
+                                               (csrf-token-or-fn)
+                                               csrf-token-or-fn)]
+                        (create-websocket!
+                          {:onerror-fn   onerror-fn
+                           :onmessage-fn onmessage-fn
+                           :onclose-fn   onclose-fn
+                           :headers      headers
+                           :uri-str
+                           (enc/merge-url-with-query-string url
+                             (merge params ; 1st (don't clobber impl.):
+                               {:client-id client-id
+                                :csrf-token csrf-token}))}))
                       (catch #?(:clj Throwable :cljs :default) t
                         (errorf t "WebSocket error")
                         nil))]
@@ -1621,7 +1624,11 @@
      (when (not (nil? _deprecated-more-opts)) (warnf "`make-channel-socket-client!` fn signature CHANGED with Sente v0.10.0."))
      (when (contains? opts :lp-timeout) (warnf ":lp-timeout opt has CHANGED; please use :lp-timout-ms."))
 
-     (when (or (not (string? ?csrf-token)) (str/blank? ?csrf-token))
+     (when (not (or
+                  (fn? ?csrf-token)
+                  (and
+                    (string? ?csrf-token)
+                    (not (str/blank? ?csrf-token)))))
        (warnf "WARNING: no CSRF token provided. Connections will FAIL if server-side CSRF check is enabled (as it is by default)."))
 
      (let [packer (coerce-packer packer)
