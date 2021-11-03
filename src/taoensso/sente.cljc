@@ -1102,6 +1102,20 @@
   #?(:cljs (create-js-client-websocket!   opts)
      :clj  (create-java-client-websocket! opts)))
 
+(defn- get-client-csrf-token-str
+  "Returns non-blank client CSRF token ?string from given token string
+  or (fn [])->?string."
+  [warn? token-or-fn]
+  (when token-or-fn
+    (let [dynamic? (fn? token-or-fn)]
+      (if-let [token (enc/as-?nblank (if dynamic? (token-or-fn) token-or-fn))]
+        token
+        (when-let [warn? (if (= warn? :dynamic) dynamic? warn?)]
+          (warnf "WARNING: no client CSRF token provided. Connections will FAIL if server-side CSRF check is enabled (as it is by default).")
+          nil)))))
+
+(comment (get-client-csrf-token-str false "token"))
+
 (defrecord ChWebSocket
     ;; WebSocket-only IChSocket implementation
     ;; Handles (re)connections, cbs, etc.
@@ -1273,8 +1287,9 @@
                          :uri-str
                          (enc/merge-url-with-query-string url
                            (merge params ; 1st (don't clobber impl.):
-                             {:client-id client-id
-                              :csrf-token (:csrf-token @state_)}))})
+                             {:client-id  client-id
+                              :csrf-token (get-client-csrf-token-str :dynamic
+                                            (:csrf-token @state_))}))})
 
                       (catch #?(:clj Throwable :cljs :default) t
                         (errorf t "WebSocket error")
@@ -1359,7 +1374,7 @@
            (chsk-send->closed! ?cb-fn)
 
            ;; TODO Buffer before sending (but honor `:flush?`)
-           (let [csrf-token (:csrf-token @state_)]
+           (let [csrf-token-str (get-client-csrf-token-str :dynamic (:csrf-token @state_))]
              (ajax-lite url
                (merge ajax-opts
                  {:method     :post
@@ -1369,7 +1384,7 @@
                   :headers
                   (merge
                     (:headers ajax-opts) ; 1st (don't clobber impl.)
-                    {:X-CSRF-Token csrf-token})
+                    {:X-CSRF-Token csrf-token-str})
 
                   :params
                   (let [ppstr (pack packer ev (when ?cb-fn :ajax-cb))]
@@ -1378,7 +1393,7 @@
 
                        ;; A duplicate of X-CSRF-Token for user's convenience
                        ;; and for back compatibility with earlier CSRF docs:
-                       :csrf-token csrf-token
+                       :csrf-token csrf-token-str
 
                        ;; Just for user's convenience here. non-lp-POSTs
                        ;; don't actually need a client-id for Sente's own
@@ -1455,7 +1470,8 @@
                           :headers
                           (merge
                             (:headers ajax-opts) ; 1st (don't clobber impl.)
-                            {:X-CSRF-Token (:csrf-token @state_)})})
+                            {:X-CSRF-Token (get-client-csrf-token-str :dynamic
+                                             (:csrf-token @state_))})})
 
                        (fn ajax-cb [{:keys [?error ?content]}]
                          (if ?error
@@ -1586,6 +1602,11 @@
        :state   ; Watchable, read-only (atom {:type _ :open? _ :uid _ :csrf-token _}).
        :chsk    ; IChSocket implementer. You can usu. ignore this.
 
+     Required arguments:
+       path              ; Channel socket server route/path (typically `/chsk`)
+       ?csrf-token-or-fn ; CSRF token string or (fn [])->string to match token
+                         ; expected by server.
+
      Common options:
        :type           ; e/o #{:auto :ws :ajax}. You'll usually want the default (:auto).
        :protocol       ; Server protocol, e/o #{:http :https}.
@@ -1601,7 +1622,7 @@
        :ws-kalive-ms   ; Ping to keep a WebSocket conn alive if no activity
                        ; w/in given msecs. Should be different to server's :ws-kalive-ms."
 
-     [path ?csrf-token &
+     [path ?csrf-token-or-fn &
       [{:keys [type protocol host port params headers recv-buf-or-n packer ws-kalive-ms
                client-id ajax-opts wrap-recv-evs? backoff-ms-fn]
         :as   opts
@@ -1622,8 +1643,8 @@
      (when (not (nil? _deprecated-more-opts)) (warnf "`make-channel-socket-client!` fn signature CHANGED with Sente v0.10.0."))
      (when (contains? opts :lp-timeout) (warnf ":lp-timeout opt has CHANGED; please use :lp-timout-ms."))
 
-     (when (or (not (string? ?csrf-token)) (str/blank? ?csrf-token))
-       (warnf "WARNING: no CSRF token provided. Connections will FAIL if server-side CSRF check is enabled (as it is by default)."))
+     ;; Check once now to trigger possible warning
+     (get-client-csrf-token-str true ?csrf-token-or-fn)
 
      (let [packer (coerce-packer packer)
 
@@ -1684,13 +1705,13 @@
            ?chsk
            (-chsk-connect!
              (case type
-               :ws      (new-ChWebSocket    ws-chsk-opts ?csrf-token)
+               :ws      (new-ChWebSocket    ws-chsk-opts ?csrf-token-or-fn)
                :ajax
-               #?(:cljs (new-ChAjaxSocket ajax-chsk-opts ?csrf-token)
+               #?(:cljs (new-ChAjaxSocket ajax-chsk-opts ?csrf-token-or-fn)
                   :clj  (throw (UnsupportedOperationException.
                                  "Only :ws channel socket type supported for clj")))
                :auto
-               #?(:cljs (new-ChAutoSocket auto-chsk-opts ?csrf-token)
+               #?(:cljs (new-ChAutoSocket auto-chsk-opts ?csrf-token-or-fn)
                   :clj  (throw (UnsupportedOperationException.
                                  "Only :ws channel socket type supported for clj")))))]
 
