@@ -262,6 +262,7 @@ Link                                          | Description
 [@seancorfield/om-sente]                      | ??
 [@tfoldi/data15-blackjack]                    | Multiplayer blackjack game with documented source code
 [@davidvujic/sente-with-reagent-and-re-frame] | Example code that combines Sente with Reagent and re-frame in a single page application
+[@fiv0/spa-ws-template]                       | Example Single Page App with ReFrame, http-kit, shadow-cljs and Sente in the box.
 Your link here?                               | **PR's welcome!**
 
 ### FAQ
@@ -386,7 +387,7 @@ Otherwise, you can reach me at [Taoensso.com]. Happy hacking!
 
 ## License
 
-Distributed under the [EPL v1.0] \(same as Clojure).  
+Distributed under the [EPL v1.0] \(same as Clojure).
 Copyright &copy; 2014-2020 [Peter Taoussanis].
 
 <!--- Standard links -->
@@ -435,6 +436,7 @@ Copyright &copy; 2014-2020 [Peter Taoussanis].
 [@timothypratley/snakelake]: https://github.com/timothypratley/snakelake
 [@tfoldi/data15-blackjack]: https://github.com/tfoldi/data15-blackjack
 [@davidvujic/sente-with-reagent-and-re-frame]: https://github.com/DavidVujic/sente-with-reagent-and-re-frame
+[@fiv0/spa-ws-template]: https://github.com/FiV0/spa-ws-template
 
 [Express]: http://expressjs.com/
 [Dog Fort]: https://github.com/whamtet/dogfort
