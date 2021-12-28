@@ -249,7 +249,7 @@ Key             | Value
 
 Link                                          | Description
 --------------------------------------------- | --------------------------------------------------------
-**[Official example]**                        | **Official Sente reference example**, always up-to-date
+**[Official example]**                            | **Official Sente reference example**, always up-to-date
 [@laforge49/sente-boot]                       | Example using Sente v1.11.0, Boot (also works with Windows)
 [@laforge49/sente-boot-reagent]               | Example using Sente v1.11.0, Boot, and Reagent
 [@tiensonqin/lymchat]                         | Example chat app using React Native
@@ -262,6 +262,7 @@ Link                                          | Description
 [@seancorfield/om-sente]                      | ??
 [@tfoldi/data15-blackjack]                    | Multiplayer blackjack game with documented source code
 [@davidvujic/sente-with-reagent-and-re-frame] | Example code that combines Sente with Reagent and re-frame in a single page application
+[@dharrigan/websockets]                       | Example using [Reitit](https://github.com/metosin/reitit), Jetty 9/10 and a JavaScript (not Clojurescript!) client [@dharrigan/websockets-js]
 Your link here?                               | **PR's welcome!**
 
 ### FAQ
@@ -386,7 +387,7 @@ Otherwise, you can reach me at [Taoensso.com]. Happy hacking!
 
 ## License
 
-Distributed under the [EPL v1.0] \(same as Clojure).  
+Distributed under the [EPL v1.0] \(same as Clojure).
 Copyright &copy; 2014-2020 [Peter Taoussanis].
 
 <!--- Standard links -->
@@ -435,6 +436,8 @@ Copyright &copy; 2014-2020 [Peter Taoussanis].
 [@timothypratley/snakelake]: https://github.com/timothypratley/snakelake
 [@tfoldi/data15-blackjack]: https://github.com/tfoldi/data15-blackjack
 [@davidvujic/sente-with-reagent-and-re-frame]: https://github.com/DavidVujic/sente-with-reagent-and-re-frame
+[@dharrigan/websockets]: https://github.com/dharrigan/websockets
+[@dharrigan/websockets-js]: https://github.com/dharrigan/websockets-js
 
 [Express]: http://expressjs.com/
 [Dog Fort]: https://github.com/whamtet/dogfort

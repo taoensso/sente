@@ -1,0 +1,11 @@
+{:paths ["src" "resources"]
+
+ :deps {org.clojure/clojure {:mvn/version "1.10.3"}
+        ;;
+        ;;
+        ;;
+        org.clojure/core.async {:mvn/version "1.5.648"}
+        com.taoensso/encore {:mvn/version "3.20.0"}
+        org.java-websocket/Java-WebSocket {:mvn/version "1.5.2"}
+        org.clojure/tools.reader {:mvn/version "1.3.6"}
+        com.taoensso/timbre {:mvn/version "5.1.2"}}}
