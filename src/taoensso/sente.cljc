@@ -204,37 +204,24 @@
 ;; * Packing includes ->str encoding, and may incl. wrapping to carry cb info.
 
 (defn- unpack "prefixed-pstr->[clj ?cb-uuid]"
-  [packer prefixed-pstr]
-  (have? string? prefixed-pstr)
-  (let [wrapped? (enc/str-starts-with? prefixed-pstr "+")
-        pstr     (subs prefixed-pstr 1)
-        clj
+  [packer pstr]
+  (let [[clj ?cb-uuid]
         (try
           (interfaces/unpack packer pstr)
           (catch #?(:clj Throwable :cljs :default) t
             (debugf "Bad package: %s (%s)" pstr t)
             [:chsk/bad-package pstr]))
-
-        [clj ?cb-uuid] (if wrapped? clj [clj nil])
         ?cb-uuid (if (= 0 ?cb-uuid) :ajax-cb ?cb-uuid)]
-
-    (tracef "Unpacking: %s -> %s" prefixed-pstr [clj ?cb-uuid])
     [clj ?cb-uuid]))
 
 (defn- pack "clj->prefixed-pstr"
   ([packer clj]
-   (let [;; "-" prefix => Unwrapped (has no callback)
-         pstr (str "-" (interfaces/pack packer clj))]
-     (tracef "Packing (unwrapped): %s -> %s" clj pstr)
-     pstr))
+   (pack packer clj nil))
 
   ([packer clj ?cb-uuid]
-   (let [;;; Keep wrapping as light as possible:
-         ?cb-uuid    (if (= ?cb-uuid :ajax-cb) 0 ?cb-uuid)
-         wrapped-clj (if ?cb-uuid [clj ?cb-uuid] [clj])
-         ;; "+" prefix => Wrapped (has callback)
-         pstr (str "+" (interfaces/pack packer wrapped-clj))]
-     (tracef "Packing (wrapped): %s -> %s" wrapped-clj pstr)
+   (let [?cb-uuid    (if (= ?cb-uuid :ajax-cb) 0 ?cb-uuid)
+         wrapped-clj [clj ?cb-uuid]
+         pstr (interfaces/pack packer wrapped-clj)]
      pstr)))
 
 (deftype EdnPacker []
@@ -688,9 +675,9 @@
                      handshake-ev
                      (if (nil? ?handshake-data) ; Micro optimization
                        [:chsk/handshake [uid nil]]
-                       [:chsk/handshake [uid nil ?handshake-data]])]
-                 (interfaces/sch-send! server-ch websocket?
-                   (pack packer handshake-ev))))]
+                       [:chsk/handshake [uid nil ?handshake-data]])
+                     msg (pack packer handshake-ev)]
+                 (interfaces/sch-send! server-ch websocket? msg)))]
 
          (enc/cond
 
@@ -1095,6 +1082,7 @@
            (aset "onerror"   onerror-fn)
            (aset "onmessage" onmessage-fn) ; Nb receives both push & cb evs!
            ;; Fires repeatedly (on each connection attempt) while server is down:
+           (aset "binaryType" "arraybuffer")
            (aset "onclose"   onclose-fn))
          socket))))
 
