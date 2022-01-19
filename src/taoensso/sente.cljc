@@ -201,41 +201,98 @@
 ;;;; Packing
 ;; * Client<->server payloads are arbitrary Clojure vals (cb replies or events).
 ;; * Payloads are packed for client<->server transit.
-;; * Packing includes ->str encoding, and may incl. wrapping to carry cb info.
 
-(defn- unpack "prefixed-pstr->[clj ?cb-uuid]"
-  [packer prefixed-pstr]
-  (have? string? prefixed-pstr)
-  (let [wrapped? (enc/str-starts-with? prefixed-pstr "+")
-        pstr     (subs prefixed-pstr 1)
-        clj
+(defn- parse-packed
+  "Returns [<packed> <?format>]. Used to support some minimal backwards
+  compatibility between v2 `pack` and v1 `unpack` formats."
+  ;; TODO Remove this in a future ~breaking release
+  [packed]
+  (if (string? packed)
+    (cond
+      (enc/str-starts-with? packed "+") [(subs packed 1) :v1/wrapped]
+      (enc/str-starts-with? packed "-") [(subs packed 1) :v1/unwrapped]
+      :else                             [      packed    :v2/unwrapped])
+    packed))
+
+(comment (parse-packed "+[[\"foo\"] \"uuid\"]"))
+
+(defn- unpack "packed->[clj ?cb-uuid]"
+  [packer packed]
+  (let [[packed ?format] (parse-packed packed)
+        unpacked #_[clj ?cb-uuid]
         (try
-          (interfaces/unpack packer pstr)
+          (interfaces/unpack packer packed)
           (catch #?(:clj Throwable :cljs :default) t
-            (debugf "Bad package: %s (%s)" pstr t)
-            [:chsk/bad-package pstr]))
+            (debugf "Bad package: %s (%s)" packed t)
+            [:chsk/bad-package packed]))
 
-        [clj ?cb-uuid] (if wrapped? clj [clj nil])
+        [clj ?cb-uuid]
+        (case ?format
+          :v1/wrapped    unpacked
+          :v1/unwrapped [unpacked nil]
+          :v2/unwrapped  unpacked)
+
         ?cb-uuid (if (= 0 ?cb-uuid) :ajax-cb ?cb-uuid)]
 
-    (tracef "Unpacking: %s -> %s" prefixed-pstr [clj ?cb-uuid])
     [clj ?cb-uuid]))
 
-(defn- pack "clj->prefixed-pstr"
-  ([packer clj]
-   (let [;; "-" prefix => Unwrapped (has no callback)
-         pstr (str "-" (interfaces/pack packer clj))]
-     (tracef "Packing (unwrapped): %s -> %s" clj pstr)
-     pstr))
+(def ^:dynamic *write-legacy-pack-format?*
+  "Advanced option, most users can ignore this var. Only necessary
+  for those that want to use Sente < v1.18 with a non-standard
+  IPacker that deals with non-string payloads.
 
+  Details:
+
+    Sente uses a private message format as an implementation detail
+    for client<->server comms.
+
+    As part of [#398], this format is being updated to support
+    non-string (e.g. binary) payloads.
+
+    Unfortunately updating the format is non-trivial because:
+
+      1. Both the client & server need to support the same format.
+      2. Clients are often served as cached cl/js.
+
+    To help ease migration, the new pack format is being rolled out
+    in 2 stages:
+
+      Sente <= v1.16: reads  v1 format only
+                      writes v1 format only
+
+      Sente    v1.17: reads  v1 and v2 formats
+                      writes v1 and v2 formats (v1 default) <- Currently here
+
+      Sente    v1.18: reads  v1 and v2 formats
+                      writes v1 and v2 formats (v2 default)
+
+      Sente >= v1.19: reads  v2 format only
+                      writes v2 format only
+
+    This var controls which format to use for writing.
+    Override default with `alter-var-root` or `binding`."
+
+  ;; TODO -> false for Sente v1.18, remove for Sente >= v1.19
+  true)
+
+(defn- pack "[clj ?cb-uuid]->packed"
+  ([packer clj         ] (pack packer clj nil))
   ([packer clj ?cb-uuid]
-   (let [;;; Keep wrapping as light as possible:
-         ?cb-uuid    (if (= ?cb-uuid :ajax-cb) 0 ?cb-uuid)
-         wrapped-clj (if ?cb-uuid [clj ?cb-uuid] [clj])
-         ;; "+" prefix => Wrapped (has callback)
-         pstr (str "+" (interfaces/pack packer wrapped-clj))]
-     (tracef "Packing (wrapped): %s -> %s" wrapped-clj pstr)
-     pstr)))
+   (let [?cb-uuid (if (= ?cb-uuid :ajax-cb) 0 ?cb-uuid)
+         packed
+         (interfaces/pack packer
+           (if-some [cb-uuid ?cb-uuid]
+             [clj cb-uuid]
+             [clj        ]))]
+
+     (if *write-legacy-pack-format?*
+       (str "+" (have string? packed))
+       (do                    packed)))))
+
+(comment
+  (unpack default-edn-packer
+    (binding [*write-legacy-pack-format?* true]
+      (pack default-edn-packer [:foo]))))
 
 (deftype EdnPacker []
   interfaces/IPacker
@@ -1083,7 +1140,10 @@
 
 #?(:cljs
    (defn- create-js-client-websocket!
-     [{:as opts :keys [onerror-fn onmessage-fn onclose-fn uri-str headers]}]
+     [{:as opts
+       :keys [onerror-fn onmessage-fn onclose-fn binary-type
+              uri-str headers]}]
+
      (when-let [WebSocket
                 (or
                   (enc/oget goog/global           "WebSocket")
@@ -1096,6 +1156,10 @@
            (aset "onmessage" onmessage-fn) ; Nb receives both push & cb evs!
            ;; Fires repeatedly (on each connection attempt) while server is down:
            (aset "onclose"   onclose-fn))
+
+         (when-let [bt binary-type] ; "arraybuffer" or "blob" (default)
+           (aset socket "binaryType" bt))
+
          socket))))
 
 (defn- create-websocket! [{:as opts :keys [onerror-fn onmessage-fn onclose-fn uri-str headers]}]

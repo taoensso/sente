@@ -43,6 +43,10 @@
 
 (defprotocol IPacker
   "Extension pt. for client<->server comms data un/packers:
-  arbitrary Clojure data <-> serialized strings."
+  arbitrary Clojure data <-> serialized payloads.
+
+  NB if dealing with non-string payloads, see also
+  `taoensso.sente/*write-legacy-pack-format?*`."
+
   (pack   [_ x])
   (unpack [_ x]))
