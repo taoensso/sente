@@ -1290,6 +1290,9 @@
 
                     (reset! socket_ ?socket))))))]
 
+      (reset! retry-count_ 0)
+      (connect-fn)
+
       (when-let [ms ws-kalive-ms]
         (go-loop []
           (let [udt-t0 @udt-last-comms_]
@@ -1308,8 +1311,6 @@
                   (-chsk-send! chsk [:chsk/ws-ping] {:flush? true})))
               (recur)))))
 
-      (reset! retry-count_ 0)
-      (connect-fn)
       chsk)))
 
 (defn- new-ChWebSocket [opts csrf-token]
