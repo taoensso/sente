@@ -31,7 +31,7 @@
 #?(:clj
    (def ^:private cache-read-handlers
      "reader-opts -> reader-opts with cached read handler map"
-     (let [cache (enc/memoize_ (fn [m] (transit/read-handler-map m)))]
+     (let [cache (enc/fmemoize (fn [m] (transit/read-handler-map m)))]
        (fn [reader-opts]
          (if-let [m (:handlers reader-opts)]
            (assoc reader-opts :handlers (cache m))
@@ -40,7 +40,7 @@
 #?(:clj
    (def ^:private cache-write-handlers
      "writer-opts -> writer-opts with cached write handler map"
-     (let [cache (enc/memoize_ (fn [m] (transit/write-handler-map m)))]
+     (let [cache (enc/fmemoize (fn [m] (transit/write-handler-map m)))]
        (fn [writer-opts]
          (if-let [m (:handlers writer-opts)]
            (assoc writer-opts :handlers (cache m))
@@ -63,7 +63,7 @@
 (def ^:private get-transit-writer-fn
   "Returns thread-safe (fn [x-to-write])"
   #?(:cljs
-     (enc/memoize_
+     (enc/fmemoize
        (fn [fmt opts]
          (let [writer (transit/writer fmt opts)]
            (fn [x] (transit/write writer x)))))
@@ -75,7 +75,7 @@
 (def ^:private get-transit-reader-fn
   "Returns thread-safe (fn [str-to-read])"
   #?(:cljs
-     (enc/memoize_
+     (enc/fmemoize
        (fn [fmt opts]
          (let [reader (transit/reader fmt opts)]
            (fn [s] (transit/read reader s)))))

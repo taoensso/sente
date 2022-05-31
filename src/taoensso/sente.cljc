@@ -264,7 +264,7 @@
 
 ;;;; Server API
 
-(def ^:private next-idx! (enc/idx-fn))
+(def ^:private next-idx! (enc/counter))
 
 (declare
   ^:private send-buffered-server-evs>ws-clients!
