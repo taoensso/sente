@@ -11,39 +11,40 @@
                 *assert* true}
 
   :dependencies
-  [[org.clojure/core.async   "1.3.610"]
-   [com.taoensso/encore      "3.12.1"]
-   [org.java-websocket/Java-WebSocket "1.5.1"]
-   [org.clojure/tools.reader "1.3.5"]
-   [com.taoensso/timbre      "5.1.2"]]
+  [[org.clojure/core.async   "1.5.648"]
+   [com.taoensso/encore      "3.23.0"]
+   [org.java-websocket/Java-WebSocket "1.5.3"]
+   [org.clojure/tools.reader "1.3.6"]
+   [com.taoensso/timbre      "5.2.1"]]
 
   :plugins
   [[lein-pprint    "1.3.2"]
    [lein-ancient   "0.7.0"]
-   [lein-codox     "0.10.7"]
+   [lein-codox     "0.10.8"]
    [lein-cljsbuild "1.1.8"]]
 
   :profiles
   {;; :default [:base :system :user :provided :dev]
    :server-jvm {:jvm-opts ^:replace ["-server"]}
    :provided {:dependencies [[org.clojure/clojure       "1.10.2"]
-                             [org.clojure/clojurescript "1.10.773"]]}
+                             [org.clojure/clojurescript "1.11.54"]]}
    :1.8      {:dependencies [[org.clojure/clojure "1.8.0"]]}
    :1.9      {:dependencies [[org.clojure/clojure "1.9.0"]]}
    :1.10     {:dependencies [[org.clojure/clojure "1.10.2"]]}
+   :1.11     {:dependencies [[org.clojure/clojure "1.11.1"]]}
 ;; :depr     {:jvm-opts ["-Dtaoensso.elide-deprecated=true"]}
-   :dev      [:1.10 :test :server-jvm :depr]
+   :dev      [:1.11 :test :server-jvm :depr]
    :test     {:dependencies
-              [[com.cognitect/transit-clj  "1.0.324"]
-               [com.cognitect/transit-cljs "0.8.264"]
-               [org.clojure/test.check     "1.1.0"]
+              [[com.cognitect/transit-clj  "1.0.329"]
+               [com.cognitect/transit-cljs "0.8.269"]
+               [org.clojure/test.check     "1.1.1"]
                [http-kit         "2.5.3"]
                [org.immutant/web "2.1.10"]
-               [nginx-clojure    "0.5.2"]
-               [aleph            "0.4.6"]
-               [macchiato/core   "0.2.21"]
-               [luminus/ring-undertow-adapter  "1.2.0"]
-               [info.sunng/ring-jetty9-adapter "0.14.2"]]}}
+               [nginx-clojure    "0.5.3"]
+               [aleph            "0.4.7"]
+               [macchiato/core   "0.2.22"]
+               [luminus/ring-undertow-adapter  "1.2.5"]
+               [info.sunng/ring-jetty9-adapter "0.17.6"]]}}
 
   :cljsbuild
   {:test-commands {"node"    ["node" :node-runner "target/main.js"]
