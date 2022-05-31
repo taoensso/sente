@@ -32,7 +32,7 @@
    :1.9      {:dependencies [[org.clojure/clojure "1.9.0"]]}
    :1.10     {:dependencies [[org.clojure/clojure "1.10.2"]]}
 ;; :depr     {:jvm-opts ["-Dtaoensso.elide-deprecated=true"]}
-   :dev      [:1.10 :test :server-jvm :depr]
+   :dev      [:1.10 :test :server-jvm]
    :test     {:dependencies
               [[com.cognitect/transit-clj  "1.0.324"]
                [com.cognitect/transit-cljs "0.8.264"]

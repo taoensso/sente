@@ -6,6 +6,8 @@ pom.xml*
 *.js
 .env
 .DS_Store
+*.iml
+.idea/
 /lib/
 /classes/
 /target/
