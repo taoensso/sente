@@ -251,6 +251,7 @@ Link                                          | Description
 --------------------------------------------- | --------------------------------------------------------
 **[Official example]**                        | **Official Sente reference example**, always up-to-date
 [@fiv0/spa-ws-template]                       | Example Single Page App with ReFrame, http-kit, shadow-cljs
+[@dharrigan/websockets]                       | Example using [Reitit], Jetty 9/10 and [@dharrigan/websockets-js] (JS not Cljs!)
 [@laforge49/sente-boot]                       | Example using Sente v1.11.0, Boot (also works with Windows)
 [@laforge49/sente-boot-reagent]               | Example using Sente v1.11.0, Boot, and Reagent
 [@tiensonqin/lymchat]                         | Example chat app using React Native
@@ -437,7 +438,10 @@ Copyright &copy; 2014-2020 [Peter Taoussanis].
 [@tfoldi/data15-blackjack]: https://github.com/tfoldi/data15-blackjack
 [@davidvujic/sente-with-reagent-and-re-frame]: https://github.com/DavidVujic/sente-with-reagent-and-re-frame
 [@fiv0/spa-ws-template]: https://github.com/FiV0/spa-ws-template
+[@dharrigan/websockets]: https://github.com/dharrigan/websockets
+[@dharrigan/websockets-js]: https://github.com/dharrigan/websockets-js
 
+[Reitit]: https://github.com/metosin/reitit
 [Express]: http://expressjs.com/
 [Dog Fort]: https://github.com/whamtet/dogfort
 
