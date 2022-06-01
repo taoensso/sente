@@ -4,7 +4,8 @@
 **[CHANGELOG]** | [API] | current [Break Version]:
 
 ```clojure
-[com.taoensso/sente "1.16.2"] ; See CHANGELOG for details
+[com.taoensso/sente "1.17.0-RC1"] ; Dev, see CHANGELOG for details
+[com.taoensso/sente "1.16.2"]     ; Stable
 ```
 
 > See [here](https://taoensso.com/clojure/backers) if you're interested in helping support my open-source work, thanks! - Peter Taoussanis
@@ -53,8 +54,8 @@ So you can ignore the underlying protocol and deal directly with Sente's unified
 Add the necessary dependency to your project:
 
 ```clojure
-Leiningen: [com.taoensso/sente "1.16.2"] ; or
-deps.edn:   com.taoensso/sente {:mvn/version "1.16.2"}
+Leiningen: [com.taoensso/sente "1.17.0-RC1"] ; or
+deps.edn:   com.taoensso/sente {:mvn/version "1.17.0-RC1"}
 ```
 
 ### On the server (Clojure) side
