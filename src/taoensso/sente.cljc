@@ -1141,8 +1141,7 @@
 #?(:cljs
    (defn- create-js-client-websocket!
      [{:as opts
-       :keys [onerror-fn onmessage-fn onclose-fn binary-type
-              uri-str headers]}]
+       :keys [onerror-fn onmessage-fn onclose-fn uri-str headers binary-type]}]
 
      (when-let [WebSocket
                 (or
@@ -1157,7 +1156,7 @@
            ;; Fires repeatedly (on each connection attempt) while server is down:
            (aset "onclose"   onclose-fn))
 
-         (when-let [bt binary-type] ; "arraybuffer" or "blob" (default)
+         (when-let [bt binary-type] ; "arraybuffer" or "blob" (js default)
            (aset socket "binaryType" bt))
 
          socket))))
@@ -1190,7 +1189,8 @@
      backoff-ms-fn ; (fn [nattempt]) -> msecs
      cbs-waiting_ ; {<cb-uuid> <fn> ...}
      socket_
-     udt-last-comms_]
+     udt-last-comms_
+     ws-opts]
 
   IChSocket
   (-chsk-disconnect! [chsk reason]
@@ -1344,16 +1344,17 @@
                     ?socket
                     (try
                       (create-websocket!
-                        {:onerror-fn   onerror-fn
-                         :onmessage-fn onmessage-fn
-                         :onclose-fn   onclose-fn
-                         :headers      headers
-                         :uri-str
-                         (enc/merge-url-with-query-string url
-                           (merge params ; 1st (don't clobber impl.):
-                             {:client-id  client-id
-                              :csrf-token (get-client-csrf-token-str :dynamic
-                                            (:csrf-token @state_))}))})
+                        (merge ws-opts
+                          {:onerror-fn   onerror-fn
+                           :onmessage-fn onmessage-fn
+                           :onclose-fn   onclose-fn
+                           :headers      headers
+                           :uri-str
+                           (enc/merge-url-with-query-string url
+                             (merge params ; 1st (don't clobber impl.):
+                               {:client-id  client-id
+                                :csrf-token (get-client-csrf-token-str :dynamic
+                                              (:csrf-token @state_))}))}))
 
                       (catch #?(:clj Throwable :cljs :default) t
                         (errorf t "WebSocket error")
@@ -1687,7 +1688,7 @@
                        ; w/in given msecs. Should be different to server's :ws-kalive-ms."
 
      [path ?csrf-token-or-fn &
-      [{:keys [type protocol host port params headers recv-buf-or-n packer ws-kalive-ms
+      [{:keys [type protocol host port params headers recv-buf-or-n packer ws-kalive-ms ws-opts
                client-id ajax-opts wrap-recv-evs? backoff-ms-fn]
         :as   opts
         :or   {type           :auto
@@ -1754,7 +1755,8 @@
            ws-chsk-opts
            (merge common-chsk-opts
              {:url           ws-url
-              :backoff-ms-fn backoff-ms-fn})
+              :backoff-ms-fn backoff-ms-fn
+              :ws-opts       ws-opts})
 
            ajax-chsk-opts
            (merge common-chsk-opts
