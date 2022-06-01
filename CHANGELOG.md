@@ -1,9 +1,9 @@
 > This project uses [Break Versioning](https://github.com/ptaoussanis/encore/blob/master/BREAK-VERSIONING.md) as of **Aug 16, 2014**.
 
-## v1.17.0-RC1 - 2022 Jun 1
+## v1.17.0-RC2 - 2022 Jun 1
 
 ```clojure
-[com.taoensso/sente "1.17.0-RC1"]
+[com.taoensso/sente "1.17.0-RC2"]
 ```
 
 > This is a non-breaking **maintenance and feature release**.  
