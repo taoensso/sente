@@ -204,7 +204,7 @@
 
 (defn- parse-packed
   "Returns [<packed> <?format>]. Used to support some minimal backwards
-  compatibility between v2 `pack` and v1 `unpack` formats."
+  compatibility between v2 `pack` and v1 `unpack`."
   ;; TODO Remove this in a future ~breaking release
   [packed]
   (if (string? packed)
@@ -242,7 +242,6 @@
   IPacker that deals with non-string payloads.
 
   Details:
-
     Sente uses a private message format as an implementation detail
     for client<->server comms.
 
@@ -250,12 +249,11 @@
     non-string (e.g. binary) payloads.
 
     Unfortunately updating the format is non-trivial because:
-
       1. Both the client & server need to support the same format.
       2. Clients are often served as cached cl/js.
 
     To help ease migration, the new pack format is being rolled out
-    in 2 stages:
+    in stages:
 
       Sente <= v1.16: reads  v1 format only
                       writes v1 format only
