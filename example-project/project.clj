@@ -11,7 +11,7 @@
 
   :dependencies
   [[org.clojure/clojure       "1.11.1"]
-   [org.clojure/clojurescript "1.11.54"]
+   [org.clojure/clojurescript "1.11.57"]
    [org.clojure/core.async    "1.5.648"]
    [org.clojure/tools.nrepl   "0.2.13"] ; Optional, for Cider
 
@@ -19,7 +19,7 @@
    [com.taoensso/timbre       "5.2.1"]
 
    ;;; TODO Choose (uncomment) a supported web server -----------------------
-   [http-kit                             "2.6.0-RC1"] ; Default
+   [http-kit                             "2.6.0"] ; Default
    ;; [org.immutant/web                  "2.1.10"
    ;;  :exclusions [ring/ring-core]]
    ;; [nginx-clojure/nginx-clojure-embed "0.5.2"] ; Needs v0.4.2+

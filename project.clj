@@ -27,7 +27,7 @@
   {;; :default [:base :system :user :provided :dev]
    :server-jvm {:jvm-opts ^:replace ["-server"]}
    :provided {:dependencies [[org.clojure/clojure       "1.10.2"]
-                             [org.clojure/clojurescript "1.11.54"]]}
+                             [org.clojure/clojurescript "1.11.57"]]}
    :1.8      {:dependencies [[org.clojure/clojure "1.8.0"]]}
    :1.9      {:dependencies [[org.clojure/clojure "1.9.0"]]}
    :1.10     {:dependencies [[org.clojure/clojure "1.10.2"]]}
@@ -38,7 +38,7 @@
               [[com.cognitect/transit-clj  "1.0.329"]
                [com.cognitect/transit-cljs "0.8.269"]
                [org.clojure/test.check     "1.1.1"]
-               [http-kit         "2.5.3"]
+               [http-kit         "2.6.0"]
                [org.immutant/web "2.1.10"]
                [nginx-clojure    "0.5.3"]
                [aleph            "0.4.7"]
