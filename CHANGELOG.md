@@ -1,5 +1,33 @@
 > This project uses [Break Versioning](https://github.com/ptaoussanis/encore/blob/master/BREAK-VERSIONING.md) as of **Aug 16, 2014**.
 
+## v1.17.0 - 2022 Jun 13
+
+```clojure
+[com.taoensso/sente "1.17.0"]
+```
+
+> This is a non-breaking **maintenance and feature release**.  
+> See [here](https://github.com/ptaoussanis/encore#recommended-steps-after-any-significant-dependency-update) for recommended steps when updating any Clojure/Script dependencies.
+
+Identical to `v1.17.0-RC2`.
+
+### Changes since `1.16.2`
+
+- Updated dependencies
+
+### New since `1.16.2`
+
+- [#398] Enable binary support for custom un/packers (@rosejn, @ptaoussanis)
+- [#351 #393][New] Allow CSRF-token to be a function (@eneroth, @ptaoussanis)
+- [#390] [Aleph adapter] Add support for websocket-connection options (@KaliszAd)
+- [#396][Readme] Add link to Retit+JS example (@dharrigan)
+- [#395][Readme] Add link to new SPA example (@FiV0)
+
+### Fixes since `1.16.2`
+
+- [#403][Fix] Start ws-kalive loop only after conn is established (@Snurppa)
+
+
 ## v1.17.0-RC2 - 2022 Jun 1
 
 ```clojure
