@@ -366,7 +366,9 @@
     :allowed-origins   ; e.g. #{\"http://site.com\" ...}, defaults to :all. ; Alpha
 
     :csrf-token-fn     ; ?(fn [ring-req]) -> CSRF-token for Ajax POSTs and WS handshake.
-                       ; CSRF check will be skipped iff nil (NOT RECOMMENDED!).
+                       ; nil => CSRF check will be DISABLED (can pose a *CSRF SECURITY RISK*
+                       ; for website use cases, so please ONLY disable this check if you're
+                       ; very sure you understand the implications!).
 
     :authorized?-fn    ; ?(fn [ring-req]) -> When non-nil, (authorized?-fn <ring-req>)
                        ; must return truthy, otherwise connection requests will be
@@ -1655,8 +1657,8 @@
 
      Required arguments:
        path              ; Channel socket server route/path (typically `/chsk`)
-       ?csrf-token-or-fn ; CSRF token string or (fn [])->string to match token
-                         ; expected by server.
+       ?csrf-token-or-fn ; CSRF string or (fn [])->string to match token expected by server.
+                         ; nil => server not expecting any CSRF token.
 
      Common options:
        :type           ; e/o #{:auto :ws :ajax}. You'll usually want the default (:auto).
