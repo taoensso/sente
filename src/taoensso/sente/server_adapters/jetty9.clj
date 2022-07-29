@@ -8,15 +8,19 @@
   This can make it tricky to set up stateful middleware correctly
   (for example as you may want to do for CSRF protection).
 
-  See [3] for a full example.
+  See [3] for a full example. (Becareful! [3] is outdated, now you
+  can wrap normal ring handler without replicate the handler inside 
+  run-jetty config, check [4])
 
   [1] https://github.com/sunng87/ring-jetty9-adapter/blob/master/examples/rj9a/websocket.clj
   [2] https://github.com/sunng87/ring-jetty9-adapter/issues/41#issuecomment-630206233
-  [3] https://gist.github.com/wavejumper/40c4cbb21d67e4415e20685710b68ea0"
-
+  [3] https://gist.github.com/wavejumper/40c4cbb21d67e4415e20685710b68ea0
+  [4] https://github.com/sunng87/ring-jetty9-adapter/pull/59
+  
   {:author "Thomas Crowley (@wavejumper)"}
   (:require [clojure.string :as str]
             [ring.adapter.jetty9.websocket :as jetty9.websocket]
+            [ring.adapter.jetty9 :as jetty]
             [taoensso.sente.interfaces :as i]))
 
 (defn- ajax-cbs [sch]
@@ -34,18 +38,15 @@
 
 (defn- server-ch-resp
   [websocket? {:keys [on-open on-close on-msg on-error]}]
-  {:on-connect (fn [sch         ] (on-open  sch websocket?))
-   :on-text    (fn [sch msg     ] (on-msg   sch websocket? msg))
-   :on-error   (fn [sch error   ] (on-error sch websocket? error))
-   :on-close   (fn [sch status _] (on-close sch websocket? status))})
-
-(defn- websocket-req? [ring-req]
-  (when-let [s (get-in ring-req [:headers "upgrade"])]
-    (= "websocket" (str/lower-case s))))
+  (jetty/ws-upgrade-response
+   {:on-connect (fn [sch] (on-open  sch websocket?))
+    :on-text    (fn [sch msg] (on-msg   sch websocket? msg))
+    :on-error   (fn [sch error] (on-error sch websocket? error))
+    :on-close   (fn [sch status _] (on-close sch websocket? status))}))
 
 (deftype JettyServerChanAdapter []
   i/IServerChanAdapter
   (ring-req->server-ch-resp [_ req callbacks-map]
-    (server-ch-resp (websocket-req? req) callbacks-map)))
+    (server-ch-resp (jetty/ws-upgrade-request? req) callbacks-map)))
 
 (defn get-sch-adapter [] (JettyServerChanAdapter.))
