@@ -1,8 +1,8 @@
 (ns taoensso.sente.server-adapters.undertow
-  "Sente server adapter for ring-undertow-adapter."
+  "Sente server adapter for ring-undertow-adapter.
+   Modified to avoid core.async and use promise directly and with read timeout"
   {:author "Nik Peric"}
   (:require
-    [clojure.core.async :as async]
     [ring.adapter.undertow.websocket :as websocket]
     [ring.adapter.undertow.response  :as response]
     [taoensso.sente.interfaces :as i])
@@ -12,6 +12,8 @@
     [io.undertow.websockets
      WebSocketConnectionCallback
      WebSocketProtocolHandshakeHandler]))
+
+(def ajax-response-timeout-ms (* 60 1000))
 
 ;; Websocket
 (extend-type WebSocketChannel
@@ -40,14 +42,18 @@
   (read!  [this])
   (close! [this]))
 
-(deftype SenteUndertowAjaxChannel [ch open?_ on-close]
+(deftype SenteUndertowAjaxChannel [promised-response open?_ on-close]
   ISenteUndertowAjaxChannel
-  (send!  [this msg] (async/put! ch msg (fn [_] (close! this))))
-  (read!  [this] (async/<!! ch))
+  (send!  [this msg] (deliver promised-response msg))
+  (read!  [this]
+    (let [resp (deref promised-response ajax-response-timeout-ms :lp-timed-out)]
+      (close! this)
+      resp))
   (close! [this]
-    (when on-close (on-close ch false nil))
-    (reset! open?_ false)
-    (async/close! ch))
+    (when @open?_
+      (reset! open?_ false)
+      (when on-close (on-close this false nil))
+      true))
 
   i/IServerChan
   (sch-send!  [this websocket? msg] (send! this msg))
@@ -55,9 +61,9 @@
   (sch-close! [this] (close! this)))
 
 (defn- ajax-ch [{:keys [on-open on-close]}]
-  (let [ch      (async/chan 1)
+  (let [promised-response (promise)
         open?_  (atom true)
-        channel (SenteUndertowAjaxChannel. ch open?_ on-close)]
+        channel (SenteUndertowAjaxChannel. promised-response open?_ on-close)]
     (when on-open (on-open channel false))
     channel))
 
