@@ -45,9 +45,10 @@
   (sch-send!  [sch websocket? msg] (async/put! resp-ch msg (fn [_] (i/sch-close! sch))))
   (sch-open?  [sch] @open?_)
   (sch-close! [sch]
-    (when on-close (on-close sch false nil))
-    (reset! open?_ false)
-    (async/close! resp-ch))
+    (when (compare-and-set! open?_ true false)
+      (when on-close (on-close sch false nil))
+      (async/close! resp-ch)
+      true))
 
   ISenteUndertowAjaxChannel
   (ajax-read! [sch] (async/<!! resp-ch)))
