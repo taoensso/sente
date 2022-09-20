@@ -1,6 +1,5 @@
 (ns taoensso.sente.server-adapters.undertow
-  "Sente server adapter for ring-undertow-adapter.
-   Modified to avoid core.async and use promise directly and with read timeout"
+  "Sente server adapter for ring-undertow-adapter."
   {:author "Nik Peric"}
   (:require
     [ring.adapter.undertow.websocket :as websocket]
@@ -12,8 +11,6 @@
     [io.undertow.websockets
      WebSocketConnectionCallback
      WebSocketProtocolHandshakeHandler]))
-
-(def ajax-response-timeout-ms (* 60 1000))
 
 ;; Websocket
 (extend-type WebSocketChannel
@@ -42,16 +39,19 @@
   (read!  [this])
   (close! [this]))
 
-(deftype SenteUndertowAjaxChannel [promised-response open?_ on-close]
+(deftype SenteUndertowAjaxChannel [promised-response_ open?_ on-close opts]
   ISenteUndertowAjaxChannel
-  (send!  [this msg] (deliver promised-response msg))
+  (send!  [this msg] (deliver promised-response_ msg))
   (read!  [this]
-    (let [resp (deref promised-response ajax-response-timeout-ms :lp-timed-out)]
+    (let [{:keys [ajax-response-timeout-ms ajax-response-timeout-val]
+           :or {ajax-response-timeout-val :undertow/ajax-response-timeout}} opts
+          resp (if ajax-response-timeout-ms
+                 (deref promised-response_ ajax-response-timeout-ms ajax-response-timeout-val)
+                 @promised-response_)]
       (close! this)
       resp))
   (close! [this]
-    (when @open?_
-      (reset! open?_ false)
+    (when (compare-and-set! open?_ true false)
       (when on-close (on-close this false nil))
       true))
 
@@ -60,10 +60,10 @@
   (sch-open?  [this] @open?_)
   (sch-close! [this] (close! this)))
 
-(defn- ajax-ch [{:keys [on-open on-close]}]
-  (let [promised-response (promise)
+(defn- ajax-ch [{:keys [on-open on-close]} opts]
+  (let [promised-response_ (promise)
         open?_  (atom true)
-        channel (SenteUndertowAjaxChannel. promised-response open?_ on-close)]
+        channel (SenteUndertowAjaxChannel. promised-response_ open?_ on-close opts)]
     (when on-open (on-open channel false))
     channel))
 
@@ -73,13 +73,18 @@
     (response/respond (read! body) exchange)))
 
 ;; Adapter
-(deftype UndertowServerChanAdapter []
+(deftype UndertowServerChanAdapter [opts]
   i/IServerChanAdapter
   (ring-req->server-ch-resp [sch-adapter ring-req callbacks-map]
     ;; Returns {:body <websocket-implementation-channel> ...}:
     {:body
      (if (:websocket? ring-req)
        (ws-ch   callbacks-map)
-       (ajax-ch callbacks-map))}))
+       (ajax-ch callbacks-map opts))}))
 
-(defn get-sch-adapter [] (UndertowServerChanAdapter.))
+(defn get-sch-adapter
+  "Undertow adapter specific options avoiding possible connection leaks and worker pool starvation:
+     :ajax-response-timeout-ms ; Timeout waiting for Ajax response after given msecs
+     :ajax-response-timeout-val ; The value returned in case of above timeout"
+  ([] (UndertowServerChanAdapter. nil))
+  ([opts] (UndertowServerChanAdapter. opts)))
