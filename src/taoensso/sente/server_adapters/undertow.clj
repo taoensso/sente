@@ -2,7 +2,6 @@
   "Sente server adapter for ring-undertow-adapter."
   {:author "Nik Peric"}
   (:require
-    [clojure.core.async :as async]
     [ring.adapter.undertow.websocket :as websocket]
     [ring.adapter.undertow.response  :as response]
     [taoensso.sente.interfaces :as i])
@@ -40,24 +39,30 @@
 (defprotocol ISenteUndertowAjaxChannel
   (ajax-read! [sch]))
 
-(deftype SenteUndertowAjaxChannel [resp-ch open?_ on-close _adapter-opts]
+(deftype SenteUndertowAjaxChannel [resp-promise_ open?_ on-close adapter-opts]
   i/IServerChan
-  (sch-send!  [sch websocket? msg] (async/put! resp-ch msg (fn [_] (i/sch-close! sch))))
+  (sch-send!  [sch websocket? msg] (deliver resp-promise_ msg) (i/sch-close! sch))
   (sch-open?  [sch] @open?_)
   (sch-close! [sch]
     (when (compare-and-set! open?_ true false)
+      (deliver resp-promise_ nil)
       (when on-close (on-close sch false nil))
-      (async/close! resp-ch)
       true))
 
   ISenteUndertowAjaxChannel
-  (ajax-read! [sch] (async/<!! resp-ch)))
+  (ajax-read! [sch]
+    (let [{:keys [ajax-resp-timeout-ms ajax-resp-timeout-val]}
+          adapter-opts]
+
+      (if ajax-resp-timeout-ms
+        (deref resp-promise_ ajax-resp-timeout-ms ajax-resp-timeout-val)
+        (deref resp-promise_)))))
 
 (defn- ajax-ch [{:keys [on-open on-close]} adapter-opts]
-  (let [resp-ch (async/chan 1)
-        open?_  (atom true)
-        sch     (SenteUndertowAjaxChannel. resp-ch open?_ on-close
-                  adapter-opts)]
+  (let [open?_ (atom true)
+        sch
+        (SenteUndertowAjaxChannel. (promise) open?_ on-close
+          adapter-opts)]
 
     (when on-open (on-open sch false))
     sch))
@@ -78,5 +83,11 @@
        (ajax-ch callbacks-map adapter-opts))}))
 
 (defn get-sch-adapter
-  ([    ] (get-sch-adapter nil))
-  ([opts] (UndertowServerChanAdapter. opts)))
+  "Returns an Undertow ServerChanAdapter. Options:
+     :ajax-resp-timeout-ms  ; Max msecs to wait for Ajax responses
+     :ajax-resp-timeout-val ; Value returned in case of above timeout"
+  ([] (get-sch-adapter nil))
+  ([{:as   opts
+     :keys [ajax-resp-timeout-ms
+            ajax-resp-timeout-val]}]
+   (UndertowServerChanAdapter. opts)))
