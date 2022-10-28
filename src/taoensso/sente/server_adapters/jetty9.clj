@@ -9,14 +9,14 @@
   (for example as you may want to do for CSRF protection).
 
   See [3] for a full example. (Becareful! [3] is outdated, now you
-  can wrap normal ring handler without replicate the handler inside 
+  can wrap normal ring handler without replicate the handler inside
   run-jetty config, check [4])
 
   [1] https://github.com/sunng87/ring-jetty9-adapter/blob/master/examples/rj9a/websocket.clj
   [2] https://github.com/sunng87/ring-jetty9-adapter/issues/41#issuecomment-630206233
   [3] https://gist.github.com/wavejumper/40c4cbb21d67e4415e20685710b68ea0
   [4] https://github.com/sunng87/ring-jetty9-adapter/pull/59
-  
+  "
   {:author "Thomas Crowley (@wavejumper)"}
   (:require [clojure.string :as str]
             [ring.adapter.jetty9.websocket :as jetty9.websocket]
