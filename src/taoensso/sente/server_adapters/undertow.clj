@@ -2,7 +2,6 @@
   "Sente server adapter for ring-undertow-adapter."
   {:author "Nik Peric"}
   (:require
-    [clojure.core.async :as async]
     [ring.adapter.undertow.websocket :as websocket]
     [ring.adapter.undertow.response  :as response]
     [taoensso.sente.interfaces :as i])
@@ -13,12 +12,13 @@
      WebSocketConnectionCallback
      WebSocketProtocolHandshakeHandler]))
 
-;; Websocket
+;;;; WebSocket
+
 (extend-type WebSocketChannel
   i/IServerChan
-  (sch-open?  [this] (.isOpen    this))
-  (sch-close! [this] (.sendClose this))
-  (sch-send!  [this websocket? msg] (websocket/send msg this)))
+  (sch-open?  [sch] (.isOpen    sch))
+  (sch-close! [sch] (.sendClose sch))
+  (sch-send!  [sch websocket? msg] (websocket/send msg sch)))
 
 (extend-protocol response/RespondBody
   WebSocketConnectionCallback
@@ -27,53 +27,75 @@
       (.handleRequest handler exchange))))
 
 (defn- ws-ch
-  [{:keys [on-open on-close on-msg on-error]}]
+  [{:keys [on-open on-close on-msg on-error]} _adapter-opts]
   (websocket/ws-callback
     {:on-open          (when on-open  (fn [{:keys [channel]}]         (on-open  channel true)))
      :on-error         (when on-error (fn [{:keys [channel error]}]   (on-error channel true error)))
      :on-message       (when on-msg   (fn [{:keys [channel data]}]    (on-msg   channel true data)))
      :on-close-message (when on-close (fn [{:keys [channel message]}] (on-close channel true message)))}))
 
-;; AJAX
+;;;; Ajax
+
 (defprotocol ISenteUndertowAjaxChannel
-  (send!  [this msg])
-  (read!  [this])
-  (close! [this]))
+  (ajax-read! [sch]))
 
-(deftype SenteUndertowAjaxChannel [ch open?_ on-close]
-  ISenteUndertowAjaxChannel
-  (send!  [this msg] (async/put! ch msg (fn [_] (close! this))))
-  (read!  [this] (async/<!! ch))
-  (close! [this]
-    (when on-close (on-close ch false nil))
-    (reset! open?_ false)
-    (async/close! ch))
-
+(deftype SenteUndertowAjaxChannel [resp-promise_ open?_ on-close adapter-opts]
   i/IServerChan
-  (sch-send!  [this websocket? msg] (send! this msg))
-  (sch-open?  [this] @open?_)
-  (sch-close! [this] (close! this)))
+  (sch-send!  [sch websocket? msg] (deliver resp-promise_ msg) (i/sch-close! sch))
+  (sch-open?  [sch] @open?_)
+  (sch-close! [sch]
+    (when (compare-and-set! open?_ true false)
+      (deliver resp-promise_ nil)
+      (when on-close (on-close sch false nil))
+      true))
 
-(defn- ajax-ch [{:keys [on-open on-close]}]
-  (let [ch      (async/chan 1)
-        open?_  (atom true)
-        channel (SenteUndertowAjaxChannel. ch open?_ on-close)]
-    (when on-open (on-open channel false))
-    channel))
+  ISenteUndertowAjaxChannel
+  (ajax-read! [sch]
+    (let [{:keys [ajax-resp-timeout-ms ajax-resp-timeout-val]}
+          adapter-opts]
+
+      (if ajax-resp-timeout-ms
+        (deref resp-promise_ ajax-resp-timeout-ms ajax-resp-timeout-val)
+        (deref resp-promise_)))))
+
+(defn- ajax-ch [{:keys [on-open on-close]} adapter-opts]
+  (let [open?_ (atom true)
+        sch
+        (SenteUndertowAjaxChannel. (promise) open?_ on-close
+          adapter-opts)]
+
+    (when on-open (on-open sch false))
+    sch))
 
 (extend-protocol response/RespondBody
   SenteUndertowAjaxChannel
   (respond [body ^HttpServerExchange exchange]
-    (response/respond (read! body) exchange)))
+    (response/respond (ajax-read! body) exchange)))
 
-;; Adapter
-(deftype UndertowServerChanAdapter []
+;;;; Adapter
+
+(deftype UndertowServerChanAdapter [adapter-opts]
   i/IServerChanAdapter
   (ring-req->server-ch-resp [sch-adapter ring-req callbacks-map]
-    ;; Returns {:body <websocket-implementation-channel> ...}:
     {:body
      (if (:websocket? ring-req)
-       (ws-ch   callbacks-map)
-       (ajax-ch callbacks-map))}))
+       (ws-ch   callbacks-map adapter-opts)
+       (ajax-ch callbacks-map adapter-opts))}))
 
-(defn get-sch-adapter [] (UndertowServerChanAdapter.))
+(defn get-sch-adapter
+  "Returns an Undertow ServerChanAdapter. Options:
+     :ajax-resp-timeout-ms  ; Max msecs to wait for Ajax responses (default 60 secs)
+     :ajax-resp-timeout-val ; Value returned in case of above timeout
+                            ; (default `:undertow/ajax-resp-timeout`)"
+  ([] (get-sch-adapter nil))
+  ([{:as   opts
+     :keys [ajax-resp-timeout-ms
+            ajax-resp-timeout-val]
+
+     :or   {ajax-resp-timeout-ms (* 60 1000)
+            ajax-resp-timeout-val :undertow/ajax-resp-timeout}}]
+
+   (UndertowServerChanAdapter.
+     (assoc opts
+       :ajax-resp-timeout-ms  ajax-resp-timeout-ms
+       :ajax-resp-timeout-val ajax-resp-timeout-val))))

@@ -16,10 +16,10 @@
   (sch-open?  [sch] "Returns true iff the channel is currently open.")
   (sch-close! [sch]
     "If the channel is open when called: closes the channel and returns true.
-    Otherwise noops and returns false.")
+    Otherwise noops and returns falsey.")
   (sch-send! [sch websocket? msg]
     "If the channel is open when called: sends a message over channel and
-    returns true. Otherwise noops and returns false."))
+    returns true. Otherwise noops and returns falsey."))
 
 (defprotocol IServerChanAdapter ; sch-adapter
   ;; Wraps a web server's own ring-request->ring-response interface to
