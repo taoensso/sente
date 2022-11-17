@@ -11,8 +11,8 @@
 ;; Ref. https://github.com/ptaoussanis/sente/issues/102 for more info.
 
 (defprotocol IServerChan ; sch
-  ;; Wraps a web server's own async channel/comms interface to abstract away
-  ;; implementation differences.
+  "Wraps a web server's own async channel/comms interface to abstract away
+  implementation differences."  
   (sch-open?  [sch] "Returns true iff the channel is currently open.")
   (sch-close! [sch]
     "If the channel is open when called: closes the channel and returns true.
@@ -22,8 +22,8 @@
     returns true. Otherwise noops and returns falsey."))
 
 (defprotocol IServerChanAdapter ; sch-adapter
-  ;; Wraps a web server's own ring-request->ring-response interface to
-  ;; abstract away implementation differences.
+  "Wraps a web server's own ring-request->ring-response interface to
+  abstract away implementation differences."
   (ring-req->server-ch-resp [sch-adapter ring-req callbacks-map]
     "Given a Ring request (WebSocket handshake or Ajax GET/POST), returns
     a Ring response map with a web-server-specific channel :body that
