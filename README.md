@@ -247,6 +247,8 @@ Key             | Value
 
 ### Example projects
 
+Please note that unofficial examples are **provided by the community** and may contain out-of-date or inaccurate information. If you spot issues with any of the community examples, please contact the relevant authors to let them know!
+
 Link                                          | Description
 --------------------------------------------- | --------------------------------------------------------
 **[Official example]**                        | **Official Sente reference example**, always up-to-date
