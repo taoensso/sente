@@ -76,7 +76,7 @@
       this approach to modifying handlers (better portability).
 
   [4] Used to be a csrf-token. Was removed in v1.14 for security reasons.
-  A `nil` remains for semi-backwards-compatibility with pre-v1.14 clients."
+  A `nil` remains for limited backwards-compatibility with pre-v1.14 clients."
 
   {:author "Peter Taoussanis (@ptaoussanis)"}
 
@@ -115,7 +115,7 @@
 
 #?(:cljs (def ^:private node-target? (= *target* "nodejs")))
 
-;; (timbre/set-level! :trace) ; Uncomment for debugging
+;; (timbre/set-ns-min-level! :trace) ; Uncomment for debugging
 (defonce debug-mode?_ (atom false))
 
 ;;;; Events
@@ -195,7 +195,7 @@
       (put! ch-recv ev-msg*))))
 
 ;;; Note that cb replys need _not_ be `event` form!
-#?(:cljs (defn cb-error? [cb-reply-clj] (#{:chsk/closed :chsk/timeout :chsk/error} cb-reply-clj)))
+#?(:cljs (defn cb-error?   [cb-reply-clj] (#{:chsk/closed :chsk/timeout :chsk/error} cb-reply-clj)))
 #?(:cljs (defn cb-success? [cb-reply-clj] (not (cb-error? cb-reply-clj))))
 
 ;;;; Packing
@@ -1063,7 +1063,12 @@
 
            handshake-ev
            [:chsk/handshake
-            [?uid nil ?handshake-data first-handshake?]]]
+            [?uid nil ?handshake-data first-handshake?]
+
+            #_ ; TODO In a future breaking release?
+            {:uid              ?uid
+             :handshake-data   ?handshake-data
+             :first-handshake? first-handshake?}]]
 
        (assert-event handshake-ev)
        (swap-chsk-state! chsk #(merge % new-state))
@@ -1178,17 +1183,17 @@
 (comment (get-client-csrf-token-str false "token"))
 
 (defrecord ChWebSocket
-    ;; WebSocket-only IChSocket implementation
-    ;; Handles (re)connections, cbs, etc.
+  ;; WebSocket-only IChSocket implementation
+  ;; Handles (re)connections, cbs, etc.
 
-    [client-id chs params headers packer url ws-kalive-ms
-     state_ ; {:type _ :open? _ :uid _ :csrf-token _ ...}
-     instance-handle_ retry-count_ ever-opened?_
-     backoff-ms-fn ; (fn [nattempt]) -> msecs
-     cbs-waiting_ ; {<cb-uuid> <fn> ...}
-     socket_
-     udt-last-comms_
-     ws-opts]
+  [client-id chs params headers packer url ws-kalive-ms
+   state_ ; {:type _ :open? _ :uid _ :csrf-token _ ...}
+   instance-handle_ retry-count_ ever-opened?_
+   backoff-ms-fn ; (fn [nattempt]) -> msecs
+   cbs-waiting_ ; {<cb-uuid> <fn> ...}
+   socket_
+   udt-last-comms_
+   ws-opts]
 
   IChSocket
   (-chsk-disconnect! [chsk reason]
@@ -1411,13 +1416,13 @@
 
 #?(:cljs
    (defrecord ChAjaxSocket
-       ;; Ajax-only IChSocket implementation
-       ;; Handles (re)polling, etc.
+     ;; Ajax-only IChSocket implementation
+     ;; Handles (re)polling, etc.
 
-       [client-id chs params packer url state_
-        instance-handle_ ever-opened?_
-        backoff-ms-fn
-        ajax-opts curr-xhr_]
+     [client-id chs params packer url state_
+      instance-handle_ ever-opened?_
+      backoff-ms-fn
+      ajax-opts curr-xhr_]
 
      IChSocket
      (-chsk-disconnect! [chsk reason]
@@ -1584,12 +1589,12 @@
 
 #?(:cljs
    (defrecord ChAutoSocket
-       ;; Dynamic WebSocket/Ajax IChSocket implementation
-       ;; Wraps a swappable ChWebSocket/ChAjaxSocket
+     ;; Dynamic WebSocket/Ajax IChSocket implementation
+     ;; Wraps a swappable ChWebSocket/ChAjaxSocket
 
-       [ws-chsk-opts ajax-chsk-opts state_
-        impl_ ; ChWebSocket or ChAjaxSocket
-        ]
+     [ws-chsk-opts ajax-chsk-opts state_
+      impl_ ; ChWebSocket or ChAjaxSocket
+      ]
 
      IChSocket
      (-chsk-disconnect! [chsk reason]

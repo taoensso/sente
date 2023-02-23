@@ -4,16 +4,16 @@
 
   (:require
    [clojure.string  :as str]
-   [cljs.core.async :as async  :refer (<! >! put! chan)]
-   [taoensso.encore :as encore :refer-macros (have have?)]
-   [taoensso.timbre :as timbre :refer-macros (tracef debugf infof warnf errorf)]
-   [taoensso.sente  :as sente  :refer (cb-success?)]
+   [cljs.core.async :as async  :refer [<! >! put! chan]]
+   [taoensso.encore :as encore :refer-macros [have have?]]
+   [taoensso.timbre :as timbre :refer-macros []]
+   [taoensso.sente  :as sente  :refer [cb-success?]]
 
    ;; Optional, for Transit encoding:
    [taoensso.sente.packers.transit :as sente-transit])
 
   (:require-macros
-   [cljs.core.async.macros :as asyncm :refer (go go-loop)]))
+   [cljs.core.async.macros :as asyncm :refer [go go-loop]]))
 
 ;; (timbre/set-level! :trace) ; Uncomment for more logging
 
@@ -22,7 +22,7 @@
 (def output-el (.getElementById js/document "output"))
 (defn ->output! [fmt & args]
   (let [msg (apply encore/format fmt args)]
-    (timbre/debug msg)
+    (timbre/debugf "->output: %s" msg)
     (aset output-el "value" (str "• " (.-value output-el) "\n" msg))
     (aset output-el "scrollTop" (.-scrollHeight output-el))))
 

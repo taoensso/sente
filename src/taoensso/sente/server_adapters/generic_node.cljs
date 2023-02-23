@@ -6,9 +6,8 @@
        https://github.com/theasp/sente-nodejs-example."
   {:author "Andrew Phillips <@theasp>, Matthew Molloy <@whamtet>"}
   (:require
-   [taoensso.encore :as enc :refer-macros ()]
-   [taoensso.timbre :as timbre
-    :refer-macros (tracef debugf infof warnf errorf)]
+   [taoensso.encore :as enc]
+   [taoensso.timbre :as timbre]
    [taoensso.sente.interfaces :as i]))
 
 (defn- ws-open? [ws] (= (.-readyState ws) (.-OPEN ws)))
@@ -29,14 +28,14 @@
         sent?))))
 
 (defn- make-ws-chan [callbacks-map ws]
-  (tracef "Making WebSocket adapter")
+  (timbre/trace "Making WebSocket adapter")
   (let [chan (GenericNodeWsAdapter. callbacks-map ws) ; sch
         {:keys [on-open on-close on-msg _on-error]} callbacks-map
         ws? true]
     ;; (debugf "WebSocket debug: %s" [(type ws) ws])
     (when on-msg   (.on ws "message" (fn [data flags] (on-msg   chan ws? data))))
     (when on-close (.on ws "close"   (fn [code msg]   (on-close chan ws? code))))
-    (when on-open  (do                               (on-open  chan ws?)))
+    (when on-open  (do                                (on-open  chan ws?)))
     ws))
 
 (deftype GenericNodeAjaxAdapter [resp-open?_ resp]
@@ -64,7 +63,7 @@
 (defn- make-ajax-chan [callbacks-map req resp]
   ;; req  - IncomingMessage
   ;; resp - ServerResponse
-  (tracef "Making Ajax adapter")
+  (timbre/trace "Making Ajax adapter")
   (let [resp-open?_ (atom true)
         chan (GenericNodeAjaxAdapter. resp-open?_ resp) ; sch
         {:keys [on-open on-close on-msg _on-error]} callbacks-map
@@ -76,7 +75,7 @@
     (when on-close
       (.on resp "finish" (fn [] (on-close chan ws? nil)))
       (.on resp "close"  (fn [] (on-close chan ws? nil))))
-    (when on-open (do          (on-open  chan ws?)))
+    (when on-open               (on-open  chan ws?))
 
     ;; If we reply blank for Ajax conns then the route matcher will fail.
     ;; Dog Fort will send a 404 resp and close the conn. To keep it open
@@ -97,5 +96,5 @@
 
 (enc/deprecated
   ;; These are stateful, could be problematic?
-  (def generic-node-adapter "Deprecated" (get-sch-adapter))
+  (def generic-node-adapter     "Deprecated" (get-sch-adapter))
   (def sente-web-server-adapter "Deprecated" generic-node-adapter))

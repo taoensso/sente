@@ -6,29 +6,29 @@
    [clojure.string     :as str]
    [ring.middleware.defaults]
    [ring.middleware.anti-forgery :as anti-forgery]
-   [compojure.core     :as comp :refer (defroutes GET POST)]
+   [compojure.core     :as comp :refer [defroutes GET POST]]
    [compojure.route    :as route]
    [hiccup.core        :as hiccup]
-   [clojure.core.async :as async  :refer (<! <!! >! >!! put! chan go go-loop)]
-   [taoensso.encore    :as encore :refer (have have?)]
-   [taoensso.timbre    :as timbre :refer (tracef debugf infof warnf errorf)]
+   [clojure.core.async :as async  :refer [<! <!! >! >!! put! chan go go-loop]]
+   [taoensso.encore    :as encore :refer [have have?]]
+   [taoensso.timbre    :as timbre]
    [taoensso.sente     :as sente]
 
    ;;; TODO Choose (uncomment) a supported web server + adapter -------------
    [org.httpkit.server :as http-kit]
-   [taoensso.sente.server-adapters.http-kit :refer (get-sch-adapter)]
+   [taoensso.sente.server-adapters.http-kit :refer [get-sch-adapter]]
 
    ;; [immutant.web :as immutant]
-   ;; [taoensso.sente.server-adapters.immutant :refer (get-sch-adapter)]
+   ;; [taoensso.sente.server-adapters.immutant :refer [get-sch-adapter]]
 
    ;; [nginx.clojure.embed :as nginx-clojure]
-   ;; [taoensso.sente.server-adapters.nginx-clojure :refer (get-sch-adapter)]
+   ;; [taoensso.sente.server-adapters.nginx-clojure :refer [get-sch-adapter]]
 
    ;; [aleph.http :as aleph]
-   ;; [taoensso.sente.server-adapters.aleph :refer (get-sch-adapter)]
+   ;; [taoensso.sente.server-adapters.aleph :refer [get-sch-adapter]]
 
    ;; [ring.adapter.jetty9.websocket :as jetty9.websocket]
-   ;; [taoensso.sente.server-adapters.jetty9 :refer (get-sch-adapter)]
+   ;; [taoensso.sente.server-adapters.jetty9 :refer [get-sch-adapter]]
    ;;
    ;; See https://gist.github.com/wavejumper/40c4cbb21d67e4415e20685710b68ea0
    ;; for full example using Jetty 9
@@ -66,7 +66,7 @@
 (add-watch connected-uids :connected-uids
   (fn [_ _ old new]
     (when (not= old new)
-      (infof "Connected uids change: %s" new))))
+      (timbre/infof "Connected uids change: %s" new))))
 
 ;;;; Ring handlers
 
@@ -114,7 +114,7 @@
   [ring-req]
   (let [{:keys [session params]} ring-req
         {:keys [user-id]} params]
-    (debugf "Login request: %s" params)
+    (timbre/debugf "Login request: %s" params)
     {:status 200 :session (assoc session :uid user-id)}))
 
 (defroutes ring-routes
@@ -157,7 +157,7 @@
   (let [broadcast!
         (fn [i]
           (let [uids (:any @connected-uids)]
-            (debugf "Broadcasting server>user: %s uids" (count uids))
+            (timbre/debugf "Broadcasting server>user: %s uids" (count uids))
             (doseq [uid uids]
               (chsk-send! uid
                 [:some/broadcast
@@ -190,7 +190,7 @@
   [{:as ev-msg :keys [event id ?data ring-req ?reply-fn send-fn]}]
   (let [session (:session ring-req)
         uid     (:uid     session)]
-    (debugf "Unhandled event: %s" event)
+    (timbre/debugf "Unhandled event: %s" event)
     (when ?reply-fn
       (?reply-fn {:umatched-event-as-echoed-from-server event}))))
 
@@ -244,7 +244,7 @@
 
         uri (format "http://localhost:%s/" port)]
 
-    (infof "Web server is running at `%s`" uri)
+    (timbre/infof "Web server is running at `%s`" uri)
     (try
       (.browse (java.awt.Desktop/getDesktop) (java.net.URI. uri))
       (catch java.awt.HeadlessException _))

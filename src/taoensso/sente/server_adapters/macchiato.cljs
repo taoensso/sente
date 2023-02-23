@@ -3,12 +3,11 @@
   (https://macchiato-framework.github.io/)."
   {:author "Andrew Phillips <@theasp>"}
   (:require
-   [macchiato.middleware.anti-forgery :as csrf]
-   [taoensso.sente :as sente]
-   [taoensso.encore :as enc :refer-macros ()]
+   [taoensso.encore :as enc]
+   [taoensso.timbre :as timbre]
+   [taoensso.sente  :as sente]
    [taoensso.sente.server-adapters.generic-node :as generic-node]
-   [taoensso.timbre :as timbre
-    :refer-macros (tracef debugf infof warnf errorf)]))
+   [macchiato.middleware.anti-forgery :as csrf]))
 
 (def csrf-path [:session :macchiato.middleware.anti-forgery/anti-forgery-token])
 
@@ -29,7 +28,7 @@
   "A customized `make-channel-socket-server!` that uses Node.js with
   Macchiato as the web server."
   [& [opts]]
-  (tracef "Making Macchiato chsk")
+  (timbre/trace "Making Macchiato chsk server")
   (-> (generic-node/get-sch-adapter)
       (sente/make-channel-socket-server! opts)
       (update :ajax-get-or-ws-handshake-fn wrap-macchiato)

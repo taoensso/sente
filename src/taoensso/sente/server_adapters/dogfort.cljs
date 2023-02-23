@@ -13,5 +13,5 @@
 
 (enc/deprecated
   ;; These are stateful, could be problematic?
-  (def dogfort-adapter "Deprecated" (get-sch-adapter))
-  (def sente-web-server-adapter "Deprecated" dogfort-adapter))
+  (def dogfort-adapter          "Deprecated" (get-sch-adapter))
+  (def sente-web-server-adapter "Deprecated"  dogfort-adapter))
