@@ -457,21 +457,27 @@
         send-buffers_   (atom {:ws  {} :ajax  {}}) ; {<uid> [<buffered-evs> <#{ev-uuids}>]}
         connected-uids_ (atom {:ws #{} :ajax #{} :any #{}}) ; Public
 
-        upd-conn!
+        upd-conn! ; Update client entry in conns_
         (fn
-          ([conn-type uid client-id] ; Update udt
+          ([conn-type uid client-id] ; Update only udt
            (swap-in! conns_ [conn-type uid client-id]
              (fn [?v]
-               (let [[?sch _udt] ?v
+               (let [[?sch _?udt] ?v
                      new-udt (enc/now-udt)]
                  (enc/swapped
                    [?sch new-udt]
                    {:init? (nil? ?v) :udt new-udt :?sch ?sch})))))
 
-          ([conn-type uid client-id new-?sch] ; Update sch + udt
+          ([conn-type uid client-id old-?sch new-?sch] ; Update sch & udt
            (swap-in! conns_ [conn-type uid client-id]
              (fn [?v]
-               (let [new-udt (enc/now-udt)]
+               (let [[?sch _?udt] ?v
+                     new-udt (enc/now-udt)
+                     new-?sch
+                     (if (or (= old-?sch :any) (identical? old-?sch ?sch))
+                       new-?sch ; CAS successful, Ref. #417
+                       ?sch)]
+
                  (enc/swapped
                    [new-?sch new-udt]
                    {:init? (nil? ?v) :udt new-udt :?sch new-?sch}))))))
@@ -708,6 +714,7 @@
              params     (get ring-req :params)
              client-id  (get params   :client-id)
              uid        (user-id-fn    ring-req client-id)
+             ;; ?ws-key (get-in ring-req [:headers "sec-websocket-key"])
 
              receive-event-msg! ; Partial
              (fn self
@@ -748,7 +755,7 @@
 
                   ;; WebSocket handshake
                   (let [_ (tracef "New WebSocket channel: %s (%s)" uid sch-uuid)
-                        updated-conn (upd-conn! :ws uid client-id server-ch)
+                        updated-conn (upd-conn! :ws uid client-id :any server-ch)
                         udt-open     (:udt updated-conn)]
 
                     (when (connect-uid! :ws uid)
@@ -774,7 +781,7 @@
 
                   ;; Ajax handshake/poll
                   (let [_ (tracef "New Ajax handshake/poll: %s (%s)" uid sch-uuid)
-                        updated-conn (upd-conn! :ajax uid client-id server-ch)
+                        updated-conn (upd-conn! :ajax uid client-id :any server-ch)
                         udt-open     (:udt updated-conn)
                         handshake?   (or (:init? updated-conn) (:handshake? params))]
 
@@ -814,7 +821,7 @@
                           (if websocket? "WebSocket" "Ajax")
                           uid sch-uuid)
 
-                      updated-conn (upd-conn! conn-type uid client-id nil)
+                      updated-conn (upd-conn! conn-type uid client-id server-ch nil)
                       udt-close    (:udt updated-conn)]
 
                   ;; Allow some time for possible reconnects (repoll,
