@@ -39,7 +39,7 @@
    [taoensso.sente.packers.transit :as sente-transit]))
 
 ;; (timbre/set-level! :trace) ; Uncomment for more logging
-(reset! sente/debug-mode?_ true) ; Uncomment for extra debug info
+;; (reset! sente/debug-mode?_ true) ; Uncomment for extra debug info
 
 ;;;; Define our Sente channel socket (chsk) server
 
