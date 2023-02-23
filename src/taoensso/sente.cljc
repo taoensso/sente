@@ -756,24 +756,21 @@
 
                     (send-handshake! server-ch websocket?)
 
-                    ;; Start ws-kalive loop
-                    ;; This also works to gc ws conns that were suddenly
-                    ;; terminated (e.g. by turning on airplane mode)
+                    ;; Start server-side ws-kalive loop
+                    ;; Also helps server detect broken conns earlier
                     (when-let [ms ws-kalive-ms]
                       (go-loop [udt-t0 udt-open]
                         (<! (async/timeout ms))
-                        (when-let [[_sch udt-t1] (get-in @conns_ [:ws uid client-id])]
-                          (when (interfaces/sch-open? server-ch)
-                            ;; (assert (= _sch server-ch))
+                        (when-let [[sch udt-t1] (get-in @conns_ [:ws uid client-id])]
+                          (when (identical? sch server-ch)
                             (when (= udt-t1 udt-t0)
-                              ;; Ref. issue #230:
-                              ;; We've seen no send/recv activity on this
-                              ;; conn w/in our kalive window so send a ping
-                              ;; ->client (should auto-close conn if it's
-                              ;; gone dead).
-                              (interfaces/sch-send! server-ch websocket?
-                                (pack packer :chsk/ws-ping)))
-                            (recur udt-t1))))))
+                              ;; Ref. #230
+                              ;; No conn send/recv activity w/in kalive window
+                              ;; so send ping to client. Should trigger close
+                              ;; if conn is broken.
+                                (interfaces/sch-send! server-ch websocket?
+                                  (pack packer :chsk/ws-ping)))
+                              (recur udt-t1))))))
 
                   ;; Ajax handshake/poll
                   (let [_ (tracef "New Ajax handshake/poll: %s (%s)" uid sch-uuid)
@@ -791,10 +788,8 @@
                       (when-let [ms lp-timeout-ms]
                         (go
                           (<! (async/timeout ms))
-                          (when-let [[_sch udt-t1] (get-in @conns_ [:ajax uid client-id])]
-                            (when (= udt-t1 udt-open)
-                              ;; (assert (= _sch server-ch))
-                              ;; Appears to still be the active sch
+                          (when-let [[sch udt-t1] (get-in @conns_ [:ajax uid client-id])]
+                            (when (and (= identical? server-ch) (= udt-t1 udt-open))
                               (interfaces/sch-send! server-ch websocket?
                                 (pack packer :chsk/timeout))))))))))
 
@@ -828,8 +823,8 @@
                     (<! (async/timeout 5000)) ; TODO Configurable
                     (let [disconnect? ; Removed entry for client-id?
                           (swap-in! conns_ [conn-type uid client-id]
-                            (fn [[_sch udt-t1]]
-                              (if (= udt-t1 udt-close)
+                            (fn [[sch udt-t1]]
+                              (if (and (identical? sch server-ch) (= udt-t1 udt-close))
                                 (swapped :swap/dissoc true)
                                 (swapped :swap/abort  false))))]
 
@@ -1358,6 +1353,8 @@
       (reset! retry-count_ 0)
       (connect-fn)
 
+      ;; Start client-side ws-kalive loop
+      ;; Also helps client detect broken conns earlier
       (when-let [ms ws-kalive-ms]
         (go-loop []
           (let [udt-t0 @udt-last-comms_]
@@ -1365,14 +1362,10 @@
             (when (have-handle?)
               (let [udt-t1 @udt-last-comms_]
                 (when (= udt-t0 udt-t1)
-                  ;; Ref. issue #259:
-                  ;; We've seen no send/recv activity on this
-                  ;; conn w/in our kalive window so send a ping
-                  ;; ->server (should auto-close conn if it's
-                  ;; gone dead). The server generally sends pings so
-                  ;; this should be rare. Mostly here to help clients
-                  ;; identify conns that were suddenly dropped.
-
+                  ;; Ref. #259
+                  ;; No conn send/recv activity w/in kalive window
+                  ;; so send ping to server. Should trigger close
+                  ;; if conn is broken.
                   (-chsk-send! chsk [:chsk/ws-ping] {:flush? true})))
               (recur)))))
 
