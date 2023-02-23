@@ -825,29 +825,26 @@
                   ;; Allow some time for possible reconnects (repoll,
                   ;; sole window refresh, etc.):
                   (go
-                    (<! (async/timeout 5000))
-                    (let [[_?sch udt-t1] (get-in @conns_ [conn-type uid client-id])]
+                    (<! (async/timeout 5000)) ; TODO Configurable
+                    (let [disconnect? ; Removed entry for client-id?
+                          (swap-in! conns_ [conn-type uid client-id]
+                            (fn [[_sch udt-t1]]
+                              (if (= udt-t1 udt-close)
+                                (swapped :swap/dissoc true)
+                                (swapped :swap/abort  false))))]
 
                       (when @debug-mode?_
                         (debugf "close-timeout: %s %s %s %s" conn-type uid
-                          sch-uuid [(= udt-t1 udt-close) udt-t1 udt-close]))
+                          sch-uuid disconnect?))
 
-                      (when (= udt-t1 udt-close)
-                        (let [disconnect? ; Removed entry for client-id?
-                              (swap-in! conns_ [conn-type uid client-id]
-                                (fn [[_sch udt-t1]]
-                                  (if (= udt-t1 udt-close)
-                                    (swapped :swap/dissoc true)
-                                    (swapped [_sch udt-t1] false))))]
+                      (when disconnect?
 
-                          (when disconnect?
+                        ;; Potentially remove entry for uid
+                        (swap-in! conns_ [conn-type uid]
+                          (fn [?m] (if (empty? ?m) :swap/dissoc ?m)))
 
-                            ;; Potentially remove entry for uid
-                            (swap-in! conns_ [conn-type uid]
-                              (fn [?m] (if (empty? ?m) :swap/dissoc ?m)))
-
-                            (when (upd-connected-uid! uid)
-                              (receive-event-msg! [:chsk/uidport-close uid])))))))))
+                        (when (upd-connected-uid! uid)
+                          (receive-event-msg! [:chsk/uidport-close uid])))))))
 
               :on-error
               (fn [server-ch websocket? error]
