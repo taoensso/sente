@@ -242,10 +242,10 @@
                       writes v1 format only
 
       Sente    v1.17: reads  v1 and v2 formats
-                      writes v1 and v2 formats (v1 default) <- Currently here
+                      writes v1 and v2 formats (v1 default)
 
       Sente    v1.18: reads  v1 and v2 formats
-                      writes v1 and v2 formats (v2 default)
+                      writes v1 and v2 formats (v2 default)  <- Currently here
 
       Sente >= v1.19: reads  v2 format only
                       writes v2 format only
@@ -253,8 +253,7 @@
     This var controls which format to use for writing.
     Override default with `alter-var-root` or `binding`."
 
-  ;; TODO -> false for Sente v1.18, remove for Sente >= v1.19
-  true)
+  false)
 
 (defn- pack "[clj ?cb-uuid]->packed"
   ([packer clj         ] (pack packer clj nil))
