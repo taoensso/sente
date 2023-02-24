@@ -46,20 +46,21 @@
 (let [;; Serialization format, must use same val for client + server:
       packer :edn ; Default packer, a good choice in most cases
       ;; (sente-transit/get-transit-packer) ; Needs Transit dep
+      ]
 
-      chsk-server
-      (sente/make-channel-socket-server!
-       (get-sch-adapter) {:packer packer})
+  (defonce chsk-server
+    (sente/make-channel-socket-server!
+      (get-sch-adapter) {:packer packer})))
 
-      {:keys [ch-recv send-fn connected-uids
+(let [{:keys [ch-recv send-fn connected-uids
               ajax-post-fn ajax-get-or-ws-handshake-fn]}
       chsk-server]
 
-  (def ring-ajax-post                ajax-post-fn)
-  (def ring-ajax-get-or-ws-handshake ajax-get-or-ws-handshake-fn)
-  (def ch-chsk                       ch-recv) ; ChannelSocket's receive channel
-  (def chsk-send!                    send-fn) ; ChannelSocket's send API fn
-  (def connected-uids                connected-uids) ; Watchable, read-only atom
+  (defonce ring-ajax-post                ajax-post-fn)
+  (defonce ring-ajax-get-or-ws-handshake ajax-get-or-ws-handshake-fn)
+  (defonce ch-chsk                       ch-recv) ; ChannelSocket's receive channel
+  (defonce chsk-send!                    send-fn) ; ChannelSocket's send API fn
+  (defonce connected-uids                connected-uids) ; Watchable, read-only atom
   )
 
 ;; We can watch this atom for changes if we like
