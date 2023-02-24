@@ -1183,14 +1183,14 @@
   ;; WebSocket-only IChSocket implementation
   ;; Handles (re)connections, cbs, etc.
 
-  [client-id chs params headers packer url ws-kalive-ms
+  [client-id chs params headers packer url
    state_ ; {:type _ :open? _ :uid _ :csrf-token _ ...}
    instance-handle_ retry-count_ ever-opened?_
+   ws-kalive-ms ws-kalive-ping-timeout-ms ws-opts
    backoff-ms-fn ; (fn [nattempt]) -> msecs
    cbs-waiting_ ; {<cb-uuid> <fn> ...}
    socket_
-   udt-last-comms_
-   ws-opts]
+   udt-last-comms_]
 
   IChSocket
   (-chsk-disconnect! [chsk reason]
@@ -1388,7 +1388,7 @@
                   ;; if conn is broken.
                   (-chsk-send! chsk [:chsk/ws-ping]
                     {:flush? true
-                     :timeout-ms 5000 ; TODO Configurable
+                     :timeout-ms ws-kalive-ping-timeout-ms
                      :cb ; Server will auto reply
                      (fn [reply]
                        (when (and (have-handle?) (not= reply "pong") #_(= reply :chsk/timeout))
@@ -1689,12 +1689,18 @@
        :packer         ; :edn (default), or an IPacker implementation.
        :ajax-opts      ; Base opts map provided to `taoensso.encore/ajax-lite`.
        :wrap-recv-evs? ; Should events from server be wrapped in [:chsk/recv _]?
+
        :ws-kalive-ms   ; Ping to keep a WebSocket conn alive if no activity
-                       ; w/in given msecs. Should be different to server's :ws-kalive-ms."
+                       ; w/in given msecs. Should be different to server's :ws-kalive-ms.
+       :ws-kalive-ping-timeout-ms ; When above keep-alive ping is triggered, use this
+                                  ; timeout (default: 5000) before regarding the connection
+                                  ; as broken."
 
      [path ?csrf-token-or-fn &
-      [{:keys [type protocol host port params headers recv-buf-or-n packer ws-kalive-ms ws-opts
+      [{:keys [type protocol host port params headers recv-buf-or-n packer
+               ws-kalive-ms ws-kalive-ping-timeout-ms ws-opts
                client-id ajax-opts wrap-recv-evs? backoff-ms-fn]
+
         :as   opts
         :or   {type           :auto
                recv-buf-or-n  (async/sliding-buffer 2048) ; Mostly for buffered-evs
@@ -1703,7 +1709,9 @@
                                   (enc/uuid-str))
                wrap-recv-evs? true
                backoff-ms-fn  enc/exp-backoff
-               ws-kalive-ms   (enc/ms :secs 20)}}
+
+               ws-kalive-ms              20000
+               ws-kalive-ping-timeout-ms 5000}}
 
        _deprecated-more-opts]]
 
@@ -1750,12 +1758,13 @@
                 (chan buf)))}
 
            common-chsk-opts
-           {:client-id    client-id
-            :chs          private-chs
-            :params       params
-            :headers      headers
-            :packer       packer
-            :ws-kalive-ms ws-kalive-ms}
+           {:client-id client-id
+            :chs       private-chs
+            :params    params
+            :headers   headers
+            :packer    packer
+            :ws-kalive-ms              ws-kalive-ms
+            :ws-kalive-ping-timeout-ms ws-kalive-ping-timeout-ms}
 
            ws-chsk-opts
            (merge common-chsk-opts
