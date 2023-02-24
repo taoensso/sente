@@ -79,32 +79,15 @@
   A `nil` remains for limited backwards-compatibility with pre-v1.14 clients."
 
   {:author "Peter Taoussanis (@ptaoussanis)"}
+  (:require
+   [clojure.string     :as str]
+   [clojure.core.async :as async  :refer [<! >! put! chan go go-loop]]
+   [taoensso.encore    :as enc    :refer [have have! have? swap-in! reset-in! swapped]]
+   [taoensso.timbre    :as timbre :refer [tracef debugf infof warnf errorf]]
+   [taoensso.sente.interfaces :as interfaces])
 
-  #?(:clj
-     (:require
-      [clojure.string :as str]
-      [clojure.core.async :as async :refer (<! <!! >! >!! put! chan go go-loop)]
-      [taoensso.encore :as enc :refer (swap-in! reset-in! swapped have have! have?)]
-      [taoensso.timbre :as timbre :refer (tracef debugf infof warnf errorf)]
-      [taoensso.sente.interfaces :as interfaces]))
-
-  #?(:cljs
-     (:require
-      [clojure.string :as str]
-      [cljs.core.async :as async :refer (<! >! put! chan)]
-      [taoensso.encore :as enc :refer (format swap-in! reset-in! swapped)
-       :refer-macros (have have! have?)]
-      [taoensso.timbre :as timbre :refer-macros (tracef debugf infof warnf errorf)]
-      [taoensso.sente.interfaces :as interfaces]))
-
-  #?(:cljs
-     (:require-macros
-      [cljs.core.async.macros :as asyncm :refer (go go-loop)]
-      [taoensso.sente :as sente-macros :refer (elide-require)]))
-
-  #?(:clj
-     (:import
-      [org.java_websocket.client WebSocketClient])))
+  #?(:cljs (:require-macros [taoensso.sente :as sente-macros :refer [elide-require]]))
+  #?(:clj  (:import [org.java_websocket.client WebSocketClient])))
 
 (if (vector? taoensso.encore/encore-version)
   (enc/assert-min-encore-version [2 105 0])

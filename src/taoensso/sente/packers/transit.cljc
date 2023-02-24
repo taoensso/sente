@@ -3,24 +3,15 @@
   Optional Transit-format[1] IPacker implementation for use with Sente.
   [1] https://github.com/cognitect/transit-format."
   {:author "Peter Taoussanis, @ckarlsen84"}
+  (:require
+   [clojure.string    :as str]
+   [taoensso.encore   :as enc :refer [have have! have?]]
+   [taoensso.timbre   :as timbre]
+   [cognitect.transit :as transit]
+   [taoensso.sente.interfaces :as interfaces
+    :refer [pack unpack]])
 
-  #?(:clj
-     (:require
-      [clojure.string :as str]
-      [taoensso.encore :as enc :refer (have have! have?)]
-      [taoensso.timbre :as timbre]
-      [cognitect.transit :as transit]
-      [taoensso.sente.interfaces :as interfaces :refer (pack unpack)]))
-
-  #?(:clj
-     (:import [java.io ByteArrayInputStream ByteArrayOutputStream]))
-
-  #?(:cljs
-     (:require
-      [clojure.string :as str]
-      [taoensso.encore :as enc :refer-macros (have have! have?)]
-      [cognitect.transit :as transit]
-      [taoensso.sente.interfaces :as interfaces :refer (pack unpack)])))
+  #?(:clj (:import [java.io ByteArrayInputStream ByteArrayOutputStream])))
 
 #?(:clj
    (defn- get-charset ^String [transit-fmt]
