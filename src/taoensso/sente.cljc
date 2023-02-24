@@ -948,7 +948,7 @@
      (defn chsk-disconnect! [chsk] (-chsk-disconnect! chsk :requested-disconnect))
      (defn chsk-reconnect! "Useful for reauthenticating after login/logout, etc."
        [chsk] (-chsk-reconnect! chsk))
-     (def chsk-destroy! "Deprecated" chsk-disconnect!)
+     (def ^:deprecated chsk-destroy! "Deprecated" chsk-disconnect!)
 
    (defn chsk-send!
      "Sends `[ev-id ev-?data :as event]`, returns true on apparent success."
@@ -1911,7 +1911,7 @@
 
 (enc/deprecated
   #?(:clj
-     (defn start-chsk-router-loop!
+     (defn ^:deprecated start-chsk-router-loop!
        "DEPRECATED: Please use `start-chsk-router!` instead"
        [event-msg-handler ch-recv]
        (start-server-chsk-router! ch-recv
@@ -1919,18 +1919,18 @@
          (fn [ev-msg] (event-msg-handler ev-msg (:ch-recv ev-msg))))))
 
   #?(:cljs
-     (defn start-chsk-router-loop!
+     (defn ^:deprecated start-chsk-router-loop!
        "DEPRECATED: Please use `start-chsk-router!` instead"
        [event-handler ch-recv]
        (start-client-chsk-router! ch-recv
          ;; Old handler form: (fn [ev ch-recv])
          (fn [ev-msg] (event-handler (:event ev-msg) (:ch-recv ev-msg))))))
 
-  (def set-logging-level! "DEPRECATED. Please use `timbre/set-level!` instead" timbre/set-level!)
+  (def ^:deprecated set-logging-level! "DEPRECATED. Please use `timbre/set-level!` instead" timbre/set-level!)
 
-  #?(:cljs (def ajax-call "DEPRECATED: Please use `ajax-lite` instead" enc/ajax-lite))
+  #?(:cljs (def ^:deprecated ajax-call "DEPRECATED: Please use `ajax-lite` instead" enc/ajax-lite))
   #?(:cljs
-     (def default-chsk-url-fn "DEPRECATED"
+     (def ^:deprecated default-chsk-url-fn "DEPRECATED"
        (fn [path {:as location :keys [protocol host pathname]} websocket?]
          (let [protocol
                (if websocket?
