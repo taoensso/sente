@@ -23,7 +23,7 @@
       [taoensso.sente.interfaces :as interfaces :refer (pack unpack)])))
 
 #?(:clj
-   (defn- get-charset [transit-fmt]
+   (defn- get-charset ^String [transit-fmt]
      ;; :msgpack appears to need ISO-8859-1 to retain binary data correctly when
      ;; string-encoded, all other (non-binary) formats can get UTF-8:
      (if (enc/kw-identical? transit-fmt :msgpack) "ISO-8859-1" "UTF-8")))
@@ -50,10 +50,10 @@
    (def ^:private transit-writer-fn-proxy
      (enc/thread-local-proxy
        (fn [fmt opts]
-         (let [^String charset (get-charset fmt)
-               opts (cache-write-handlers opts)
-               ^ByteArrayOutputStream baos (ByteArrayOutputStream. 64)
-               writer (transit/writer baos fmt opts)]
+         (let [charset (get-charset fmt)
+               opts    (cache-write-handlers opts)
+               baos    (ByteArrayOutputStream. 64)
+               writer  (transit/writer baos fmt opts)]
            (fn [x]
              (transit/write writer x)
              (let [result (.toString baos charset)]
@@ -81,11 +81,11 @@
            (fn [s] (transit/read reader s)))))
      :clj
      (fn [fmt opts]
-       (let [^String charset (get-charset fmt)
-             opts (cache-read-handlers opts)]
-         (fn [s]
-           (let [ba (.getBytes ^String s ^String charset)
-                 ^ByteArrayInputStream bais (ByteArrayInputStream. ba)
+       (let [charset (get-charset fmt)
+             opts    (cache-read-handlers opts)]
+         (fn [^String s]
+           (let [ba     (.getBytes s charset)
+                 bais   (ByteArrayInputStream. ba)
                  reader (transit/reader bais fmt opts)]
              (transit/read reader)))))))
 
@@ -105,6 +105,6 @@
 
 (comment
   (def tp (get-transit-packer))
-  (enc/qb 10000
-    (unpack tp (pack tp [:chsk/ws-ping "foo"]))
+  (enc/qb 1e4 ; [139.36 71.1]
+    (do   (unpack tp (pack tp [:chsk/ws-ping "foo"])))
     (enc/read-edn (enc/pr-edn [:chsk/ws-ping "foo"]))))

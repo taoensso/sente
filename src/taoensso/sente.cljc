@@ -313,7 +313,7 @@
         unpack interfaces/unpack
         data   {:a :A :b :B :c "hello world"}]
 
-    (enc/qb 10000
+    (enc/qb 1e4 ; [111.96 67.26]
       (let [pk default-edn-packer]          (unpack pk (pack pk data)))
       (let [pk default-transit-json-packer] (unpack pk (pack pk data))))))
 
