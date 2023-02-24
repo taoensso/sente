@@ -1696,6 +1696,7 @@
        :packer         ; :edn (default), or an IPacker implementation.
        :ajax-opts      ; Base opts map provided to `taoensso.encore/ajax-lite`.
        :wrap-recv-evs? ; Should events from server be wrapped in [:chsk/recv _]?
+                       ; Default false for Sente >= v1.18, true otherwise.
 
        :ws-kalive-ms   ; Ping to keep a WebSocket conn alive if no activity
                        ; w/in given msecs. Should be different to server's :ws-kalive-ms.
@@ -1714,7 +1715,7 @@
                packer         :edn
                client-id      (or (:client-uuid opts) ; Backwards compatibility
                                   (enc/uuid-str))
-               wrap-recv-evs? true
+               wrap-recv-evs? false
                backoff-ms-fn  enc/exp-backoff
 
                ws-kalive-ms              20000
