@@ -90,9 +90,7 @@
   #?(:cljs (:require-macros [taoensso.sente :as sente-macros :refer [elide-require]]))
   #?(:clj  (:import [org.java_websocket.client WebSocketClient])))
 
-(if (vector? taoensso.encore/encore-version)
-  (enc/assert-min-encore-version [2 105 0])
-  (enc/assert-min-encore-version  2.105))
+(enc/assert-min-encore-version [3 49 0])
 
 (def sente-version "Useful for identifying client/server mismatch"
   [1 11 0])
