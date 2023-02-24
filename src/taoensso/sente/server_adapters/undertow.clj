@@ -18,7 +18,9 @@
   i/IServerChan
   (sch-open?  [sch] (.isOpen    sch))
   (sch-close! [sch] (.sendClose sch))
-  (sch-send!  [sch websocket? msg] (websocket/send msg sch)))
+  (sch-send!  [sch websocket? msg]
+    (websocket/send msg sch)
+    (i/sch-open?        sch)))
 
 (extend-protocol response/RespondBody
   WebSocketConnectionCallback
