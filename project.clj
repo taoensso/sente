@@ -13,11 +13,11 @@
    *assert* true}
 
   :dependencies
-  [[org.clojure/core.async   "1.5.648"]
-   [com.taoensso/encore      "3.23.0"]
+  [[org.clojure/core.async   "1.6.673"]
+   [com.taoensso/encore      "3.57.2"]
    [org.java-websocket/Java-WebSocket "1.5.3"]
    [org.clojure/tools.reader "1.3.6"]
-   [com.taoensso/timbre      "5.2.1"]]
+   [com.taoensso/timbre      "6.1.0"]]
 
   :plugins
   [[lein-pprint    "1.3.2"]
@@ -29,7 +29,7 @@
   {;; :default [:base :system :user :provided :dev]
    :server-jvm {:jvm-opts ^:replace ["-server"]}
    :provided {:dependencies [[org.clojure/clojure       "1.10.2"]
-                             [org.clojure/clojurescript "1.11.57"]]}
+                             [org.clojure/clojurescript "1.11.60"]]}
    :1.8      {:dependencies [[org.clojure/clojure "1.8.0"]]}
    :1.9      {:dependencies [[org.clojure/clojure "1.9.0"]]}
    :1.10     {:dependencies [[org.clojure/clojure "1.10.2"]]}
@@ -37,16 +37,16 @@
    :depr     {:jvm-opts ["-Dtaoensso.elide-deprecated=true"]}
    :dev      [:1.11 :test :server-jvm :depr]
    :test     {:dependencies
-              [[com.cognitect/transit-clj  "1.0.329"]
-               [com.cognitect/transit-cljs "0.8.269"]
+              [[com.cognitect/transit-clj  "1.0.333"]
+               [com.cognitect/transit-cljs "0.8.280"]
                [org.clojure/test.check     "1.1.1"]
                [http-kit         "2.6.0"]
                [org.immutant/web "2.1.10"]
-               [nginx-clojure    "0.5.3"]
-               [aleph            "0.4.7"]
+               [nginx-clojure    "0.6.0"]
+               [aleph            "0.6.1"]
                [macchiato/core   "0.2.22"]
-               [luminus/ring-undertow-adapter  "1.2.5"]
-               [info.sunng/ring-jetty9-adapter "0.17.6"]]}}
+               [luminus/ring-undertow-adapter  "1.3.0"]
+               [info.sunng/ring-jetty9-adapter "0.20.0"]]}}
 
   :cljsbuild
   {:test-commands {"node"    ["node" :node-runner "target/main.js"]
