@@ -1122,8 +1122,8 @@
                  nil))))))))
 
 #?(:clj
-   (defn- create-java-client-websocket!
-     [{:as opts :keys [onerror-fn onmessage-fn onclose-fn uri-str headers]}]
+   (defn- make-client-ws-java
+     [{:as opts :keys [uri-str headers on-error on-message on-close]}]
      (let [uri (java.net.URI. uri-str)
 
            ;; headers
@@ -1136,9 +1136,9 @@
            ws-client
            (proxy [WebSocketClient] [^java.net.URI uri ^java.util.Map headers]
              (onOpen    [^org.java_websocket.handshake.ServerHandshake handshakedata] nil)
-             (onError   [ex]                 (onerror-fn   ex))
-             (onMessage [^String message]    (onmessage-fn message))
-             (onClose   [code reason remote] (onclose-fn   code reason remote)))]
+             (onError   [ex]                 (on-error   ex))
+             (onMessage [^String message]    (on-message message))
+             (onClose   [code reason remote] (on-close   code reason remote)))]
 
        ;; JS client attempts to connect right away at construction time.
        ;; Java client doesn't need to, but we'll do anyway for consistency.
@@ -1146,10 +1146,8 @@
        (do       ws-client))))
 
 #?(:cljs
-   (defn- create-js-client-websocket!
-     [{:as opts
-       :keys [onerror-fn onmessage-fn onclose-fn uri-str headers binary-type]}]
-
+   (defn- make-client-ws-js
+     [{:as opts :keys [uri-str headers on-error on-message on-close binary-type]}]
      (when-let [WebSocket
                 (or
                   (enc/oget goog/global           "WebSocket")
@@ -1158,19 +1156,20 @@
 
        (let [socket (WebSocket. uri-str)]
          (doto socket
-           (aset "onerror"   onerror-fn)
-           (aset "onmessage" onmessage-fn) ; Nb receives both push & cb evs!
+           (aset "onerror"   on-error)
+           (aset "onmessage" on-message) ; Nb receives both push & cb evs!
            ;; Fires repeatedly (on each connection attempt) while server is down:
-           (aset "onclose"   onclose-fn))
+           (aset "onclose"   on-close))
 
          (when-let [bt binary-type] ; "arraybuffer" or "blob" (js default)
            (aset socket "binaryType" bt))
 
          socket))))
 
-(defn- create-websocket! [{:as opts :keys [onerror-fn onmessage-fn onclose-fn uri-str headers]}]
-  #?(:cljs (create-js-client-websocket!   opts)
-     :clj  (create-java-client-websocket! opts)))
+(defn- default-client-ws-constructor
+  [{:as opts :keys [on-error on-message on-close uri-str headers]}]
+  #?(:cljs (make-client-ws-js   opts)
+     :clj  (make-client-ws-java opts)))
 
 (defn- get-client-csrf-token-str
   "Returns non-blank client CSRF token ?string from given token string
@@ -1197,7 +1196,8 @@
    backoff-ms-fn ; (fn [nattempt]) -> msecs
    cbs-waiting_ ; {<cb-uuid> <fn> ...}
    socket_
-   udt-last-comms_]
+   udt-last-comms_
+   ws-constructor]
 
   IChSocket
   (-chsk-disconnect! [chsk reason]
@@ -1266,7 +1266,7 @@
                           (swap-chsk-state! chsk
                             #(assoc % :udt-next-reconnect udt-next-reconnect)))))
 
-                    onerror-fn
+                    on-error
                     #?(:cljs
                        (fn [ws-ev]
                          (errorf ; ^:meta {:raw-console? true}
@@ -1286,7 +1286,7 @@
                            #(assoc % :last-ws-error
                               {:udt (enc/now-udt), :ex ex}))))
 
-                    onmessage-fn ; Nb receives both push & cb evs!
+                    on-message ; Nb receives both push & cb evs!
                     (fn #?(:cljs [ws-ev] :clj [ppstr])
                       (let [ppstr #?(:clj            ppstr
                                      :cljs (enc/oget ws-ev "data"))
@@ -1319,7 +1319,7 @@
 
                     ;; Fires repeatedly (on each connection attempt) while
                     ;; server is down:
-                    onclose-fn
+                    on-close
                     (fn #?(:cljs [ws-ev] :clj [code reason remote])
                       (let [last-ws-close
                             #?(:clj
@@ -1350,12 +1350,12 @@
 
                     ?socket
                     (try
-                      (create-websocket!
+                      (ws-constructor
                         (merge ws-opts
-                          {:onerror-fn   onerror-fn
-                           :onmessage-fn onmessage-fn
-                           :onclose-fn   onclose-fn
-                           :headers      headers
+                          {:on-error   on-error
+                           :on-message on-message
+                           :on-close   on-close
+                           :headers    headers
                            :uri-str
                            (enc/merge-url-with-query-string url
                              (merge params ; 1st (don't clobber impl.):
@@ -1704,14 +1704,18 @@
                        ; w/in given msecs. Should be different to server's :ws-kalive-ms.
        :ws-kalive-ping-timeout-ms ; When above keep-alive ping is triggered, use this
                                   ; timeout (default: 5000) before regarding the connection
-                                  ; as broken."
+                                  ; as broken.
+
+       :ws-constructor ; Advanced, (fn [{:keys [uri-str headers on-message on-error on-close]}]
+                       ; => connected WebSocket, see `default-client-ws-constructor` code for
+                       ; details."
 
      [path ?csrf-token-or-fn &
-      [{:keys [type protocol host port params headers recv-buf-or-n packer
-               ws-kalive-ms ws-kalive-ping-timeout-ms ws-opts
+      [{:as   opts
+        :keys [type protocol host port params headers recv-buf-or-n packer
+               ws-constructor ws-kalive-ms ws-kalive-ping-timeout-ms ws-opts
                client-id ajax-opts wrap-recv-evs? backoff-ms-fn]
 
-        :as   opts
         :or   {type           :auto
                recv-buf-or-n  (async/sliding-buffer 2048) ; Mostly for buffered-evs
                packer         :edn
@@ -1721,7 +1725,8 @@
                backoff-ms-fn  enc/exp-backoff
 
                ws-kalive-ms              20000
-               ws-kalive-ping-timeout-ms 5000}}
+               ws-kalive-ping-timeout-ms 5000
+               ws-constructor            default-client-ws-constructor}}
 
        _deprecated-more-opts]]
 
@@ -1774,7 +1779,8 @@
             :headers   headers
             :packer    packer
             :ws-kalive-ms              ws-kalive-ms
-            :ws-kalive-ping-timeout-ms ws-kalive-ping-timeout-ms}
+            :ws-kalive-ping-timeout-ms ws-kalive-ping-timeout-ms
+            :ws-constructor            default-client-ws-constructor}
 
            ws-chsk-opts
            (merge common-chsk-opts
