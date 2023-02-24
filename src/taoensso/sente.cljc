@@ -1527,6 +1527,7 @@
                           :timeout-ms (or (:timeout-ms ajax-opts)
                                         default-client-side-ajax-timeout-ms)
                           :resp-type  :text ; Prefer to do our own pstr reading
+                          :xhr-cb-fn  (fn [xhr] (reset! curr-xhr_ xhr))
                           :params
                           (merge
                             ;; Note that user params here are actually POST
@@ -1694,7 +1695,8 @@
        :headers        ; Map of additional headers to include in the initiating request
                        ; (currently only for Java clients).
        :packer         ; :edn (default), or an IPacker implementation.
-       :ajax-opts      ; Base opts map provided to `taoensso.encore/ajax-lite`.
+       :ajax-opts      ; Base opts map provided to `taoensso.encore/ajax-lite`, see
+                       ; relevant docstring for more info.
        :wrap-recv-evs? ; Should events from server be wrapped in [:chsk/recv _]?
                        ; Default false for Sente >= v1.18, true otherwise.
 
