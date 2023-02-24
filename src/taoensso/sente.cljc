@@ -392,6 +392,12 @@
     :send-buf-ms-ws    ; [2]
     :packer            ; :edn (default), or an IPacker implementation.
 
+    ;; When a connection is closed, Sente waits a little for possible reconnection before
+    ;; actually marking the connection as closed. This facilitates Ajax long-polling,
+    ;; server->client buffering, and helps to reduce event noise from spotty connections.
+    :ms-allow-reconnect-before-close-ws   ; Msecs to wait for WebSocket conns (default: 2500)
+    :ms-allow-reconnect-before-close-ajax ; Msecs to wait for Ajax      conns (default: 5000)
+
   [1] e.g. `(taoensso.sente.server-adapters.http-kit/get-sch-adapter)` or
            `(taoensso.sente.server-adapters.immutant/get-sch-adapter)`.
       You must have the necessary web-server dependency in your project.clj and
@@ -407,7 +413,10 @@
               send-buf-ms-ajax send-buf-ms-ws
               user-id-fn bad-csrf-fn bad-origin-fn csrf-token-fn
               handshake-data-fn packer allowed-origins
-              authorized?-fn unauthorized-fn ?unauthorized-fn]
+              authorized?-fn unauthorized-fn ?unauthorized-fn
+
+              ms-allow-reconnect-before-close-ws
+              ms-allow-reconnect-before-close-ajax]
 
        :or   {recv-buf-or-n    (async/sliding-buffer 1000)
               ws-kalive-ms     (enc/ms :secs 25) ; < Heroku 55s timeout
@@ -418,6 +427,10 @@
               bad-csrf-fn     (fn [_ring-req] {:status 403 :body "Bad CSRF token"})
               bad-origin-fn   (fn [_ring-req] {:status 403 :body "Unauthorized origin"})
               unauthorized-fn (fn [_ring-req] {:status 401 :body "Unauthorized request"})
+
+              ms-allow-reconnect-before-close-ws   2500
+              ms-allow-reconnect-before-close-ajax 5000
+
               csrf-token-fn
               (fn [ring-req]
                 (or (:anti-forgery-token ring-req)
@@ -840,7 +853,12 @@
                   ;; Allow some time for possible reconnects (repoll,
                   ;; sole window refresh, etc.):
                   (go
-                    (<! (async/timeout 5000)) ; TODO Configurable
+                    (let [ms-timeout
+                          (if websocket?
+                            ms-allow-reconnect-before-close-ws
+                            ms-allow-reconnect-before-close-ajax)]
+                      (<! (async/timeout ms-timeout)))
+
                     (let [disconnect? ; Removed entry for client-id?
                           (swap-in! conns_ [conn-type uid client-id]
                             (fn [[sch udt-t1]]
