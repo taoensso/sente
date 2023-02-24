@@ -775,9 +775,12 @@
                               ;; No conn send/recv activity w/in kalive window
                               ;; so send ping to client. Should trigger close
                               ;; if conn is broken.
-                                (interfaces/sch-send! server-ch websocket?
-                                  (pack packer :chsk/ws-ping)))
-                              (recur udt-t1))))))
+                              ;;
+                              ;; Might be nice to expect pong reply? Ref. #423
+                              (interfaces/sch-send! server-ch websocket?
+                                (pack packer :chsk/ws-ping)))
+
+                            (recur udt-t1))))))
 
                   ;; Ajax handshake/poll
                   (let [_ (tracef "New Ajax handshake/poll: %s (%s)" uid sch-uuid)
@@ -805,13 +808,23 @@
                 (assert websocket?)
                 (upd-conn! :ws uid client-id)
                 (let [[clj ?cb-uuid] (unpack packer req-ppstr)]
-                  (receive-event-msg! clj ; Should be ev
-                    (when ?cb-uuid
-                      (fn reply-fn [resp-clj] ; Any clj form
-                        (tracef "Chsk send (ws reply): %s" resp-clj)
-                        ;; true iff apparent success:
+                  ;; clj should be ev
+                  (if (= clj [:chsk/ws-ping])
+                    (do
+                      ;; Auto reply to ping
+                      (when-let [cb-uuid ?cb-uuid]
                         (interfaces/sch-send! server-ch websocket?
-                          (pack packer resp-clj ?cb-uuid)))))))
+                          (pack packer "pong" cb-uuid)))
+
+                      (receive-event-msg! clj nil))
+
+                    (receive-event-msg! clj
+                      (when ?cb-uuid
+                        (fn reply-fn [resp-clj] ; Any clj form
+                          (tracef "Chsk send (ws reply): %s" resp-clj)
+                          ;; true iff apparent success:
+                          (interfaces/sch-send! server-ch websocket?
+                            (pack packer resp-clj ?cb-uuid))))))))
 
               :on-close ; We rely on `on-close` to trigger for _every_ conn!
               (fn [server-ch websocket? _status]
@@ -1373,7 +1386,14 @@
                   ;; No conn send/recv activity w/in kalive window
                   ;; so send ping to server. Should trigger close
                   ;; if conn is broken.
-                  (-chsk-send! chsk [:chsk/ws-ping] {:flush? true})))
+                  (-chsk-send! chsk [:chsk/ws-ping]
+                    {:flush? true
+                     :timeout-ms 5000 ; TODO Configurable
+                     :cb ; Server will auto reply
+                     (fn [reply]
+                       (when (and (have-handle?) (not= reply "pong") #_(= reply :chsk/timeout))
+                         (-chsk-disconnect! chsk :ws-ping-timeout)
+                         (-chsk-connect!    chsk)))})))
               (recur)))))
 
       chsk)))
