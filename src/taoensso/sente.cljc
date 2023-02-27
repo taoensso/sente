@@ -1216,7 +1216,7 @@
 
   [client-id chs params headers packer url
    state_ ; {:type _ :open? _ :uid _ :csrf-token _ ...}
-   instance-handle_ retry-count_ ever-opened?_
+   conn-id_ retry-count_ ever-opened?_
    ws-kalive-ms ws-kalive-ping-timeout-ms ws-opts
    backoff-ms-fn ; (fn [nattempt]) -> msecs
    cbs-waiting_ ; {<cb-uuid> <fn> ...}
@@ -1226,7 +1226,7 @@
 
   IChSocket
   (-chsk-disconnect! [chsk reason]
-    (reset! instance-handle_ nil) ; Disable auto retry
+    (reset! conn-id_ nil) ; Disable auto retry
     (let [closed? (swap-chsk-state! chsk #(chsk-state->closed % reason))]
       (when-let [[s _sid] @socket_]
         #?(:clj  (.close ^WebSocketClient s 1000 "CLOSE_NORMAL")
@@ -1276,11 +1276,12 @@
               false))))))
 
   (-chsk-connect! [chsk]
-    (let [instance-handle (reset! instance-handle_ (enc/uuid-str))
-          have-handle? (fn [] (= @instance-handle_ instance-handle))
+    (let [this-conn-id (reset! conn-id_ (enc/uuid-str))
+          own-conn?    (fn [] (= @conn-id_ this-conn-id))
+
           connect-fn
           (fn connect-fn []
-            (when (have-handle?)
+            (when (own-conn?)
               (let [;; ID for the particular candidate socket to be returned from
                     ;; this particular connect-fn call
                     this-socket-id (enc/uuid-str)
@@ -1291,7 +1292,7 @@
 
                     retry-fn
                     (fn [] ; Backoff then recur
-                      (when (and (have-handle?) (not @client-unloading?_))
+                      (when (and (own-conn?) (not @client-unloading?_))
                         (let [retry-count* (swap! retry-count_ inc)
                               backoff-ms (backoff-ms-fn retry-count*)
                               udt-next-reconnect (+ (enc/now-udt) backoff-ms)]
@@ -1428,7 +1429,7 @@
         (go-loop []
           (let [udt-t0 @udt-last-comms_]
             (<! (async/timeout ms))
-            (when (have-handle?)
+            (when (own-conn?)
               (let [udt-t1 @udt-last-comms_]
                 (when (= udt-t0 udt-t1)
                   ;; Ref. #259
@@ -1440,7 +1441,7 @@
                      :timeout-ms ws-kalive-ping-timeout-ms
                      :cb ; Server will auto reply
                      (fn [reply]
-                       (when (and (have-handle?) (not= reply "pong") #_(= reply :chsk/timeout))
+                       (when (and (own-conn?) (not= reply "pong") #_(= reply :chsk/timeout))
                          (-chsk-disconnect! chsk :ws-ping-timeout)
                          (-chsk-connect!    chsk)))})))
               (recur)))))
@@ -1451,12 +1452,12 @@
   (map->ChWebSocket
     (merge
       {:state_ (atom {:type :ws :open? false :ever-opened? false :csrf-token csrf-token})
-       :instance-handle_ (atom nil)
-       :retry-count_     (atom 0)
-       :ever-opened?_    (atom false)
-       :cbs-waiting_     (atom {})
-       :socket_          (atom nil)
-       :udt-last-comms_  (atom nil)}
+       :conn-id_        (atom nil)
+       :retry-count_    (atom 0)
+       :ever-opened?_   (atom false)
+       :cbs-waiting_    (atom {})
+       :socket_         (atom nil)
+       :udt-last-comms_ (atom nil)}
       opts)))
 
 (def ^:private default-client-side-ajax-timeout-ms
@@ -1471,13 +1472,13 @@
      ;; Handles (re)polling, etc.
 
      [client-id chs params packer url state_
-      instance-handle_ ever-opened?_
+      conn-id_ ever-opened?_
       backoff-ms-fn
       ajax-opts curr-xhr_]
 
      IChSocket
      (-chsk-disconnect! [chsk reason]
-       (reset! instance-handle_ nil) ; Disable auto retry
+       (reset! conn-id_ nil) ; Disable auto retry
        (let [closed? (swap-chsk-state! chsk #(chsk-state->closed % reason))]
          (when-let [x @curr-xhr_] (.abort x))
          closed?))
@@ -1542,15 +1543,16 @@
              :apparent-success))))
 
      (-chsk-connect! [chsk]
-       (let [instance-handle (reset! instance-handle_ (enc/uuid-str))
-             have-handle? (fn [] (= @instance-handle_ instance-handle))
+       (let [this-conn-id (reset! conn-id_ (enc/uuid-str))
+             own-conn?    (fn [] (= @conn-id_ this-conn-id))
+
              poll-fn ; async-poll-for-update-fn
              (fn poll-fn [retry-count]
                (tracef "async-poll-for-update!")
-               (when (have-handle?)
+               (when (own-conn?)
                  (let [retry-fn
                        (fn [] ; Backoff then recur
-                         (when (and (have-handle?) (not @client-unloading?_))
+                         (when (and (own-conn?) (not @client-unloading?_))
                            (let [retry-count* (inc retry-count)
                                  backoff-ms (backoff-ms-fn retry-count*)
                                  udt-next-reconnect (+ (enc/now-udt) backoff-ms)]
@@ -1632,10 +1634,10 @@
    (defn- new-ChAjaxSocket [opts csrf-token]
      (map->ChAjaxSocket
        (merge
-         {:state_           (atom {:type :ajax :open? false :ever-opened? false :csrf-token csrf-token})
-          :instance-handle_ (atom nil)
-          :ever-opened?_    (atom false)
-          :curr-xhr_        (atom nil)}
+         {:state_        (atom {:type :ajax :open? false :ever-opened? false :csrf-token csrf-token})
+          :conn-id_      (atom nil)
+          :ever-opened?_ (atom false)
+          :curr-xhr_     (atom nil)}
          opts))))
 
 #?(:cljs
