@@ -38,8 +38,10 @@
    ;; Optional, for Transit encoding:
    [taoensso.sente.packers.transit :as sente-transit]))
 
-;; (timbre/set-level! :trace) ; Uncomment for more logging
-;; (reset! sente/debug-mode?_ true) ; Uncomment for extra debug info
+;;;; Logging config
+
+(sente/set-min-log-level! :info) ; Min log level for internal Sente namespaces
+(timbre/set-ns-min-level! :info) ; Min log level for this           namespace
 
 ;;;; Define our Sente channel socket (chsk) server
 

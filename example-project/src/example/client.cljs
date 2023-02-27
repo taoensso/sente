@@ -15,15 +15,18 @@
   (:require-macros
    [cljs.core.async.macros :as asyncm :refer [go go-loop]]))
 
-;; (timbre/set-level! :trace) ; Uncomment for more logging
+;;;; Logging config
+
+(sente/set-min-log-level! :info) ; Min log level for internal Sente namespaces
+(timbre/set-ns-min-level! :info) ; Min log level for this           namespace
 
 ;;;; Util for logging output to on-screen console
 
 (def output-el (.getElementById js/document "output"))
 (defn ->output! [fmt & args]
   (let [msg (apply encore/format fmt args)]
-    (timbre/debugf "->output: %s" msg)
-    (aset output-el "value" (str "• " (.-value output-el) "\n" msg))
+    ;; (timbre/tracef "->output: %s" msg)
+    (aset output-el "value" (str (.-value output-el) "\n• " msg))
     (aset output-el "scrollTop" (.-scrollHeight output-el))))
 
 (->output! "ClojureScript appears to have loaded correctly.")
@@ -140,13 +143,13 @@
 (when-let [target-el (.getElementById js/document "btn5")]
   (.addEventListener target-el "click"
                      (fn [ev]
-                       (->output! "Disconnecting")
+                       (->output! "Disconnecting...\n\n")
                        (sente/chsk-disconnect! chsk))))
 
 (when-let [target-el (.getElementById js/document "btn6")]
   (.addEventListener target-el "click"
                      (fn [ev]
-                       (->output! "Reconnecting")
+                       (->output! "Reconnecting...\n\n")
                        (sente/chsk-reconnect! chsk))))
 
 (when-let [target-el (.getElementById js/document "btn-login")]
@@ -156,7 +159,7 @@
         (if (str/blank? user-id)
           (js/alert "Please enter a user-id first")
           (do
-            (->output! "Logging in with user-id %s" user-id)
+            (->output! "Logging in with user-id %s...\n\n" user-id)
 
             ;;; Use any login procedure you'd like. Here we'll trigger an Ajax
             ;;; POST request that resets our server-side session. Then we ask
