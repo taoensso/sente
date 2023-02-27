@@ -203,12 +203,12 @@
 (defn- unpack "packed->[clj ?cb-uuid]"
   [packer packed]
   (let [[packed ?format] (parse-packed packed)
-        unpacked #_[clj ?cb-uuid]
+        unpacked ; [clj ?cb-uuid]
         (try
           (interfaces/unpack packer packed)
           (catch #?(:clj Throwable :cljs :default) t
-            (debugf "Bad package: %s (%s)" packed t)
-            [:chsk/bad-package packed]))
+            (timbre/warnf t "Bad package: %s" packed)
+            [[:chsk/bad-package packed] nil]))
 
         [clj ?cb-uuid]
         (case ?format
