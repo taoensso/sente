@@ -1002,16 +1002,19 @@
 #?(:cljs (def ajax-lite "Alias of `taoensso.encore/ajax-lite`" enc/ajax-lite))
 
    (defprotocol IChSocket
-     (-chsk-connect!    [chsk])
-     (-chsk-disconnect! [chsk reason])
-     (-chsk-reconnect!  [chsk])
-     (-chsk-send!       [chsk ev opts]))
+     (-chsk-connect!          [chsk])
+     (-chsk-disconnect!       [chsk reason])
+     (-chsk-reconnect!        [chsk reason])
+     (-chsk-break-connection! [chsk])
+     (-chsk-send!             [chsk ev opts]))
 
-     (defn chsk-connect!    [chsk] (-chsk-connect!    chsk))
-     (defn chsk-disconnect! [chsk] (-chsk-disconnect! chsk :requested-disconnect))
-     (defn chsk-reconnect! "Useful for reauthenticating after login/logout, etc."
-       [chsk] (-chsk-reconnect! chsk))
-     (def ^:deprecated chsk-destroy! "Deprecated" chsk-disconnect!)
+   (defn chsk-connect!    [chsk] (-chsk-connect!    chsk))
+   (defn chsk-disconnect! [chsk] (-chsk-disconnect! chsk :requested-disconnect))
+   (defn chsk-reconnect!
+     "Cycles connection, useful for reauthenticating after login/logout, etc."
+     [chsk] (-chsk-reconnect! chsk :requested-reconnect))
+
+   (def ^:deprecated chsk-destroy! "Deprecated" chsk-disconnect!)
 
    (defn chsk-send!
      "Sends `[ev-id ev-?data :as event]`, returns true on apparent success."
@@ -1322,8 +1325,8 @@
            :cljs (.close                  s 1000 "CLOSE_NORMAL")))
       closed?))
 
-  (-chsk-reconnect! [chsk]
-    (-chsk-disconnect! chsk :requested-reconnect)
+  (-chsk-reconnect! [chsk reason]
+    (-chsk-disconnect! chsk reason)
     (-chsk-connect!    chsk))
 
   (-chsk-send! [chsk ev opts]
@@ -1362,6 +1365,7 @@
                 (let [cb-fn* (or (pull-unused-cb-fn! cbs-waiting_ cb-uuid)
                                  (have ?cb-fn))]
                   (cb-fn* :chsk/error)))
+
               false))))))
 
   (-chsk-connect! [chsk]
@@ -1525,8 +1529,7 @@
                      (fn [reply]
                        (when (and (own-conn?) (not= reply "pong") #_(= reply :chsk/timeout))
                          (timbre/debugf "Client ws-ping to server timed-out, will cycle WebSocket now")
-                         (-chsk-disconnect! chsk :ws-ping-timeout)
-                         (-chsk-connect!    chsk)))})))
+                         (-chsk-reconnect! chsk :ws-ping-timeout)))})))
               (recur)))))
 
       chsk)))
@@ -1566,8 +1569,8 @@
          (when-let [x @curr-xhr_] (.abort x))
          closed?))
 
-     (-chsk-reconnect! [chsk]
-       (-chsk-disconnect! chsk :requested-reconnect)
+     (-chsk-reconnect! [chsk reason]
+       (-chsk-disconnect! chsk reason)
        (-chsk-connect!    chsk))
 
      (-chsk-send! [chsk ev opts]
@@ -1728,9 +1731,9 @@
          (-chsk-disconnect! impl reason)))
 
      ;; Possibly reset impl type:
-     (-chsk-reconnect! [chsk]
+     (-chsk-reconnect! [chsk reason]
        (when-let [impl @impl_]
-         (-chsk-disconnect! impl :requested-reconnect)
+         (-chsk-disconnect! impl reason)
          (-chsk-connect!    chsk)))
 
      (-chsk-send! [chsk ev opts]
