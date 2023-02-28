@@ -54,7 +54,7 @@
     :last-close         - ?{:udt _ :reason _}, with reason e/o
                             #{nil :clean :unexpected :requested-disconnect
                               :requested-reconnect :downgrading-ws-to-ajax
-                              :ws-ping-timeout}
+                              :ws-ping-timeout :ws-error}
     :udt-next-reconnect - Approximate udt of next scheduled auto-reconnect attempt
 
   Notable implementation details:
@@ -1101,7 +1101,7 @@
               :requested-disconnect
               :requested-reconnect
               :downgrading-ws-to-ajax
-              :ws-ping-timeout}]
+              :ws-ping-timeout :ws-error}]
        reason)
 
      (let [closing? (:open? state)
@@ -1395,6 +1395,8 @@
                 (let [cb-fn* (or (pull-unused-cb-fn! cbs-waiting_ cb-uuid)
                                  (have ?cb-fn))]
                   (cb-fn* :chsk/error)))
+
+              (-chsk-reconnect! chsk :ws-error)
 
               false))))))
 
