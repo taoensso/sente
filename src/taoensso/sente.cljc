@@ -1005,7 +1005,7 @@
      (-chsk-connect!          [chsk])
      (-chsk-disconnect!       [chsk reason])
      (-chsk-reconnect!        [chsk reason])
-     (-chsk-break-connection! [chsk])
+     (-chsk-break-connection! [chsk opts])
      (-chsk-send!             [chsk ev opts]))
 
    (defn chsk-connect!    [chsk] (-chsk-connect!    chsk))
@@ -1014,7 +1014,22 @@
      "Cycles connection, useful for reauthenticating after login/logout, etc."
      [chsk] (-chsk-reconnect! chsk :requested-reconnect))
 
-   (def ^:deprecated chsk-destroy! "Deprecated" chsk-disconnect!)
+   (defn chsk-break-connection!
+     "Breaks channel socket's underlying connection without doing a clean
+     disconnect as in `chsk-disconnect!`. Useful for simulating broken
+     connections in testing, etc.
+
+     Options:
+
+       `:close-ws?` - (Default: true)
+         Allow WebSocket's `on-close` event to fire?
+         Set to falsey to ~simulate a broken socket that doesn't realise
+         it's broken."
+
+     ([chsk] (-chsk-break-connection! chsk nil))
+     ([chsk {:keys [close-ws?] :as opts
+             :or   {close-ws? true}}]
+      (-chsk-break-connection! chsk opts)))
 
    (defn chsk-send!
      "Sends `[ev-id ev-?data :as event]`, returns true on apparent success."
@@ -1329,6 +1344,21 @@
     (-chsk-disconnect! chsk reason)
     (-chsk-connect!    chsk))
 
+  (-chsk-break-connection! [chsk opts]
+    (let [{:keys [close-ws? ws-code]
+           :or   {ws-code 3000}} opts]
+
+      (when-let [[s _sid]
+                 (if-not close-ws?
+                   ;; Suppress socket's `on-close` handler by breaking
+                   ;; (own-socket?) socket ownership test
+                   (reset-in! socket_ nil)
+                   (do       @socket_))]
+
+        #?(:clj  (.close ^WebSocketClient s ws-code "CLOSE_ABNORMAL")
+           :cljs (.close                  s ws-code "CLOSE_ABNORMAL")))
+      nil))
+
   (-chsk-send! [chsk ev opts]
     (let [{?timeout-ms :timeout-ms ?cb :cb :keys [flush?]} opts
           _ (assert-send-args ev ?timeout-ms ?cb)
@@ -1573,6 +1603,9 @@
        (-chsk-disconnect! chsk reason)
        (-chsk-connect!    chsk))
 
+     (-chsk-break-connection! [chsk _opts]
+       (when-let [x @curr-xhr_] (.abort x)) nil)
+
      (-chsk-send! [chsk ev opts]
        (let [{?timeout-ms :timeout-ms ?cb :cb :keys [flush?]} opts
              _ (assert-send-args ev ?timeout-ms ?cb)
@@ -1735,6 +1768,10 @@
        (when-let [impl @impl_]
          (-chsk-disconnect! impl reason)
          (-chsk-connect!    chsk)))
+
+     (-chsk-break-connection! [chsk opts]
+       (when-let [impl @impl_]
+         (-chsk-break-connection! impl opts)))
 
      (-chsk-send! [chsk ev opts]
        (if-let [impl @impl_]
