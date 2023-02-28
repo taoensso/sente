@@ -58,11 +58,11 @@
 
   :clean-targets ^{:protect false} ["resources/public/main.js"]
 
-  ;; Call `lein start-repl` to get a (headless) development repl that you can
+  ;; Call `lein start-dev` to get a (headless) development repl that you can
   ;; connect to with Cider+emacs or your IDE of choice:
   :aliases
-  {"start-repl" ["do" "clean," "cljsbuild" "once," "repl" ":headless"]
-   "start"      ["do" "clean," "cljsbuild" "once," "run"]}
+  {"start-dev" ["do" "clean," "cljsbuild" "once," "repl" ":headless"]
+   "start"     ["do" "clean," "cljsbuild" "once," "run"]}
 
   :repositories
   {"sonatype-oss-public" "https://oss.sonatype.org/content/groups/public/"})

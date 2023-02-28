@@ -17,8 +17,12 @@
 
 ;;;; Logging config
 
-(sente/set-min-log-level! :info) ; Min log level for internal Sente namespaces
-(timbre/set-ns-min-level! :info) ; Min log level for this           namespace
+(defn- set-min-log-level! [level]
+  (sente/set-min-log-level! level) ; Min log level for internal Sente namespaces
+  (timbre/set-ns-min-level! level) ; Min log level for this           namespace
+  )
+
+(set-min-log-level! :info)
 
 ;;;; Util for logging output to on-screen console
 
@@ -29,7 +33,7 @@
     (aset output-el "value" (str (.-value output-el) "\n• " msg))
     (aset output-el "scrollTop" (.-scrollHeight output-el))))
 
-(->output! "ClojureScript appears to have loaded correctly.")
+(->output! "ClojureScript has successfully loaded")
 
 ;;;; Define our Sente channel socket (chsk) client
 
@@ -39,7 +43,7 @@
 
 (if ?csrf-token
   (->output! "CSRF token detected in HTML, great!")
-  (->output! "CSRF token NOT detected in HTML, default Sente config will reject requests"))
+  (->output! "**IMPORTANT** CSRF token NOT detected in HTML, default Sente config will reject requests!"))
 
 (let [;; For this example, select a random protocol:
       rand-chsk-type (if (>= (rand) 0.5) :ajax :auto)
@@ -82,9 +86,13 @@
 (defmethod -event-msg-handler :chsk/state
   [{:as ev-msg :keys [?data]}]
   (let [[old-state-map new-state-map] (have vector? ?data)]
-    (if (:first-open? new-state-map)
-      (->output! "Channel socket successfully established!: %s" new-state-map)
-      (->output! "Channel socket state change: %s"              new-state-map))))
+    (cond
+      ;; Tip: look for {:keys [opened? closed? first-open?]} in `new-state-map` to
+      ;; easily identify these commonly useful state transitions
+      (:first-open? new-state-map) (->output! "Channel socket FIRST OPENED: %s"  new-state-map)
+      (:opened?     new-state-map) (->output! "Channel socket OPENED: %s"        new-state-map)
+      (:closed?     new-state-map) (->output! "Channel socket CLOSED: %s"        new-state-map)
+      :else                        (->output! "Channel socket state changed: %s" new-state-map))))
 
 (defmethod -event-msg-handler :chsk/recv
   [{:as ev-msg :keys [?data]}]
@@ -92,7 +100,7 @@
 
 (defmethod -event-msg-handler :chsk/handshake
   [{:as ev-msg :keys [?data]}]
-  (let [[?uid ?csrf-token ?handshake-data] ?data]
+  (let [[?uid _ ?handshake-data first-handshake?] ?data]
     (->output! "Handshake: %s" ?data)))
 
 ;; TODO Add your (defmethod -event-msg-handler <event-id> [ev-msg] <body>)s here...
@@ -112,45 +120,68 @@
 (when-let [target-el (.getElementById js/document "btn1")]
   (.addEventListener target-el "click"
     (fn [ev]
-      (->output! "Button 1 was clicked (won't receive any reply from server)")
-      (chsk-send! [:example/button1 {:had-a-callback? "nope"}]))))
+      (->output! "Will send event to server WITH callback")
+      (chsk-send! [:example/button2 {:had-a-callback? "indeed"}] 5000
+        (fn [cb-reply] (->output! "Callback reply: %s" cb-reply))))))
 
 (when-let [target-el (.getElementById js/document "btn2")]
   (.addEventListener target-el "click"
     (fn [ev]
-      (->output! "Button 2 was clicked (will receive reply from server)")
-      (chsk-send! [:example/button2 {:had-a-callback? "indeed"}] 5000
-        (fn [cb-reply] (->output! "Callback reply: %s" cb-reply))))))
+      (->output! "Will send event to server WITHOUT callback")
+      (chsk-send! [:example/button1 {:had-a-callback? "nope"}]))))
 
 (when-let [target-el (.getElementById js/document "btn3")]
   (.addEventListener target-el "click"
     (fn [ev]
-      (->output! "Button 3 was clicked (will ask server to test rapid async push)")
+      (->output! "Will ask server to test rapid async push")
       (chsk-send! [:example/test-rapid-push]))))
 
 (when-let [target-el (.getElementById js/document "btn4")]
   (.addEventListener target-el "click"
     (fn [ev]
-      (->output! "Button 4 was clicked (will toggle async broadcast loop)")
       (chsk-send! [:example/toggle-broadcast] 5000
         (fn [cb-reply]
           (when (cb-success? cb-reply)
             (let [loop-enabled? cb-reply]
               (if loop-enabled?
-                (->output! "Async broadcast loop now enabled")
-                (->output! "Async broadcast loop now disabled")))))))))
+                (->output! "Server async broadcast loop now ENABLED")
+                (->output! "Server async broadcast loop now DISABLED")))))))))
 
 (when-let [target-el (.getElementById js/document "btn5")]
   (.addEventListener target-el "click"
-                     (fn [ev]
-                       (->output! "Disconnecting...\n\n")
-                       (sente/chsk-disconnect! chsk))))
+    (fn [ev]
+      (->output! "Disconnecting...\n\n")
+      (sente/chsk-disconnect! chsk))))
 
 (when-let [target-el (.getElementById js/document "btn6")]
   (.addEventListener target-el "click"
-                     (fn [ev]
-                       (->output! "Reconnecting...\n\n")
-                       (sente/chsk-reconnect! chsk))))
+    (fn [ev]
+      (->output! "Reconnecting...\n\n")
+      (sente/chsk-reconnect! chsk))))
+
+(when-let [target-el (.getElementById js/document "btn7")]
+  (.addEventListener target-el "click"
+    (fn [ev]
+      (->output! "Simulating basic broken connection (WITH close)...\n\n")
+      (sente/chsk-break-connection! chsk {:close-ws? true}))))
+
+(when-let [target-el (.getElementById js/document "btn8")]
+  (.addEventListener target-el "click"
+    (fn [ev]
+      (->output! "Simulating basic broken connection (WITHOUT close)...\n\n")
+      (sente/chsk-break-connection! chsk {:close-ws? false}))))
+
+(when-let [target-el (.getElementById js/document "btn9")]
+  (.addEventListener target-el "click"
+    (fn [ev]
+      (->output! "Will ask server to toggle minimum log level")
+      (chsk-send! [:example/toggle-min-log-level] 5000
+        (fn [cb-reply]
+          (if (cb-success? cb-reply)
+            (let [level cb-reply]
+              (set-min-log-level! level)
+              (->output! "New minimum log level (client+server): %s" level))
+            (->output! "Failed to toggle minimum log level: %s" cb-reply)))))))
 
 (when-let [target-el (.getElementById js/document "btn-login")]
   (.addEventListener target-el "click"
@@ -184,5 +215,4 @@
 ;;;; Init stuff
 
 (defn start! [] (start-router!))
-
 (defonce _start-once (start!))

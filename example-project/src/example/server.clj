@@ -40,8 +40,14 @@
 
 ;;;; Logging config
 
-(sente/set-min-log-level! :info) ; Min log level for internal Sente namespaces
-(timbre/set-ns-min-level! :info) ; Min log level for this           namespace
+(defonce min-log-level_ (atom nil))
+
+(defn- set-min-log-level! [level]
+  (sente/set-min-log-level! level) ; Min log level for internal Sente namespaces
+  (timbre/set-ns-min-level! level) ; Min log level for this           namespace
+  (reset! min-log-level_    level))
+
+(set-min-log-level! :info)
 
 ;;;; Define our Sente channel socket (chsk) server
 
@@ -75,38 +81,40 @@
 
 (defn landing-pg-handler [ring-req]
   (hiccup/html
-    [:h1 "Sente reference example"]
     (let [csrf-token
           ;; (:anti-forgery-token ring-req) ; Also an option
           (force anti-forgery/*anti-forgery-token*)]
-
       [:div#sente-csrf-token {:data-csrf-token csrf-token}])
-    [:p "An Ajax/WebSocket" [:strong " (random choice!)"] " has been configured for this example"]
-    [:hr]
-    [:p [:strong "Step 1: "] " try hitting the buttons:"]
+
+    [:h3 "Sente reference example"]
     [:p
-     [:button#btn1 {:type "button"} "chsk-send! (w/o reply)"]
-     [:button#btn2 {:type "button"} "chsk-send! (with reply)"]]
+     "For this example, a " [:i "random"] " " [:strong [:code ":ajax/:auto"]]
+     " connection mode has been selected (see " [:strong "client output"] ")."
+     [:br]
+     "To " [:strong "re-randomize"] ", hit your browser's reload/refresh button."]
+    [:ul
+     [:li [:strong "Server output:"] " → " [:code "*std-out*"]]
+     [:li [:strong "Client output:"] " → Below textarea and/or browser console"]]
+    [:textarea#output {:style "width: 100%; height: 200px;" :wrap "off"}]
+
+    [:h4 "Controls"]
     [:p
-     [:button#btn3 {:type "button"} "Test rapid server>user async pushes"]
+     [:button#btn1 {:type "button"} "chsk-send! (with reply)"] " "
+     [:button#btn2 {:type "button"} "chsk-send! (w/o reply)"] " "]
+    [:p
+     [:button#btn3 {:type "button"} "Rapid server>user async push"] " "
      [:button#btn4 {:type "button"} "Toggle server>user async broadcast push loop"]]
     [:p
-     [:button#btn5 {:type "button"} "Disconnect"]
-     [:button#btn6 {:type "button"} "Reconnect"]]
-    ;;
-    [:p [:strong "Step 2: "] " observe std-out (for server output) and below (for client output):"]
-    [:textarea#output {:style "width: 100%; height: 200px;"}]
-    ;;
-    [:hr]
-    [:h2 "Step 3: try login with a user-id"]
-    [:p  "The server can use this id to send events to *you* specifically."]
+     [:button#btn5 {:type "button"} "Disconnect"] " "
+     [:button#btn6 {:type "button"} "Reconnect"] " "
+     [:button#btn7 {:type "button"} "Simulate break (with on-close)"] " "
+     [:button#btn8 {:type "button"} "Simulate break (w/o on-close)"]]
+    [:p [:button#btn9 {:type "button"} "Toggle min log level"]]
+
+    [:p "Log in with a " [:strong "user-id"] " below so that the server can directly address this user-id's connected clients:"]
     [:p
-     [:input#input-login {:type :text :placeholder "User-id"}]
-     [:button#btn-login {:type "button"} "Secure login!"]]
-    ;;
-    [:hr]
-    [:h2 "Step 4: want to re-randomize Ajax/WebSocket connection type?"]
-    [:p "Hit your browser's reload/refresh button"]
+     [:input#input-login {:type :text :placeholder "User-id"}] " "
+     [:button#btn-login {:type "button"} "← Log in with user-id"]]
     [:script {:src "main.js"}] ; Include our cljs target
     ))
 
@@ -195,7 +203,7 @@
         uid     (:uid     session)]
     (timbre/debugf "Unhandled event: %s" event)
     (when ?reply-fn
-      (?reply-fn {:umatched-event-as-echoed-from-server event}))))
+      (?reply-fn {:unmatched-event-as-echoed-from-server event}))))
 
 (defmethod -event-msg-handler :example/test-rapid-push
   [ev-msg] (test-fast-server>user-pushes))
@@ -204,6 +212,20 @@
   [{:as ev-msg :keys [?reply-fn]}]
   (let [loop-enabled? (swap! broadcast-enabled?_ not)]
     (?reply-fn loop-enabled?)))
+
+(defmethod -event-msg-handler :example/toggle-min-log-level
+  [{:as ev-msg :keys [?reply-fn]}]
+  (let [new-level
+        (case @min-log-level_
+          :trace :debug
+          :debug :info
+          :info  :warn
+          :warn  :error
+          :error :trace
+          :trace)]
+
+    (set-min-log-level! new-level)
+    (?reply-fn          new-level)))
 
 ;; TODO Add your (defmethod -event-msg-handler <event-id> [ev-msg] <body>)s here...
 
@@ -260,5 +282,5 @@
 (defn -main "For `lein run`, etc." [] (start!))
 
 (comment
-  (start!)
+  (start!) ; Eval this at REPL to start server via REPL
   (test-fast-server>user-pushes))
