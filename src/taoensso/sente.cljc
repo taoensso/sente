@@ -825,29 +825,32 @@
                             (recur udt-t1))))))
 
                   ;; Ajax handshake/poll
-                  (let [updated-conn    (upd-conn! :ajax uid client-id :any server-ch)
-                        udt-open        (:udt updated-conn)
-                        send-handshake? (or (:init? updated-conn) (:handshake? params))]
+                  (let [send-handshake?
+                        (or
+                          (:handshake? params)
+                          (nil? (get-in @conns_ [:ajax uid client-id])))]
 
                     (timbre/logf (if send-handshake? :info :trace)
                       "[ajax/on-open] New server Ajax sch (poll/handshake) for %s: %s"
                       (lid uid client-id)
                       {:send-handshake? send-handshake?})
 
-                    (when (connect-uid! :ajax uid)
-                      (receive-event-msg! [:chsk/uidport-open uid]))
-
                     (if send-handshake?
                       ;; Client will immediately repoll
                       (send-handshake! server-ch websocket?)
 
-                      (when-let [ms lp-timeout-ms]
-                        (go
-                          (<! (async/timeout ms))
-                          (when-let [[sch udt-t1] (get-in @conns_ [:ajax uid client-id])]
-                            (when (and (= identical? server-ch) (= udt-t1 udt-open))
-                              (interfaces/sch-send! server-ch websocket?
-                                (pack packer :chsk/timeout))))))))))
+                      (let [updated-conn (upd-conn! :ajax uid client-id :any server-ch)
+                            udt-open     (:udt updated-conn)]
+                        (when-let [ms lp-timeout-ms]
+                          (go
+                            (<! (async/timeout ms))
+                            (when-let [[sch udt-t1] (get-in @conns_ [:ajax uid client-id])]
+                              (when (and (= identical? server-ch) (= udt-t1 udt-open))
+                                (interfaces/sch-send! server-ch websocket?
+                                  (pack packer :chsk/timeout))))))))
+
+                    (when (connect-uid! :ajax uid)
+                      (receive-event-msg! [:chsk/uidport-open uid])))))
 
               :on-msg
               (fn [server-ch websocket? req-ppstr]
