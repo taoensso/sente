@@ -1,4 +1,4 @@
-(ns taoensso.sente.server-adapters.undertow
+(ns taoensso.sente.server-adapters.community.undertow
   "Sente server adapter for ring-undertow-adapter."
   {:author "Nik Peric"}
   (:require

@@ -1,4 +1,4 @@
-(ns taoensso.sente.server-adapters.aleph
+(ns taoensso.sente.server-adapters.community.aleph
   "Sente server adapter for Aleph (https://github.com/ztellman/aleph)."
   {:author "Soren Macbeth (@sorenmacbeth)"}
   (:require

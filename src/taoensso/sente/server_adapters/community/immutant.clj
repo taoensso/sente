@@ -1,4 +1,4 @@
-(ns taoensso.sente.server-adapters.immutant
+(ns taoensso.sente.server-adapters.community.immutant
   "Sente server adapter for Immutant v2+ (http://immutant.org/)."
   {:author "Toby Crawley (@tobias)"}
   (:require

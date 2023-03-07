@@ -1,4 +1,4 @@
-(ns taoensso.sente.server-adapters.generic-node
+(ns taoensso.sente.server-adapters.community.generic-node
   "Sente server adapter for Node.js using the `ws` and `http` libraries.
   Ref. https://github.com/websockets/ws,
        https://nodejs.org/api/http.html,

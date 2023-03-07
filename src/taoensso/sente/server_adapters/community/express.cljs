@@ -1,4 +1,4 @@
-(ns taoensso.sente.server-adapters.express
+(ns taoensso.sente.server-adapters.community.express
   "Sente server adapter for Node.js with Express (http://expressjs.com/).
 
   This adapter works differently that the others as Sente is

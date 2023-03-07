@@ -1,4 +1,4 @@
-(ns taoensso.sente.server-adapters.dogfort
+(ns taoensso.sente.server-adapters.community.dogfort
   "Sente server adapter for Node.js with Dog Fort
   (https://github.com/whamtet/dogfort)."
   {:author "Matthew Molloy <@whamtet>"}

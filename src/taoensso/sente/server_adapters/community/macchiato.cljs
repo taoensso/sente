@@ -1,4 +1,4 @@
-(ns taoensso.sente.server-adapters.macchiato
+(ns taoensso.sente.server-adapters.community.macchiato
   "Sente server adapter for Node.js with the Macchiato Framework
   (https://macchiato-framework.github.io/)."
   {:author "Andrew Phillips <@theasp>"}
