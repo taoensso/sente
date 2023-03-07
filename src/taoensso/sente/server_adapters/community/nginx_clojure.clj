@@ -1,4 +1,4 @@
-(ns taoensso.sente.server-adapters.nginx-clojure
+(ns taoensso.sente.server-adapters.community.nginx-clojure
   "Sente server adapter for Nginx-Clojure v0.4.2+
   (http://nginx-clojure.github.io/)."
   {:author "Zhang Yuexiang (@xfeep)"}

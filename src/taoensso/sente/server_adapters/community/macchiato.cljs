@@ -1,4 +1,4 @@
-(ns taoensso.sente.server-adapters.macchiato
+(ns taoensso.sente.server-adapters.community.macchiato
   "Sente server adapter for Node.js with the Macchiato Framework
   (https://macchiato-framework.github.io/)."
   {:author "Andrew Phillips <@theasp>"}
@@ -6,7 +6,7 @@
    [taoensso.encore :as enc]
    [taoensso.timbre :as timbre]
    [taoensso.sente  :as sente]
-   [taoensso.sente.server-adapters.generic-node :as generic-node]
+   [taoensso.sente.server-adapters.community.generic-node :as generic-node]
    [macchiato.middleware.anti-forgery :as csrf]))
 
 (def csrf-path [:session :macchiato.middleware.anti-forgery/anti-forgery-token])

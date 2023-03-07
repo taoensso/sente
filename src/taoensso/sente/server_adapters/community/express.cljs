@@ -1,4 +1,4 @@
-(ns taoensso.sente.server-adapters.express
+(ns taoensso.sente.server-adapters.community.express
   "Sente server adapter for Node.js with Express (http://expressjs.com/).
 
   This adapter works differently that the others as Sente is
@@ -18,7 +18,7 @@
   (:require
    [taoensso.timbre :as timbre]
    [taoensso.sente  :as sente]
-   [taoensso.sente.server-adapters.generic-node :as generic-node]))
+   [taoensso.sente.server-adapters.community.generic-node :as generic-node]))
 
 (defn- obj->map
   "Workaround for `TypeError: Cannot convert object to primitive value`s
