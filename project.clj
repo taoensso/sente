@@ -2,13 +2,15 @@
   :author "Peter Taoussanis <https://www.taoensso.com>"
   :description "Realtime web comms for Clojure/Script"
   :url "https://github.com/ptaoussanis/sente"
-  :license {:name "Eclipse Public License"
-            :url  "http://www.eclipse.org/legal/epl-v10.html"
-            :distribution :repo
-            :comments "Same as Clojure"}
   :min-lein-version "2.3.3"
-  :global-vars {*warn-on-reflection* true
-                *assert* true}
+
+  :license
+  {:name "Eclipse Public License 1.0"
+   :url  "http://www.eclipse.org/legal/epl-v10.html"}
+
+  :global-vars
+  {*warn-on-reflection* true
+   *assert* true}
 
   :dependencies
   [[org.clojure/core.async   "1.5.648"]
