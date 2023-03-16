@@ -21,8 +21,6 @@
 
 > **Sen-te** (先手) is a Japanese [Go] term used to describe a play with such an overwhelming follow-up that it demands an immediate response, leaving its player with the initiative.
 
-(I'd also recommend checking out James Henderson's [Chord] and Kevin Lynagh's [jetty7-websockets-async] as possible alternatives!)
-
 ## Features
  * **Bidirectional a/sync comms** over both **WebSockets** and **Ajax** (auto-fallback)
  * **It just works**: auto keep-alives, buffering, protocol selection, reconnects
