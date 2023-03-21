@@ -52,9 +52,9 @@
 ;;;; Define our Sente channel socket (chsk) server
 
 (let [;; Serialization format, must use same val for client + server:
-      packer :edn] ; Default packer, a good choice in most cases
+      packer :edn ; Default packer, a good choice in most cases
       ;; (sente-transit/get-transit-packer) ; Needs Transit dep
-      
+      ]
 
   (defonce chsk-server
     (sente/make-channel-socket-server!
