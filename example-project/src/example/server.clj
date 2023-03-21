@@ -28,7 +28,7 @@
    ;; [taoensso.sente.server-adapters.aleph :refer [get-sch-adapter]]
 
    [ring.adapter.jetty9 :as jetty]
-   [taoensso.sente.server-adapters.community.jetty9 :refer [get-sch-adapter]]
+   [taoensso.sente.server-adapters.jetty9 :refer [get-sch-adapter]]
    ;;
    ;; See https://gist.github.com/wavejumper/40c4cbb21d67e4415e20685710b68ea0
    ;; for full example using Jetty 9
@@ -146,9 +146,7 @@
   You're also STRONGLY recommended to use `ring.middleware.anti-forgery`
   or something similar."
   (ring.middleware.defaults/wrap-defaults
-    ring-routes (-> ring.middleware.defaults/site-defaults
-                    (assoc-in [:params :multipart] false)
-                    (dissoc :security))))
+    ring-routes ring.middleware.defaults/site-defaults))
 
 ;;;; Some server>user async push examples
 
