@@ -146,7 +146,9 @@
   You're also STRONGLY recommended to use `ring.middleware.anti-forgery`
   or something similar."
   (ring.middleware.defaults/wrap-defaults
-    ring-routes ring.middleware.defaults/site-defaults))
+    ring-routes (-> ring.middleware.defaults/site-defaults
+                    (assoc-in [:params :multipart] false)
+                    (dissoc :security))))
 
 ;;;; Some server>user async push examples
 
