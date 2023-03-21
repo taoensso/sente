@@ -33,19 +33,18 @@
       (jetty9.websocket/send! sch msg (ajax-cbs sch)))))
 
 (defn- server-ch-resp
-  [websocket? {:keys [on-open on-close on-msg on-error]}]
+  [websocket? {:keys [on-open on-close on-msg on-error ring-async-resp-fn ring-async-raise-fn]}]
   {:on-connect (fn [sch         ] (on-open  sch websocket?))
    :on-text    (fn [sch msg     ] (on-msg   sch websocket? msg))
    :on-error   (fn [sch error   ] (on-error sch websocket? error))
-   :on-close   (fn [sch status _] (on-close sch websocket? status))})
-
-(defn- websocket-req? [ring-req]
-  (when-let [s (get-in ring-req [:headers "upgrade"])]
-    (= "websocket" (str/lower-case s))))
+   :on-close   (fn [sch status _] (on-close sch websocket? status))
+   :ring-async-resp-fn ring-async-resp-fn
+   :ring-async-raise-fn ring-async-raise-fn})
 
 (deftype JettyServerChanAdapter []
   i/IServerChanAdapter
   (ring-req->server-ch-resp [_ req callbacks-map]
-    (server-ch-resp (websocket-req? req) callbacks-map)))
+    (jetty9.websocket/ws-upgrade-response
+      (server-ch-resp (jetty9.websocket/ws-upgrade-request? req) callbacks-map))))
 
 (defn get-sch-adapter [] (JettyServerChanAdapter.))

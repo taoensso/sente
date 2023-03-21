@@ -19,14 +19,13 @@
    [com.taoensso/timbre       "6.1.0"]
 
    ;;; TODO Choose (uncomment) a supported web server -----------------------
-   [http-kit                             "2.6.0"] ; Default
-   ;; [org.immutant/web                  "x.y.z"
+   ;; [http-kit                             "2.6.0"] ; Default
+   ;; [org.immutant/web                  "2.1.10"
    ;;  :exclusions [ring/ring-core]]
-   ;; [nginx-clojure/nginx-clojure-embed "x.y.z"] ; Needs v0.4.2+
-   ;; [aleph                             "x.y.z"]
-   ;; [info.sunng/ring-jetty9-adapter    "x.y.z"]
-   [info.sunng/ring-jetty9-adapter       "0.18.5"]
-   [commons-io/commons-io                "2.11.0"]
+   ;; [nginx-clojure/nginx-clojure-embed "0.5.2"] ; Needs v0.4.2+
+   ;; [aleph                             "0.4.1"]
+   [info.sunng/ring-jetty9-adapter    "0.18.5"]
+   [commons-io/commons-io             "2.11.0"]
    ;; -----------------------------------------------------------------------
 
    [ring                     "1.10.0"]
