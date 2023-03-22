@@ -266,7 +266,7 @@
         ;;   [(aleph.netty/port server)
         ;;    (fn [] (.close ^java.io.Closeable server) (deliver p nil))])
 
-        (let [ws-handshake (:ajax-get-or-ws-handshake-fn (sente/make-channel-socket! (get-sch-adapter)))
+        (let [#_#_ws-handshake (:ajax-get-or-ws-handshake-fn (sente/make-channel-socket! (get-sch-adapter)))
               server (jetty/run-jetty ring-handler {:port port
                                                     :async? true
                                                     :join? false
