@@ -68,8 +68,8 @@
   (defonce ring-ajax-get-or-ws-handshake ajax-get-or-ws-handshake-fn)
   (defonce ch-chsk                       ch-recv) ; ChannelSocket's receive channel
   (defonce chsk-send!                    send-fn) ; ChannelSocket's send API fn
-  (defonce connected-uids                connected-uids)) ; Watchable, read-only atom
-  
+  (defonce connected-uids                connected-uids) ; Watchable, read-only atom
+  )
 
 ;; We can watch this atom for changes if we like
 (add-watch connected-uids :connected-uids
@@ -115,8 +115,8 @@
     [:p
      [:input#input-login {:type :text :placeholder "User-id"}] " "
      [:button#btn-login {:type "button"} "← Log in with user-id"]]
-    [:script {:src "main.js"}])) ; Include our cljs target
-    
+    [:script {:src "main.js"}] ; Include our cljs target
+    ))
 
 (defn login-handler
   "Here's where you'll add your server-side login/auth procedure (Friend, etc.).
@@ -186,15 +186,15 @@
 
 (defmulti -event-msg-handler
   "Multimethod to handle Sente `event-msg`s"
-  :id) ; Dispatch on event-id
-  
+  :id ; Dispatch on event-id
+  )
 
 (defn event-msg-handler
   "Wraps `-event-msg-handler` with logging, error catching, etc."
   [{:as ev-msg :keys [id ?data event]}]
-  (-event-msg-handler ev-msg)) ; Handle event-msgs on a single thread
+  (-event-msg-handler ev-msg) ; Handle event-msgs on a single thread
   ;; (future (-event-msg-handler ev-msg)) ; Handle event-msgs on a thread pool
-  
+  )
 
 (defmethod -event-msg-handler
   :default ; Default/fallback case (no other matching handler)
@@ -266,9 +266,11 @@
         ;;   [(aleph.netty/port server)
         ;;    (fn [] (.close ^java.io.Closeable server) (deliver p nil))])
 
-        (let [server (jetty/run-jetty ring-handler {:port port
+        (let [ws-handshake (:ajax-get-or-ws-handshake-fn (sente/make-channel-socket! (get-sch-adapter)))
+              server (jetty/run-jetty ring-handler {:port port
                                                     :async? true
-                                                    :join? false})]
+                                                    :join? false
+                                                    :websockets {"/chsk" ws-handshake}})]
           [port (fn [] (jetty/stop-server server))])
         ;; ------------------------------------------------------------------
 
