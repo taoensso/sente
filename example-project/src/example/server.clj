@@ -28,7 +28,7 @@
    ;; [taoensso.sente.server-adapters.aleph :refer [get-sch-adapter]]
 
    [ring.adapter.jetty9 :as jetty]
-   [taoensso.sente.server-adapters.jetty9 :refer [get-sch-adapter]]
+   [taoensso.sente.server-adapters.community.jetty9 :refer [get-sch-adapter]]
    ;;
    ;; See https://gist.github.com/wavejumper/40c4cbb21d67e4415e20685710b68ea0
    ;; for full example using Jetty 9
