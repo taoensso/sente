@@ -214,7 +214,7 @@
       (enc/str-starts-with? packed "+") [(subs packed 1) :v1/wrapped]
       (enc/str-starts-with? packed "-") [(subs packed 1) :v1/unwrapped]
       :else                             [      packed    :v2/unwrapped])
-    packed))
+    [packed :v2/unwrapped]))
 
 (comment (parse-packed "+[[\"foo\"] \"uuid\"]"))
 
