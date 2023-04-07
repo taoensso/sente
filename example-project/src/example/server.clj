@@ -15,8 +15,8 @@
    [taoensso.sente     :as sente]
 
    ;;; TODO Choose (uncomment) a supported web server + adapter -------------
-   [org.httpkit.server :as http-kit]
-   [taoensso.sente.server-adapters.http-kit :refer [get-sch-adapter]]
+   ;;[org.httpkit.server :as http-kit]
+   ;;[taoensso.sente.server-adapters.http-kit :refer [get-sch-adapter]]
 
    ;; [immutant.web :as immutant]
    ;; [taoensso.sente.server-adapters.immutant :refer [get-sch-adapter]]
@@ -27,8 +27,8 @@
    ;; [aleph.http :as aleph]
    ;; [taoensso.sente.server-adapters.aleph :refer [get-sch-adapter]]
 
-   ;; [ring.adapter.jetty9.websocket :as jetty9.websocket]
-   ;; [taoensso.sente.server-adapters.jetty9 :refer [get-sch-adapter]]
+   [ring.adapter.jetty9 :as jetty]
+   [taoensso.sente.server-adapters.community.jetty9 :refer [get-sch-adapter]]
    ;;
    ;; See https://gist.github.com/wavejumper/40c4cbb21d67e4415e20685710b68ea0
    ;; for full example using Jetty 9
@@ -245,13 +245,13 @@
 (defn  stop-web-server! [] (when-let [stop-fn @web-server_] (stop-fn)))
 (defn start-web-server! [& [port]]
   (stop-web-server!)
-  (let [port (or port 0) ; 0 => Choose any available port
+  (let [port (or port 3333) ; 0 => Choose any available port
         ring-handler (var main-ring-handler)
 
         [port stop-fn]
         ;;; TODO Choose (uncomment) a supported web server ------------------
-        (let [stop-fn (http-kit/run-server ring-handler {:port port})]
-          [(:local-port (meta stop-fn)) (fn [] (stop-fn :timeout 100))])
+        ;;(let [stop-fn (http-kit/run-server ring-handler {:port port})]
+        ;;  [(:local-port (meta stop-fn)) (fn [] (stop-fn :timeout 100))]]
         ;;
         ;; (let [server (immutant/run ring-handler :port port)]
         ;;   [(:port server) (fn [] (immutant/stop server))])
@@ -265,6 +265,13 @@
         ;;   ;; (aleph.netty/wait-for-close server)
         ;;   [(aleph.netty/port server)
         ;;    (fn [] (.close ^java.io.Closeable server) (deliver p nil))])
+
+        (let [#_#_ws-handshake (:ajax-get-or-ws-handshake-fn (sente/make-channel-socket! (get-sch-adapter)))
+              server (jetty/run-jetty ring-handler {:port port
+                                                    :async? true
+                                                    :join? false
+                                                    #_#_:websockets {"/chsk" ws-handshake}})]
+          [port (fn [] (jetty/stop-server server))])
         ;; ------------------------------------------------------------------
 
         uri (format "http://localhost:%s/" port)]
@@ -283,4 +290,5 @@
 
 (comment
   (start!) ; Eval this at REPL to start server via REPL
-  (test-fast-server>user-pushes))
+  (test-fast-server>user-pushes)
+  (stop!))
