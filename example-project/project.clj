@@ -25,6 +25,8 @@
    ;; [nginx-clojure/nginx-clojure-embed "x.y.z"] ; Needs v0.4.2+
    ;; [aleph                             "x.y.z"]
    ;; [info.sunng/ring-jetty9-adapter    "x.y.z"]
+   [info.sunng/ring-jetty9-adapter       "0.18.5"]
+   [commons-io/commons-io                "2.11.0"]
    ;; -----------------------------------------------------------------------
 
    [ring                     "1.10.0"]
