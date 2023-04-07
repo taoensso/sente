@@ -44,7 +44,14 @@
      [aleph                          "0.6.1"]
      [macchiato/core                 "0.2.22"]
      [luminus/ring-undertow-adapter  "1.3.0"]
-     [info.sunng/ring-jetty9-adapter "0.20.0"]]}
+     [info.sunng/ring-jetty9-adapter "0.20.0"]]
+
+    ;; For nginx-clojure on Java 17+,
+    ;; Ref. https://github.com/nginx-clojure/nginx-clojure/issues/273
+    :jvm-opts
+    ["--add-opens=java.base/java.lang=ALL-UNNAMED"
+     "--add-opens=java.base/sun.nio.cs=ALL-UNNAMED"
+     "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED"]}
 
    :test
    {:dependencies
