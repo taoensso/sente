@@ -35,18 +35,30 @@
    :1.10     {:dependencies [[org.clojure/clojure "1.10.2"]]}
    :1.11     {:dependencies [[org.clojure/clojure "1.11.1"]]}
    :depr     {:jvm-opts ["-Dtaoensso.elide-deprecated=true"]}
-   :dev      [:1.11 :test :server-jvm :depr]
-   :test     {:dependencies
-              [[com.cognitect/transit-clj  "1.0.329"]
-               [com.cognitect/transit-cljs "0.8.280"]
-               [org.clojure/test.check     "1.1.1"]
-               [http-kit         "2.6.0"]
-               [org.immutant/web "2.1.10"]
-               [nginx-clojure    "0.5.3"]
-               [aleph            "0.6.1"]
-               [macchiato/core   "0.2.22"]
-               [luminus/ring-undertow-adapter  "1.3.0"]
-               [info.sunng/ring-jetty9-adapter "0.18.5"]]}}
+   :dev      [:1.11 :test :server-jvm :depr :community]
+
+   :community
+   {:dependencies
+    [[org.immutant/web               "2.1.10"]
+     [nginx-clojure                  "0.6.0"]
+     [aleph                          "0.6.1"]
+     [macchiato/core                 "0.2.22"]
+     [luminus/ring-undertow-adapter  "1.3.0"]
+     [info.sunng/ring-jetty9-adapter "0.20.0"]]
+
+    ;; For nginx-clojure on Java 17+,
+    ;; Ref. https://github.com/nginx-clojure/nginx-clojure/issues/273
+    :jvm-opts
+    ["--add-opens=java.base/java.lang=ALL-UNNAMED"
+     "--add-opens=java.base/sun.nio.cs=ALL-UNNAMED"
+     "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED"]}
+
+   :test
+   {:dependencies
+    [[com.cognitect/transit-clj  "1.0.333"]
+     [com.cognitect/transit-cljs "0.8.280"]
+     [org.clojure/test.check     "1.1.1"]
+     [http-kit                   "2.6.0"]]}}
 
   :cljsbuild
   {:test-commands {"node"    ["node" :node-runner "target/main.js"]
