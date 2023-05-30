@@ -1,4 +1,59 @@
-> This project uses [Break Versioning](https://github.com/ptaoussanis/encore/blob/master/BREAK-VERSIONING.md) as of **Aug 16, 2014**.
+This project uses [Break Versioning](https://github.com/ptaoussanis/encore/blob/master/BREAK-VERSIONING.md).
+
+## `1.18.0-RC1` (2023-05-30)
+
+> 📦 [Available on Clojars](https://clojars.org/com.taoensso/sente/versions/1.18.0-RC1)
+
+This is a **major pre-release** that **INCLUDES BREAKING CHANGES**.
+
+Please test carefully and **report any issues**!
+
+### ⚠️ Changes since `1.17.0`
+
+See [here](https://github.com/ptaoussanis/sente/wiki/Migration-instructions) for detailed **migration/upgrade instruction**! 👈
+
+* 0b37e4c [mod] [#319] [BREAKING] Change default `wrap-recv-evs?` value
+* d5b3dc5 [mod] [#404] [#398] [BREAKING] Disable default legacy pack value
+* 23d9f7a [mod] [#412] [BREAKING] Move unofficial adapters under `community` dir
+* c3d7c6c [mod] [#424] [BREAKING] Temporarily remove `jetty9-ring-adapter` support
+* bfa4c72 [mod] Client will now re-connect on WebSocket send error
+* 76b8abc [mod] [Aleph adapter] [#350] Experimental change to support Ring middleware (@g7s)
+* 728901a [mod] [Undertow adapter] [#409] Add default Ajax read timeout (@kajism)
+* 8806e72 [new] [Undertow adapter] [#409] Allow Ajax read timeout (@kajism)
+* e6cdf99 [mod] Refactor, improve logging
+
+### Fixes since `1.17.0`
+
+* eae2726 [fix] [#259] Improve client-side detection of broken connections
+* a2b9af8 [fix] [#417] Fix broken server->client broadcast on client IP change (@Naomarik)
+* 82fc83d [fix] Verify expected server-ch identity when updating conns
+* c6deca6 [fix] Potential (though unlikely) race condition on client GC
+* 7b466ad [fix] [#260] NB Prevent unnecessary participation of Ajax channels in `conns_` during handshake
+* cc84303 [fix] [new] [#380] NB Refactor ws state management
+* da73f03 [fix] [#346] [#340] Malformed `:chsk/bad-package` error
+* 91a239b [fix] [#428] Unpack broken for binary data (@rosejn)
+* Several fixes to Undertow adapter (2a91ad4, 318e90a, a4cf644)
+
+### New since `1.17.0`
+
+* 7dba037 [new] [#420] More reliable WebSocket server->client broadcasts
+* 5f945db [new] [#414] Add server config option to control msecs before marking conns as closed
+* 6f3e521 [new] [#259] Add client config option to control kalive ping timeout
+* f560294 [new] [#325] Add option for custom WebSocket constructor
+* ddde20d [new] [#342] Smarter Ajax XHR acquisition, opt to control pool
+* 45e1880 [new] [#422] Add client-side util to simulate a broken connection
+* 627029f [new] [Experimental] Add support for 3-arity (async) Ring v1.6+ handlers
+* 221f112 [new] [Example] Update, improve reference example
+* Introduced a new [community docs wiki](https://github.com/ptaoussanis/sente/wiki)
+
+### Other improvements since `1.17.0`
+
+* 057a8cb [new] Add interface docstrings
+* c6aca8c [nop] [#406] Clarify client+server docstrings re: csrf-token
+* 8b9804e [nop] Mark deprecated vars
+* Major improvements to [example project](https://github.com/ptaoussanis/sente/tree/master/example-project)
+* Many other small improvements to implementation, documentation, etc.
+
 
 ## v1.17.0 - 2022 Jun 13
 
