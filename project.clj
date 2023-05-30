@@ -14,7 +14,7 @@
 
   :dependencies
   [[org.clojure/core.async   "1.6.673"]
-   [com.taoensso/encore      "3.57.2"]
+   [com.taoensso/encore      "3.59.0"]
    [org.java-websocket/Java-WebSocket "1.5.3"]
    [org.clojure/tools.reader "1.3.6"]
    [com.taoensso/timbre      "6.1.0"]]
@@ -41,10 +41,10 @@
    {:dependencies
     [[org.immutant/web               "2.1.10"]
      [nginx-clojure                  "0.6.0"]
-     [aleph                          "0.6.1"]
-     [macchiato/core                 "0.2.22"]
-     [luminus/ring-undertow-adapter  "1.3.0"]
-     [info.sunng/ring-jetty9-adapter "0.20.0"]]
+     [aleph                          "0.6.2"]
+     [macchiato/core                 "0.2.23"]
+     [luminus/ring-undertow-adapter  "1.3.1"]
+     [info.sunng/ring-jetty9-adapter "0.22.0"]]
 
     ;; For nginx-clojure on Java 17+,
     ;; Ref. https://github.com/nginx-clojure/nginx-clojure/issues/273
@@ -58,7 +58,7 @@
     [[com.cognitect/transit-clj  "1.0.333"]
      [com.cognitect/transit-cljs "0.8.280"]
      [org.clojure/test.check     "1.1.1"]
-     [http-kit                   "2.6.0"]]}}
+     [http-kit                   "2.7.0-RC1"]]}}
 
   :cljsbuild
   {:test-commands {"node"    ["node" :node-runner "target/main.js"]
