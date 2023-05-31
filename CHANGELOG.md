@@ -10,7 +10,7 @@ Please test carefully and **report any issues**!
 
 ### ⚠️ Changes since `1.17.0`
 
-See [here](https://github.com/ptaoussanis/sente/wiki/Migration-instructions) for detailed **migration/upgrade instruction**! 👈
+See [here](https://github.com/ptaoussanis/sente/wiki/Migration-instructions) for detailed **migration/upgrade instructions**! 👈
 
 * 0b37e4c [mod] [#319] [BREAKING] Change default `wrap-recv-evs?` value
 * d5b3dc5 [mod] [#404] [#398] [BREAKING] Disable default legacy pack value
