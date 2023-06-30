@@ -16,10 +16,10 @@
    [nrepl                     "1.0.0"] ; Optional, for Cider
 
    [com.taoensso/sente        "1.18.0-RC1"] ; <--- Sente
-   [com.taoensso/timbre       "6.1.0"]
+   [com.taoensso/timbre       "6.2.1"]
 
    ;;; TODO Choose (uncomment) a supported web server -----------------------
-   [http-kit                             "2.7.0-RC1"] ; Default
+   [http-kit                             "2.7.0"] ; Default
    ;; [org.immutant/web                  "x.y.z"
    ;;  :exclusions [ring/ring-core]]
    ;; [nginx-clojure/nginx-clojure-embed "x.y.z"] ; Needs v0.4.2+
@@ -43,7 +43,7 @@
   [[lein-pprint       "1.3.2"]
    [lein-ancient      "0.7.0"]
    [lein-cljsbuild    "1.1.8"]
-   [cider/cider-nrepl "0.30.0"]] ; Optional, for use with Emacs
+   [cider/cider-nrepl "0.31.0"]] ; Optional, for use with Emacs
 
   :cljsbuild
   {:builds

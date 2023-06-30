@@ -14,10 +14,10 @@
 
   :dependencies
   [[org.clojure/core.async   "1.6.673"]
-   [com.taoensso/encore      "3.59.0"]
+   [com.taoensso/encore      "3.60.0"]
    [org.java-websocket/Java-WebSocket "1.5.3"]
    [org.clojure/tools.reader "1.3.6"]
-   [com.taoensso/timbre      "6.1.0"]]
+   [com.taoensso/timbre      "6.2.1"]]
 
   :plugins
   [[lein-pprint    "1.3.2"]
@@ -41,7 +41,7 @@
    {:dependencies
     [[org.immutant/web               "2.1.10"]
      [nginx-clojure                  "0.6.0"]
-     [aleph                          "0.6.2"]
+     [aleph                          "0.6.3"]
      [macchiato/core                 "0.2.23"]
      [luminus/ring-undertow-adapter  "1.3.1"]
      [info.sunng/ring-jetty9-adapter "0.22.0"]]
@@ -58,7 +58,7 @@
     [[com.cognitect/transit-clj  "1.0.333"]
      [com.cognitect/transit-cljs "0.8.280"]
      [org.clojure/test.check     "1.1.1"]
-     [http-kit                   "2.7.0-RC1"]]}}
+     [http-kit                   "2.7.0"]]}}
 
   :cljsbuild
   {:test-commands {"node"    ["node" :node-runner "target/main.js"]
