@@ -1,5 +1,12 @@
 This project uses [Break Versioning](https://github.com/ptaoussanis/encore/blob/master/BREAK-VERSIONING.md).
 
+## `1.18.0` (2023-06-30)
+
+> 📦 [Available on Clojars](https://clojars.org/com.taoensso/sente/versions/1.18.0)
+
+Same as `1.18.0-RC1`, except addresses a possible build issue [#429].
+
+
 ## `1.18.0-RC1` (2023-05-30)
 
 > 📦 [Available on Clojars](https://clojars.org/com.taoensso/sente/versions/1.18.0-RC1)

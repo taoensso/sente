@@ -13,10 +13,9 @@ Loosely inspired by [Socket.IO](https://socket.io/), it uses **core.async**, **W
 
 > **Sen-te** (先手) is a Japanese [Go](https://en.wikipedia.org/wiki/Go_(game)) term used to describe a play with such an overwhelming follow-up that it demands an immediate response, leaving its player with the initiative.
 
-## Latest releases
+## Latest release
 
-- 2023-05-30: `1.18.0-RC1` (dev): [release notes](https://github.com/ptaoussanis/sente/releases/tag/v1.18.0-RC1) | [Clojars](https://clojars.org/com.taoensso/sente/versions/1.18.0-RC1)
-- 2022-06-13: `1.17.0`  (stable): [release notes](https://github.com/ptaoussanis/sente/releases/tag/v1.17.0) | [Clojars](https://clojars.org/com.taoensso/sente/versions/1.17.0)
+- 2023-06-30: `1.18.0` - [release notes](https://github.com/ptaoussanis/sente/releases/tag/v1.18.0) | [Clojars](https://clojars.org/com.taoensso/sente/versions/1.18.0)
 
 <!--- [![tests][tests badge]][tests status] -->
 
