@@ -4,7 +4,9 @@ This project uses [Break Versioning](https://github.com/ptaoussanis/encore/blob/
 
 > 📦 [Available on Clojars](https://clojars.org/com.taoensso/sente/versions/1.18.0)
 
-Same as `1.18.0-RC1`, except addresses a possible build issue [#429].
+Same as `1.18.0-RC1`, except for:
+
+* 7889a0b [fix] [#429] Bump deps, fix possible broken cljs builds
 
 
 ## `1.18.0-RC1` (2023-05-30)
