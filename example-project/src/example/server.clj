@@ -205,6 +205,22 @@
     (when ?reply-fn
       (?reply-fn {:unmatched-event-as-echoed-from-server event}))))
 
+(defmethod -event-msg-handler :chsk/uidport-open
+  [{:as ev-msg :keys [ring-req]}]
+  (let [session (:session ring-req)
+        uid     (:uid     session)]
+    (if uid
+      (timbre/infof "User connected: user-id `%s`" uid)
+      (timbre/infof "User connected: no user-id (user didn't have login session)"))))
+
+(defmethod -event-msg-handler :chsk/uidport-close
+  [{:as ev-msg :keys [ring-req]}]
+  (let [session (:session ring-req)
+        uid     (:uid     session)]
+    (if uid
+      (timbre/infof "User diconnected: user-id `%s`" uid)
+      (timbre/infof "User diconnected: no user-id (user didn't have login session)"))))
+
 (defmethod -event-msg-handler :example/test-rapid-push
   [ev-msg] (test-fast-server>user-pushes))
 
