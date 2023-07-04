@@ -1,5 +1,21 @@
 This project uses [Break Versioning](https://github.com/ptaoussanis/encore/blob/master/BREAK-VERSIONING.md).
 
+## `1.18.1` (2023-07-04)
+
+> 📦 [Available on Clojars](https://clojars.org/com.taoensso/sente/versions/1.18.1)
+
+This is an important **hotfix release**, please update if you're using `1.18.0`.
+
+### Fixes since `1.18.0`
+
+* ad62f1e [fix] Ajax poll not properly timing out
+* 1d15fe5 [fix] [#430] `[:chsk/uidport-close]` server event not firing
+
+### New since `1.18.0`
+
+* 5c0f4ad [new] [example] Add example server-side uidport event handlers
+
+
 ## `1.18.0` (2023-06-30)
 
 > 📦 [Available on Clojars](https://clojars.org/com.taoensso/sente/versions/1.18.0)

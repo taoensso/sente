@@ -15,7 +15,7 @@ Loosely inspired by [Socket.IO](https://socket.io/), it uses **core.async**, **W
 
 ## Latest release
 
-- 2023-06-30: `1.18.0` - [release notes](https://github.com/ptaoussanis/sente/releases/tag/v1.18.0) | [Clojars](https://clojars.org/com.taoensso/sente/versions/1.18.0)
+- 2023-07-04: `1.18.1` - [release notes](https://github.com/ptaoussanis/sente/releases/tag/v1.18.1) | [Clojars](https://clojars.org/com.taoensso/sente/versions/1.18.1)
 
 <!--- [![tests][tests badge]][tests status] -->
 
