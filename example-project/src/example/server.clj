@@ -47,7 +47,7 @@
   (timbre/set-ns-min-level! level) ; Min log level for this           namespace
   (reset! min-log-level_    level))
 
-(set-min-log-level! :info)
+(set-min-log-level! :debug)
 
 ;;;; Define our Sente channel socket (chsk) server
 
