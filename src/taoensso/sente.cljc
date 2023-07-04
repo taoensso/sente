@@ -851,7 +851,7 @@
                            (go
                              (<! (async/timeout ms))
                              (when-let [[sch udt-t1] (get-in @conns_ [:ajax uid client-id])]
-                               (when (and (= identical? server-ch) (= udt-t1 udt-open))
+                               (when (and (identical? sch server-ch) (= udt-t1 udt-open))
                                  (interfaces/sch-send! server-ch websocket?
                                    (pack packer :chsk/timeout))))))))
 
