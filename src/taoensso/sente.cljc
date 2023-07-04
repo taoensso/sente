@@ -913,7 +913,7 @@
                      (let [disconnect? ; Removed entry for client-id?
                            (swap-in! conns_ [conn-type uid client-id]
                              (fn [[sch udt-t1]]
-                               (if (and (identical? sch server-ch) (= udt-t1 udt-close))
+                               (if (and (nil? sch) (= udt-t1 udt-close))
                                  (swapped :swap/dissoc true)
                                  (swapped :swap/abort  false))))]
 
