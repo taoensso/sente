@@ -25,17 +25,20 @@
    [lein-codox     "0.10.8"]
    [lein-cljsbuild "1.1.8"]]
 
+  :codox
+  {:language #{:clojure :clojurescript}
+   :base-language :clojure}
+
   :profiles
   {;; :default [:base :system :user :provided :dev]
+   :dev        [:c1.11 :test :server-jvm :depr :community]
+   :depr       {:jvm-opts ["-Dtaoensso.elide-deprecated=true"]}
    :server-jvm {:jvm-opts ^:replace ["-server"]}
-   :provided {:dependencies [[org.clojure/clojure       "1.10.2"]
-                             [org.clojure/clojurescript "1.11.60"]]}
-   :1.8      {:dependencies [[org.clojure/clojure "1.8.0"]]}
-   :1.9      {:dependencies [[org.clojure/clojure "1.9.0"]]}
-   :1.10     {:dependencies [[org.clojure/clojure "1.10.2"]]}
-   :1.11     {:dependencies [[org.clojure/clojure "1.11.1"]]}
-   :depr     {:jvm-opts ["-Dtaoensso.elide-deprecated=true"]}
-   :dev      [:1.11 :test :server-jvm :depr :community]
+
+   :provided {:dependencies [[org.clojure/clojurescript "1.11.60"]
+                             [org.clojure/clojure       "1.11.1"]]}
+   :c1.11    {:dependencies [[org.clojure/clojure       "1.11.1"]]}
+   :c1.10    {:dependencies [[org.clojure/clojure       "1.10.2"]]}
 
    :community
    {:dependencies
@@ -58,27 +61,41 @@
     [[com.cognitect/transit-clj  "1.0.333"]
      [com.cognitect/transit-cljs "0.8.280"]
      [org.clojure/test.check     "1.1.1"]
-     [http-kit                   "2.7.0"]]}}
+     [http-kit                   "2.7.0"]]}
+
+   :graal-tests
+   {:dependencies [[org.clojure/clojure "1.11.1"]
+                   [com.github.clj-easy/graal-build-time "0.1.4"]]
+    :main taoensso.graal-tests
+    :aot [taoensso.graal-tests]
+    :uberjar-name "graal-tests.jar"}}
+
+  :test-paths ["test" #_"src"]
 
   :cljsbuild
-  {:test-commands {"node"    ["node" :node-runner "target/main.js"]
-                   "phantom" ["phantomjs" :runner "target/main.js"]}
+  {:test-commands {"node" ["node" "target/test.js"]}
    :builds
    [{:id :main
      :source-paths ["src" "test"]
      :compiler     {:output-to "target/main.js"
                     :optimizations :advanced
-                    :pretty-print false}}]}
+                    :pretty-print false}}
 
-  :test-paths ["test" "src"]
+    {:id :test
+     :source-paths [#_"src" "test"]
+     :compiler
+     {:output-to "target/test.js"
+      :target :nodejs
+      :optimizations :simple}}]}
 
   :aliases
   {"start-dev"  ["with-profile" "+dev" "repl" ":headless"]
    "build-once" ["cljsbuild" "once"]
    "deploy-lib" ["do" "build-once," "deploy" "clojars," "install"]
-   "test-all"   ["do" "clean,"
-                 "with-profile" "+1.10:+1.9:+1.8"   "test,"
-                 "with-profile" "+test" "cljsbuild" "test"]}
+
+   "test-clj"   ["with-profile" "+c1.11:+c1.10"     "test"]
+   "test-cljs"  ["with-profile" "+test" "cljsbuild" "test"]
+   "test-all"   ["do" ["clean"] "test-clj," "test-cljs"]}
 
   :repositories
   {"sonatype-oss-public"
