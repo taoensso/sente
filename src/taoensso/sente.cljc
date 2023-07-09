@@ -1333,7 +1333,7 @@
   [client-id chs params headers packer url
    state_ ; {:type _ :open? _ :uid _ :csrf-token _ ...}
    conn-id_ retry-count_ ever-opened?_
-   ws-kalive-ms ws-kalive-ping-timeout-ms ws-opts
+   ws-kalive-ms ws-ping-timeout-ms ws-opts
    backoff-ms-fn ; (fn [nattempt]) -> msecs
    cbs-waiting_ ; {<cb-uuid> <fn> ...}
    socket_ ; ?[<socket> <socket-id>]
@@ -1561,11 +1561,11 @@
                   ;; if conn is broken.
                   (timbre/debugf "Client will send ws-ping to server: %s"
                     {:ms-since-last-activity (- (enc/now-udt) udt-t1)
-                     :timeout-ms ws-kalive-ping-timeout-ms})
+                     :timeout-ms ws-ping-timeout-ms})
 
                   (-chsk-send! chsk [:chsk/ws-ping]
                     {:flush? true
-                     :timeout-ms ws-kalive-ping-timeout-ms
+                     :timeout-ms ws-ping-timeout-ms
                      :cb ; Server will auto reply
                      (fn [reply]
                        (when (and (own-conn?) (not= reply "pong") #_(= reply :chsk/timeout))
@@ -1867,11 +1867,10 @@
        :wrap-recv-evs? ; Should events from server be wrapped in [:chsk/recv _]?
                        ; Default false for Sente >= v1.18, true otherwise.
 
-       :ws-kalive-ms   ; Ping to keep a WebSocket conn alive if no activity
-                       ; w/in given msecs. Should be different to server's :ws-kalive-ms.
-       :ws-kalive-ping-timeout-ms ; When above keep-alive ping is triggered, use this
-                                  ; timeout (default: 5000) before regarding the connection
-                                  ; as broken.
+       :ws-kalive-ms       ; Ping to keep a WebSocket conn alive if no activity
+                           ; w/in given msecs. Should be different to server's :ws-kalive-ms.
+       :ws-ping-timeout-ms ; When pinging to test WebSocket connections, msecs to
+                           ; await reply before regarding the connection as broken
 
        :ws-constructor ; Advanced, (fn [{:keys [uri-str headers on-message on-error on-close]}]
                        ; => connected WebSocket, see `default-client-ws-constructor` code for
@@ -1880,7 +1879,7 @@
      [path ?csrf-token-or-fn &
       [{:as   opts
         :keys [type protocol host port params headers recv-buf-or-n packer
-               ws-constructor ws-kalive-ms ws-kalive-ping-timeout-ms ws-opts
+               ws-constructor ws-kalive-ms ws-ping-timeout-ms ws-opts
                client-id ajax-opts wrap-recv-evs? backoff-ms-fn]
 
         :or   {type           :auto
@@ -1891,9 +1890,9 @@
                wrap-recv-evs? false
                backoff-ms-fn  enc/exp-backoff
 
-               ws-kalive-ms              20000
-               ws-kalive-ping-timeout-ms 5000
-               ws-constructor            default-client-ws-constructor}}
+               ws-kalive-ms       20000
+               ws-ping-timeout-ms 5000
+               ws-constructor     default-client-ws-constructor}}
 
        _deprecated-more-opts]]
 
@@ -1939,15 +1938,25 @@
                 (chan buf (map (fn [ev] [:chsk/recv ev])))
                 (chan buf)))}
 
+           ws-ping-timeout-ms
+           (cond
+             (contains? opts :ws-ping-timeout-ms)
+             (do   (get opts :ws-ping-timeout-ms))
+
+             (contains? opts :ws-kalive-ping-timeout-ms) ; Back compatibility
+             (do   (get opts :ws-kalive-ping-timeout-ms))
+
+             :else ws-ping-timeout-ms)
+
            common-chsk-opts
            {:client-id client-id
             :chs       private-chs
             :params    params
             :headers   headers
             :packer    packer
-            :ws-kalive-ms              ws-kalive-ms
-            :ws-kalive-ping-timeout-ms ws-kalive-ping-timeout-ms
-            :ws-constructor            default-client-ws-constructor}
+            :ws-kalive-ms       ws-kalive-ms
+            :ws-ping-timeout-ms ws-ping-timeout-ms
+            :ws-constructor     default-client-ws-constructor}
 
            ws-chsk-opts
            (merge common-chsk-opts
