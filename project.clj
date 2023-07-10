@@ -14,7 +14,7 @@
 
   :dependencies
   [[org.clojure/core.async   "1.6.673"]
-   [com.taoensso/encore      "3.60.0"]
+   [com.taoensso/encore      "3.62.0"]
    [org.java-websocket/Java-WebSocket "1.5.3"]
    [org.clojure/tools.reader "1.3.6"]
    [com.taoensso/timbre      "6.2.1"]]
@@ -22,8 +22,8 @@
   :plugins
   [[lein-pprint    "1.3.2"]
    [lein-ancient   "0.7.0"]
-   [lein-codox     "0.10.8"]
-   [lein-cljsbuild "1.1.8"]]
+   [lein-cljsbuild "1.1.8"]
+   [com.taoensso.forks/lein-codox "0.10.9"]]
 
   :codox
   {:language #{:clojure :clojurescript}
@@ -45,7 +45,7 @@
     [[org.immutant/web               "2.1.10"]
      [nginx-clojure                  "0.6.0"]
      [aleph                          "0.6.3"]
-     [macchiato/core                 "0.2.23"]
+     [macchiato/core                 "0.2.23"] ; Note 0.2.24 seems to fail?
      [luminus/ring-undertow-adapter  "1.3.1"]
      [info.sunng/ring-jetty9-adapter "0.22.0"]]
 
