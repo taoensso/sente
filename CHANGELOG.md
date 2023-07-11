@@ -1,5 +1,25 @@
 This project uses [Break Versioning](https://github.com/ptaoussanis/encore/blob/master/BREAK-VERSIONING.md).
 
+## `1.19.0` (2023-07-13)
+
+> 📦 [Available on Clojars](https://clojars.org/com.taoensso/sente/versions/1.19.0)
+
+This is intended as a **non-breaking maintenance release**, but it touches a lot of code so **please keep an eye out** for (and let me know about) any unexpected problems - thank you! 🙏
+
+**Tip**: the [reference example](https://github.com/ptaoussanis/sente/tree/master/example-project) includes a number of tools to help test Sente in your environment.
+
+### Fixes since `1.18.1`
+
+* 0dc8a12 [fix] [#431] Some disconnected user-ids not removed from `connected-uids`
+
+### New since `1.18.1`
+
+* e330ef2 [new] Allow WebSocket constructors to delay connection
+* 6021258 [new] [example] Misc improvements to example project
+* d0fd918 [new] Alias client option: `:ws-kalive-ping-timeout-ms` -> `:ws-ping-timeout-ms`
+* GraalVM compatibility is now tested during build
+
+
 ## `1.18.1` (2023-07-04)
 
 > 📦 [Available on Clojars](https://clojars.org/com.taoensso/sente/versions/1.18.1)
