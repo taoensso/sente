@@ -40,14 +40,13 @@
 
 ;;;; Logging config
 
-(defonce min-log-level_ (atom nil))
-
+(defonce   min-log-level_ (atom nil))
 (defn- set-min-log-level! [level]
   (sente/set-min-log-level! level) ; Min log level for internal Sente namespaces
   (timbre/set-ns-min-level! level) ; Min log level for this           namespace
   (reset! min-log-level_    level))
 
-(set-min-log-level! :debug)
+(set-min-log-level! #_:trace :debug #_:info #_:warn)
 
 ;;;; Define our Sente channel socket (chsk) server
 
@@ -60,7 +59,7 @@
     (sente/make-channel-socket-server!
       (get-sch-adapter) {:packer packer})))
 
-(let [{:keys [ch-recv send-fn connected-uids
+(let [{:keys [ch-recv send-fn connected-uids_ private
               ajax-post-fn ajax-get-or-ws-handshake-fn]}
       chsk-server]
 
@@ -68,11 +67,12 @@
   (defonce ring-ajax-get-or-ws-handshake ajax-get-or-ws-handshake-fn)
   (defonce ch-chsk                       ch-recv) ; ChannelSocket's receive channel
   (defonce chsk-send!                    send-fn) ; ChannelSocket's send API fn
-  (defonce connected-uids                connected-uids) ; Watchable, read-only atom
+  (defonce connected-uids_               connected-uids_)   ; Watchable, read-only atom
+  (defonce conns_                        (:conns_ private)) ; Implementation detail, for debugging!
   )
 
-;; We can watch this atom for changes if we like
-(add-watch connected-uids :connected-uids
+;; We can watch this atom for changes
+(add-watch connected-uids_ :connected-uids
   (fn [_ _ old new]
     (when (not= old new)
       (timbre/infof "Connected uids change: %s" new))))
@@ -84,11 +84,14 @@
     (let [csrf-token
           ;; (:anti-forgery-token ring-req) ; Also an option
           (force anti-forgery/*anti-forgery-token*)]
-      [:div#sente-csrf-token {:data-csrf-token csrf-token}])
+      [:div#sente-csrf-token {:data-token csrf-token}])
+
+    ;; Convey server's min-log-level to client
+    [:div#sente-min-log-level {:data-level (name @min-log-level_)}]
 
     [:h3 "Sente reference example"]
     [:p
-     "For this example, a " [:i "random"] " " [:strong [:code ":ajax/:auto"]]
+     "A " [:i "random"] " " [:strong [:code ":ajax/:auto"]]
      " connection mode has been selected (see " [:strong "client output"] ")."
      [:br]
      "To " [:strong "re-randomize"] ", hit your browser's reload/refresh button."]
@@ -97,24 +100,40 @@
      [:li [:strong "Client output:"] " → Below textarea and/or browser console"]]
     [:textarea#output {:style "width: 100%; height: 200px;" :wrap "off"}]
 
-    [:h4 "Controls"]
-    [:p
-     [:button#btn1 {:type "button"} "chsk-send! (with reply)"] " "
-     [:button#btn2 {:type "button"} "chsk-send! (w/o reply)"] " "]
-    [:p
-     [:button#btn3 {:type "button"} "Rapid server>user async push"] " "
-     [:button#btn4 {:type "button"} "Toggle server>user async broadcast push loop"]]
-    [:p
-     [:button#btn5 {:type "button"} "Disconnect"] " "
-     [:button#btn6 {:type "button"} "Reconnect"] " "
-     [:button#btn7 {:type "button"} "Simulate break (with on-close)"] " "
-     [:button#btn8 {:type "button"} "Simulate break (w/o on-close)"]]
-    [:p [:button#btn9 {:type "button"} "Toggle min log level"]]
+    [:section
+     [:h4 "Standard Controls"]
+     [:p
+      [:button#btn-send-with-reply {:type "button"} "chsk-send! (with reply)"] " "
+      [:button#btn-send-wo-reply   {:type "button"} "chsk-send! (without reply)"] " "]
+     [:p
+      [:button#btn-test-broadcast        {:type "button"} "Test broadcast (server>user async push)"] " "
+      [:button#btn-toggle-broadcast-loop {:type "button"} "Toggle broadcast loop"]]
+     [:p
+      [:button#btn-disconnect {:type "button"} "Disconnect"] " "
+      [:button#btn-reconnect  {:type "button"} "Reconnect"]]
+     [:p
+      [:button#btn-login  {:type "button"} "Log in with user-id →"] " "
+      [:input#input-login {:type :text :placeholder "user-id"}]]
+     [:ul {:style "color: #808080; font-size: 0.9em;"}
+      [:li "Log in with a " [:a {:href "https://github.com/ptaoussanis/sente/wiki/Client-and-user-ids#user-ids" :target :_blank} "user-id"]
+       " so that the server can directly address that user's connected clients."]
+      [:li "Open this page with " [:strong "multiple browser windows"] " to simulate multiple clients."]
+      [:li "Use different browsers and/or " [:strong "Private Browsing / Incognito mode"] " to simulate multiple users."]]]
 
-    [:p "Log in with a " [:strong "user-id"] " below so that the server can directly address this user-id's connected clients:"]
-    [:p
-     [:input#input-login {:type :text :placeholder "User-id"}] " "
-     [:button#btn-login {:type "button"} "← Log in with user-id"]]
+    [:hr]
+
+    [:section
+     [:h4 "Debug and Testing Controls"]
+     [:p
+      [:button#btn-toggle-logging       {:type "button"} "Toggle minimum log level"] " "
+      [:button#btn-toggle-bad-conn-rate {:type "button"} "Toggle simulated bad conn rate"]]
+     [:p
+      [:button#btn-break-with-close {:type "button"} "Simulate broken conn (with on-close)"] " "
+      [:button#btn-break-wo-close   {:type "button"} "Simulate broken conn (w/o on-close)"]]
+     [:p
+      [:button#btn-repeated-logins  {:type "button"} "Test repeated logins"] " "
+      [:button#btn-connected-uids   {:type "button"} "Print connected uids"]]]
+
     [:script {:src "main.js"}] ; Include our cljs target
     ))
 
@@ -149,38 +168,40 @@
 
 ;;;; Some server>user async push examples
 
-(defn test-fast-server>user-pushes
-  "Quickly pushes 100 events to all connected users. Note that this'll be
-  fast+reliable even over Ajax!"
+(defn broadcast!
+  "Pushes given event to all connected users."
+  [event]
+  (let [all-uids (:any @connected-uids_)]
+    (doseq [uid all-uids]
+      (timbre/debugf "Broadcasting server>user to %s uids" (count all-uids))
+      (chsk-send! uid event))))
+
+(defn test-broadcast!
+  "Quickly broadcasts 100 events to all connected users.
+  Note that this'll be fast+reliable even over Ajax!"
   []
-  (doseq [uid (:any @connected-uids)]
+  (doseq [uid (:any @connected-uids_)]
     (doseq [i (range 100)]
-      (chsk-send! uid [:fast-push/is-fast (str "hello " i "!!")]))))
+      (chsk-send! uid [:example/broadcast (str {:i i, :uid uid})]))))
 
-(comment (test-fast-server>user-pushes))
+(comment (test-broadcast!))
 
-(defonce broadcast-enabled?_ (atom true))
-
-(defn start-example-broadcaster!
-  "As an example of server>user async pushes, setup a loop to broadcast an
-  event to all connected users every 10 seconds"
-  []
-  (let [broadcast!
-        (fn [i]
-          (let [uids (:any @connected-uids)]
-            (timbre/debugf "Broadcasting server>user: %s uids" (count uids))
-            (doseq [uid uids]
-              (chsk-send! uid
-                [:some/broadcast
-                 {:what-is-this "An async broadcast pushed from server"
-                  :how-often "Every 10 seconds"
-                  :to-whom uid
-                  :i i}]))))]
-
+(defonce broadcast-loop?_ (atom true))
+(defonce ^:private auto-loop_
+  (delay
     (go-loop [i 0]
-      (<! (async/timeout 10000))
-      (when @broadcast-enabled?_ (broadcast! i))
-      (recur (inc i)))))
+      (<! (async/timeout 10000)) ; 10 secs
+
+      (timbre/debugf "Connected uids: %s" @connected-uids_)
+      (timbre/tracef "Conns state: %s"    @conns_)
+
+      (when @broadcast-loop?_
+        (broadcast!
+          [:example/broadcast-loop
+           {:my-message "A broadcast, pushed asynchronously from server"
+            :i i}]))
+
+      (recur (inc (long i))))))
 
 ;;;; Sente event handlers
 
@@ -218,20 +239,20 @@
   (let [session (:session ring-req)
         uid     (:uid     session)]
     (if uid
-      (timbre/infof "User diconnected: user-id `%s`" uid)
-      (timbre/infof "User diconnected: no user-id (user didn't have login session)"))))
+      (timbre/infof "User disconnected: user-id `%s`" uid)
+      (timbre/infof "User disconnected: no user-id (user didn't have login session)"))))
 
-(defmethod -event-msg-handler :example/test-rapid-push
-  [ev-msg] (test-fast-server>user-pushes))
+(defmethod -event-msg-handler :example/test-broadcast
+  [ev-msg] (test-broadcast!))
 
-(defmethod -event-msg-handler :example/toggle-broadcast
+(defmethod -event-msg-handler :example/toggle-broadcast-loop
   [{:as ev-msg :keys [?reply-fn]}]
-  (let [loop-enabled? (swap! broadcast-enabled?_ not)]
+  (let [loop-enabled? (swap! broadcast-loop?_ not)]
     (?reply-fn loop-enabled?)))
 
 (defmethod -event-msg-handler :example/toggle-min-log-level
   [{:as ev-msg :keys [?reply-fn]}]
-  (let [new-level
+  (let [new-val
         (case @min-log-level_
           :trace :debug
           :debug :info
@@ -240,8 +261,27 @@
           :error :trace
           :trace)]
 
-    (set-min-log-level! new-level)
-    (?reply-fn          new-level)))
+    (set-min-log-level! new-val)
+    (?reply-fn          new-val)))
+
+(defmethod -event-msg-handler :example/toggle-bad-conn-rate
+  [{:as ev-msg :keys [?reply-fn]}]
+  (let [new-val
+        (case sente/*simulated-bad-conn-rate*
+          nil  0.25
+          0.25 0.5
+          0.5  0.75
+          0.75 1.0
+          1.0  nil)]
+
+    (alter-var-root #'sente/*simulated-bad-conn-rate* (constantly new-val))
+    (?reply-fn new-val)))
+
+(defmethod -event-msg-handler :example/connected-uids
+  [{:as ev-msg :keys [?reply-fn]}]
+  (let [uids @connected-uids_]
+    (timbre/infof "Connected uids: %s" uids)
+    (?reply-fn                         uids)))
 
 ;; TODO Add your (defmethod -event-msg-handler <event-id> [ev-msg] <body>)s here...
 
@@ -267,36 +307,46 @@
         [port stop-fn]
         ;;; TODO Choose (uncomment) a supported web server ------------------
         (let [stop-fn (http-kit/run-server ring-handler {:port port})]
-          [(:local-port (meta stop-fn)) (fn [] (stop-fn :timeout 100))])
+          [(:local-port (meta stop-fn)) (fn stop-fn [] (stop-fn :timeout 100))])
         ;;
         ;; (let [server (immutant/run ring-handler :port port)]
-        ;;   [(:port server) (fn [] (immutant/stop server))])
+        ;;   [(:port server) (fn stop-fn [] (immutant/stop server))])
         ;;
         ;; (let [port (nginx-clojure/run-server ring-handler {:port port})]
-        ;;   [port (fn [] (nginx-clojure/stop-server))])
+        ;;   [port (fn stop-fn [] (nginx-clojure/stop-server))])
         ;;
         ;; (let [server (aleph/start-server ring-handler {:port port})
         ;;       p (promise)]
         ;;   (future @p) ; Workaround for Ref. https://goo.gl/kLvced
         ;;   ;; (aleph.netty/wait-for-close server)
         ;;   [(aleph.netty/port server)
-        ;;    (fn [] (.close ^java.io.Closeable server) (deliver p nil))])
+        ;;    (fn stop-fn [] (.close ^java.io.Closeable server) (deliver p nil))])
         ;; ------------------------------------------------------------------
 
         uri (format "http://localhost:%s/" port)]
 
-    (timbre/infof "Web server is running at `%s`" uri)
+    (timbre/infof "HTTP server is running at `%s`" uri)
     (try
       (.browse (java.awt.Desktop/getDesktop) (java.net.URI. uri))
-      (catch java.awt.HeadlessException _))
+      (catch Exception _))
 
     (reset! web-server_ stop-fn)))
 
-(defn stop!  []  (stop-router!)  (stop-web-server!))
-(defn start! [] (start-router!) (start-web-server!) (start-example-broadcaster!))
+(defn stop!  [] (stop-router!) (stop-web-server!))
+(defn start! []
+  (timbre/reportf "Sente version: %s" sente/sente-version)
+  (timbre/reportf "Min log level: %s" @min-log-level_)
+  (start-router!)
+  (let [stop-fn (start-web-server!)]
+    @auto-loop_
+    stop-fn))
 
 (defn -main "For `lein run`, etc." [] (start!))
 
 (comment
   (start!) ; Eval this at REPL to start server via REPL
-  (test-fast-server>user-pushes))
+  (test-broadcast!)
+
+  (broadcast! [:example/foo])
+  @connected-uids_
+  @conns_)

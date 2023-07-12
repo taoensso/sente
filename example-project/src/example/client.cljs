@@ -17,39 +17,54 @@
 
 ;;;; Logging config
 
+(defonce   min-log-level_ (atom nil))
 (defn- set-min-log-level! [level]
   (sente/set-min-log-level! level) ; Min log level for internal Sente namespaces
   (timbre/set-ns-min-level! level) ; Min log level for this           namespace
-  )
+  (reset! min-log-level_    level))
 
-(set-min-log-level! :info)
+(when-let [el (.getElementById js/document "sente-min-log-level")]
+  (let [level (if-let [attr (.getAttribute el "data-level")]
+                (keyword attr)
+                :warn)]
+    (set-min-log-level! level)))
 
 ;;;; Util for logging output to on-screen console
 
-(def output-el (.getElementById js/document "output"))
-(defn ->output! [fmt & args]
-  (let [msg (apply encore/format fmt args)]
-    ;; (timbre/tracef "->output: %s" msg)
-    (aset output-el "value" (str (.-value output-el) "\n• " msg))
+(let [output-el (.getElementById js/document "output")]
+  (defn- ->output!! [x]
+    (aset output-el "value"     (str   (.-value output-el) x))
     (aset output-el "scrollTop" (.-scrollHeight output-el))))
 
+(defn ->output!
+  ([          ] (->output!! "\n"))
+  ([fmt & args]
+   (let [msg (apply encore/format fmt args)]
+     (->output!! (str "\n• " msg)))))
+
 (->output! "ClojureScript has successfully loaded")
+(->output! "Sente version: %s" sente/sente-version)
+(->output! "Min log level: %s (use toggle button to change)" @min-log-level_)
+(->output!)
 
 ;;;; Define our Sente channel socket (chsk) client
 
 (def ?csrf-token
   (when-let [el (.getElementById js/document "sente-csrf-token")]
-    (.getAttribute el "data-csrf-token")))
+    (.getAttribute el "data-token")))
 
 (if ?csrf-token
   (->output! "CSRF token detected in HTML, great!")
   (->output! "**IMPORTANT** CSRF token NOT detected in HTML, default Sente config will reject requests!"))
 
-(let [;; For this example, select a random protocol:
-      rand-chsk-type (if (>= (rand) 0.5) :ajax :auto)
-      _ (->output! "Randomly selected chsk type: %s" rand-chsk-type)
+(def chsk-type
+  "We'll select a random protocol for this example"
+  (if (>= (rand) 0.5) :ajax :auto))
 
-      ;; Serializtion format, must use same val for client + server:
+(->output! "Randomly selected chsk type: %s" chsk-type)
+(->output!)
+
+(let [;; Serializtion format, must use same val for client + server:
       packer :edn ; Default packer, a good choice in most cases
       ;; (sente-transit/get-transit-packer) ; Needs Transit dep
 
@@ -57,7 +72,7 @@
       (sente/make-channel-socket-client!
         "/chsk" ; Must match server Ring routing URL
         ?csrf-token
-        {:type   rand-chsk-type
+        {:type   chsk-type
          :packer packer})]
 
   (def chsk       chsk)
@@ -117,71 +132,86 @@
 
 ;;;; UI events
 
-(when-let [target-el (.getElementById js/document "btn1")]
+(when-let [target-el (.getElementById js/document "btn-send-with-reply")]
   (.addEventListener target-el "click"
     (fn [ev]
-      (->output! "Will send event to server WITH callback")
       (chsk-send! [:example/button2 {:had-a-callback? "indeed"}] 5000
-        (fn [cb-reply] (->output! "Callback reply: %s" cb-reply))))))
+        (fn [cb-reply]
+          (->output! "Callback reply: %s" cb-reply))))))
 
-(when-let [target-el (.getElementById js/document "btn2")]
+(when-let [target-el (.getElementById js/document "btn-send-wo-reply")]
   (.addEventListener target-el "click"
     (fn [ev]
-      (->output! "Will send event to server WITHOUT callback")
       (chsk-send! [:example/button1 {:had-a-callback? "nope"}]))))
 
-(when-let [target-el (.getElementById js/document "btn3")]
+(when-let [target-el (.getElementById js/document "btn-test-broadcast")]
   (.addEventListener target-el "click"
     (fn [ev]
-      (->output! "Will ask server to test rapid async push")
-      (chsk-send! [:example/test-rapid-push]))))
+      (->output!)
+      (chsk-send! [:example/test-broadcast]))))
 
-(when-let [target-el (.getElementById js/document "btn4")]
+(when-let [target-el (.getElementById js/document "btn-toggle-broadcast-loop")]
   (.addEventListener target-el "click"
     (fn [ev]
-      (chsk-send! [:example/toggle-broadcast] 5000
+      (chsk-send! [:example/toggle-broadcast-loop] 5000
         (fn [cb-reply]
           (when (cb-success? cb-reply)
-            (let [loop-enabled? cb-reply]
-              (if loop-enabled?
-                (->output! "Server async broadcast loop now ENABLED")
-                (->output! "Server async broadcast loop now DISABLED")))))))))
+            (let [enabled? cb-reply]
+              (if enabled?
+                (->output! "Server broadcast loop now ENABLED")
+                (->output! "Server broadcast loop now DISABLED")))))))))
 
-(when-let [target-el (.getElementById js/document "btn5")]
+(when-let [target-el (.getElementById js/document "btn-disconnect")]
   (.addEventListener target-el "click"
     (fn [ev]
-      (->output! "Disconnecting...\n\n")
+      (->output!)
       (sente/chsk-disconnect! chsk))))
 
-(when-let [target-el (.getElementById js/document "btn6")]
+(when-let [target-el (.getElementById js/document "btn-reconnect")]
   (.addEventListener target-el "click"
     (fn [ev]
-      (->output! "Reconnecting...\n\n")
+      (->output!)
       (sente/chsk-reconnect! chsk))))
 
-(when-let [target-el (.getElementById js/document "btn7")]
+(when-let [target-el (.getElementById js/document "btn-break-with-close")]
   (.addEventListener target-el "click"
     (fn [ev]
-      (->output! "Simulating basic broken connection (WITH close)...\n\n")
+      (->output!)
       (sente/chsk-break-connection! chsk {:close-ws? true}))))
 
-(when-let [target-el (.getElementById js/document "btn8")]
+(when-let [target-el (.getElementById js/document "btn-break-wo-close")]
   (.addEventListener target-el "click"
     (fn [ev]
-      (->output! "Simulating basic broken connection (WITHOUT close)...\n\n")
+      (->output!)
       (sente/chsk-break-connection! chsk {:close-ws? false}))))
 
-(when-let [target-el (.getElementById js/document "btn9")]
+(when-let [target-el (.getElementById js/document "btn-toggle-logging")]
   (.addEventListener target-el "click"
     (fn [ev]
-      (->output! "Will ask server to toggle minimum log level")
       (chsk-send! [:example/toggle-min-log-level] 5000
         (fn [cb-reply]
           (if (cb-success? cb-reply)
             (let [level cb-reply]
               (set-min-log-level! level)
               (->output! "New minimum log level (client+server): %s" level))
-            (->output! "Failed to toggle minimum log level: %s" cb-reply)))))))
+            (->output! "Request failed: %s" cb-reply)))))))
+
+(when-let [target-el (.getElementById js/document "btn-toggle-bad-conn-rate")]
+  (.addEventListener target-el "click"
+    (fn [ev]
+      (chsk-send! [:example/toggle-bad-conn-rate] 5000
+        (fn [cb-reply]
+          (if (cb-success? cb-reply)
+            (->output! "New rate: %s"       cb-reply)
+            (->output! "Request failed: %s" cb-reply)))))))
+
+(when-let [target-el (.getElementById js/document "btn-connected-uids")]
+  (.addEventListener target-el "click"
+    (fn [ev]
+      (chsk-send! [:example/connected-uids] 5000
+        (fn [cb-reply]
+          (when (cb-success? cb-reply)
+            (->output! "Connected uids: %s" cb-reply)))))))
 
 (when-let [target-el (.getElementById js/document "btn-login")]
   (.addEventListener target-el "click"
@@ -190,7 +220,8 @@
         (if (str/blank? user-id)
           (js/alert "Please enter a user-id first")
           (do
-            (->output! "Logging in with user-id %s...\n\n" user-id)
+            (->output!)
+            (->output! "Logging in with user-id %s..." user-id)
 
             ;;; Use any login procedure you'd like. Here we'll trigger an Ajax
             ;;; POST request that resets our server-side session. Then we ask
@@ -211,6 +242,25 @@
                     (do
                       (->output! "Login successful")
                       (sente/chsk-reconnect! chsk))))))))))))
+
+(when-let [target-el (.getElementById js/document "btn-repeated-logins")]
+  (.addEventListener target-el "click"
+    (fn [ev]
+      (->output!)
+      (->output! "Will rapidly change user-id from \"1\" to \"10\"...")
+      (let [c (async/chan)]
+        (go-loop [uids (range 11)]
+          (when-let [[next-uid] uids]
+            (sente/ajax-lite "/login"
+              {:method :post
+               :headers {:X-CSRF-Token (:csrf-token @chsk-state)}
+               :params  {:user-id (str next-uid)}}
+              (fn [ajax-resp]
+                (when (:success? ajax-resp) (sente/chsk-reconnect! chsk))
+                (put! c :continue)))
+            (<! c)
+            (<! (async/timeout 100))
+            (recur (next uids))))))))
 
 ;;;; Init stuff
 
