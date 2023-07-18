@@ -14,16 +14,16 @@
 
   :dependencies
   [[org.clojure/core.async   "1.6.673"]
-   [com.taoensso/encore      "3.62.0"]
+   [com.taoensso/encore      "3.62.1"]
    [org.java-websocket/Java-WebSocket "1.5.3"]
    [org.clojure/tools.reader "1.3.6"]
-   [com.taoensso/timbre      "6.2.1"]]
+   [com.taoensso/timbre      "6.2.2"]]
 
   :plugins
   [[lein-pprint    "1.3.2"]
    [lein-ancient   "0.7.0"]
    [lein-cljsbuild "1.1.8"]
-   [com.taoensso.forks/lein-codox "0.10.9"]]
+   [com.taoensso.forks/lein-codox "0.10.10"]]
 
   :codox
   {:language #{:clojure :clojurescript}

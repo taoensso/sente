@@ -16,7 +16,7 @@
    [nrepl                     "1.0.0"] ; Optional, for Cider
 
    [com.taoensso/sente        "1.19.0"] ; <--- Sente
-   [com.taoensso/timbre       "6.2.1"]
+   [com.taoensso/timbre       "6.2.2"]
 
    ;;; TODO Choose (uncomment) a supported web server -----------------------
    [http-kit                             "2.7.0"] ; Default
