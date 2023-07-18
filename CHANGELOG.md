@@ -1,5 +1,14 @@
 This project uses [Break Versioning](https://github.com/ptaoussanis/encore/blob/master/BREAK-VERSIONING.md).
 
+## `1.19.1` (2023-07-18)
+
+> 📦 [Available on Clojars](https://clojars.org/com.taoensso/sente/versions/1.19.1)
+
+Identical to `1.19.0`, but synchronizes Encore dependency with my recent library releases (Timbre, Tufte, Sente, Carmine, etc.) to prevent confusion caused by dependency conflicts.
+
+This is a safe update for users of `1.19.0`.
+
+
 ## `1.19.0` (2023-07-13)
 
 > 📦 [Available on Clojars](https://clojars.org/com.taoensso/sente/versions/1.19.0)
