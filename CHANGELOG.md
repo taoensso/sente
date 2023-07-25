@@ -1,4 +1,4 @@
-This project uses [Break Versioning](https://github.com/ptaoussanis/encore/blob/master/BREAK-VERSIONING.md).
+This project uses Break Versioning (https://www.taoensso.com/break-versioning)
 
 ## `1.19.1` (2023-07-18)
 
@@ -64,7 +64,7 @@ Please test carefully and **report any issues**!
 
 ### ⚠️ Changes since `1.17.0`
 
-See [here](https://github.com/ptaoussanis/sente/wiki/Migration-instructions) for detailed **migration/upgrade instructions**! 👈
+See [here](https://github.com/taoensso/sente/wiki/0-Breaking-changes#sente-v117-to-v118) for detailed **migration/upgrade instructions**! 👈
 
 * 0b37e4c [mod] [#319] [BREAKING] Change default `wrap-recv-evs?` value
 * d5b3dc5 [mod] [#404] [#398] [BREAKING] Disable default legacy pack value
