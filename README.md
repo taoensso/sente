@@ -1,61 +1,81 @@
-<a href="https://www.taoensso.com/clojure" title="More stuff by @ptaoussanis at www.taoensso.com">
-<img src="https://www.taoensso.com/taoensso-open-source.png" alt="Taoensso open-source" width="380""/></a>
+<a href="https://www.taoensso.com/clojure" title="More stuff by @ptaoussanis at www.taoensso.com"><img src="https://www.taoensso.com/open-source.png" alt="Taoensso open source" width="340"/></a>  
+[**Documentation**](#documentation) | [Latest releases](#latest-releases) | [Get support][GitHub issues]
 
 # Sente
 
-## Realtime web comms for Clojure/Script
+### Realtime web comms for Clojure/Script applications
 
 **Sente** is a small client+server library that makes it easy to build **realtime web applications** with Clojure + ClojureScript.
 
 Loosely inspired by [Socket.IO](https://socket.io/), it uses **core.async**, **WebSockets**, and **Ajax** under the hood to provide a simple high-level API that enables **reliable, high-performance, bidirectional communications**.
 
-<img src="https://raw.githubusercontent.com/ptaoussanis/sente/master/hero.jpg" width="600">
+<img width="600" src="../../blob/master/hero.jpg"/>
 
 > **Sen-te** (先手) is a Japanese [Go](https://en.wikipedia.org/wiki/Go_(game)) term used to describe a play with such an overwhelming follow-up that it demands an immediate response, leaving its player with the initiative.
 
-## Latest release
+## Latest release/s
 
-- 2023-07-18: `1.19.1` - [release notes](https://github.com/ptaoussanis/sente/releases/tag/v1.19.1) | [Clojars](https://clojars.org/com.taoensso/sente/versions/1.19.1)
+- `2023-07-18` `1.19.1`: [changes](../../releases/tag/v1.19.1)
 
-<!--- [![tests][tests badge]][tests status] -->
+[![Main tests][Main tests SVG]][Main tests URL]
+[![Graal tests][Graal tests SVG]][Graal tests URL]
 
-## Resources
-1. [Wiki][wiki] - **community docs** (👈 start here)
-1. [Release info][] - releases and changes
-1. [API docs][] - auto-generated API docs
-1. [GitHub issues][] - for support requests, contributions, etc.
+See [here][GitHub releases] for earlier releases.
 
-## Features
+## Why Sente?
 
-* **Bidirectional a/sync comms** over **WebSockets** with **auto Ajax fallback**
-* **It just works**: auto keep-alives, buffering, protocol selection, reconnects
-* Efficient design with transparent event batching for **low-bandwidth use, even over Ajax**
-* Send **arbitrary Clojure vals** over [edn](https://github.com/edn-format/edn
+- **Bidirectional a/sync comms** over **WebSockets** with **auto Ajax fallback**
+- **It just works**: auto keep-alive, buffering, protocol selection, reconnects
+- **Efficient design** with auto event batching for low-bandwidth use, even over Ajax
+- Send **arbitrary Clojure vals** over [edn](https://github.com/edn-format/edn
 ) or [Transit](https://github.com/cognitect/transit-clj) (JSON, MessagePack, etc.)
-* **Tiny API** (see the [wiki][] for details)
-* Automatic, sensible support for users connected with **multiple clients** and/or devices simultaneously
-* Realtime info on **which users are connected** over which protocols
-* Standard **Ring security model**: auth as you like, HTTPS when available, CSRF support, etc.
-* Support for [several popular web servers](https://github.com/ptaoussanis/sente/tree/master/src/taoensso/sente/server_adapters), [easily extended](https://github.com/ptaoussanis/sente/blob/master/src/taoensso/sente/interfaces.cljc) to other servers.
+- Tiny, easy-to-use [API](../../wiki/1-Getting-started#usage)
+- Support for users simultaneously connected with **multiple clients** and/or devices
+- Realtime info on **which users are connected**, and over which protocols
+- Standard **Ring security model**: auth as you like, HTTPS when available, CSRF support, etc.
+- Support for [several popular web servers](../../tree/master/src/taoensso/sente/server_adapters), [easily extended](../../blob/master/src/taoensso/sente/interfaces.cljc) to other servers.
 
-## Funding this work
+### Capabilities
 
-Please see [here][funding] if you'd like to help support my continued [open-source work][] (thank you!! 🙏) - Peter
+Protocol   | client>server  | client>server + ack/reply | server>user push
+---------- | -------------- | ------------------------- | ----------------
+WebSockets | ✓ (native)    | ✓ (emulated)              | ✓ (native)
+Ajax       | ✓ (emulated)  | ✓ (native)                | ✓ (emulated)
+
+So you can ignore the underlying protocol and deal directly with Sente's unified API that exposes the best of both WebSockets (bidirectionality + performance) and Ajax (optional ack/reply).
+
+## Documentation
+
+- [Full documentation][GitHub wiki] (**getting started** and more)
+- Auto-generated API reference: [Codox][Codox docs], [clj-doc][clj-doc docs]
+
+## Funding
+
+You can [help support][sponsor] continued work on this project, thank you!! 🙏
 
 ## License
 
-Copyright &copy; 2014-2023 [Peter Taoussanis][], licensed under [EPL 1.0][] (same as Clojure).
+Copyright &copy; 2012-2023 [Peter Taoussanis][].  
+Licensed under [EPL 1.0](LICENSE.txt) (same as Clojure).
 
-<!--- Common links -->
-[wiki]: ../../wiki
-[Release info]: ../../releases
-[GitHub issues]: ../../issues
-[funding]: https://taoensso.com/clojure/backers
-[EPL 1.0]: LICENSE
+<!-- Common -->
+
+[GitHub releases]: ../../releases
+[GitHub issues]:   ../../issues
+[GitHub wiki]:     ../../wiki
+
 [Peter Taoussanis]: https://www.taoensso.com
-[open-source work]: https://www.taoensso.com/clojure
+[sponsor]:          https://www.taoensso.com/sponsor
 
-<!--- Repo links -->
-[API docs]: http://ptaoussanis.github.io/sente/
-[tests badge]: https://github.com/ptaoussanis/sente/actions/workflows/tests.yml/badge.svg
-[tests status]: https://github.com/ptaoussanis/sente/actions/workflows/tests.yml
+<!-- Project -->
+
+[Codox docs]:   https://taoensso.github.io/sente/
+[clj-doc docs]: https://cljdoc.org/d/com.taoensso/sente/
+
+[Clojars SVG]: https://img.shields.io/clojars/v/com.taoensso/sente.svg
+[Clojars URL]: https://clojars.org/com.taoensso/sente
+
+[Main tests SVG]:  https://github.com/taoensso/sente/actions/workflows/main-tests.yml/badge.svg
+[Main tests URL]:  https://github.com/taoensso/sente/actions/workflows/main-tests.yml
+[Graal tests SVG]: https://github.com/taoensso/sente/actions/workflows/graal-tests.yml/badge.svg
+[Graal tests URL]: https://github.com/taoensso/sente/actions/workflows/graal-tests.yml
