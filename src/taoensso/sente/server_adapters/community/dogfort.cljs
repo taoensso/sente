@@ -1,6 +1,6 @@
 (ns taoensso.sente.server-adapters.community.dogfort
-  "Sente server adapter for Node.js with Dog Fort
-  (https://github.com/whamtet/dogfort)."
+  "Sente server adapter for Node.js with Dog Fort,
+  Ref. <https://github.com/whamtet/dogfort>."
   {:author "Matthew Molloy <@whamtet>"}
   (:require
    [taoensso.encore :as enc :refer-macros ()]

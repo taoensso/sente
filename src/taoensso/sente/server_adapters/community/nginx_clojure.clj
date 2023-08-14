@@ -1,6 +1,7 @@
-(ns taoensso.sente.server-adapters.community.nginx-clojure
-  "Sente server adapter for Nginx-Clojure v0.4.2+
-  (http://nginx-clojure.github.io/)."
+(ns ^:no-doc taoensso.sente.server-adapters.community.nginx-clojure
+  ;; `^:no-doc` needed to prevent broken cljdoc build
+  "Sente server adapter for Nginx-Clojure v0.4.2+.
+  Ref. <https://github.com/nginx-clojure/nginx-clojure>."
   {:author "Zhang Yuexiang (@xfeep)"}
   (:require
    [taoensso.encore :as enc]

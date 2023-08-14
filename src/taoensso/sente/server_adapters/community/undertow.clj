@@ -1,5 +1,6 @@
 (ns taoensso.sente.server-adapters.community.undertow
-  "Sente server adapter for ring-undertow-adapter."
+  "Sente server adapter for ring-undertow-adapter,
+  Ref. <https://github.com/luminus-framework/ring-undertow-adapter>."
   {:author "Nik Peric"}
   (:require
     [ring.adapter.undertow.websocket :as websocket]

@@ -1,5 +1,6 @@
 (ns taoensso.sente.server-adapters.community.immutant
-  "Sente server adapter for Immutant v2+ (http://immutant.org/)."
+  "Sente server adapter for Immutant v2+,
+  Ref. <https://github.com/immutant/immutant>."
   {:author "Toby Crawley (@tobias)"}
   (:require
    [taoensso.encore :as enc]

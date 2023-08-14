@@ -1,9 +1,9 @@
 (ns taoensso.sente.server-adapters.community.generic-node
   "Sente server adapter for Node.js using the `ws` and `http` libraries.
-  Ref. https://github.com/websockets/ws,
-       https://nodejs.org/api/http.html,
-       https://nodejs.org/en/docs/guides/anatomy-of-an-http-transaction/,
-       https://github.com/theasp/sente-nodejs-example."
+  Ref. <https://github.com/websockets/ws>,
+       <https://nodejs.org/api/http.html>,
+       <https://nodejs.org/en/docs/guides/anatomy-of-an-http-transaction>,
+       <https://github.com/theasp/sente-nodejs-example>."
   {:author "Andrew Phillips <@theasp>, Matthew Molloy <@whamtet>"}
   (:require
    [taoensso.encore :as enc]

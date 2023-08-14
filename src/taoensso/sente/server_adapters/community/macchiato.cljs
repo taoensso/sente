@@ -1,6 +1,6 @@
 (ns taoensso.sente.server-adapters.community.macchiato
-  "Sente server adapter for Node.js with the Macchiato Framework
-  (https://macchiato-framework.github.io/)."
+  "Sente server adapter for Node.js with the Macchiato Framework,
+  Ref. <https://github.com/macchiato-framework/macchiato-core>."
   {:author "Andrew Phillips <@theasp>"}
   (:require
    [taoensso.encore :as enc]

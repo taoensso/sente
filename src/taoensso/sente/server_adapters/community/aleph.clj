@@ -1,5 +1,6 @@
 (ns taoensso.sente.server-adapters.community.aleph
-  "Sente server adapter for Aleph (https://github.com/ztellman/aleph)."
+  "Sente server adapter for Aleph,
+  Ref. <https://github.com/clj-commons/aleph>."
   {:author "Soren Macbeth (@sorenmacbeth)"}
   (:require
    [taoensso.sente.interfaces :as i]
