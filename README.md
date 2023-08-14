@@ -9,7 +9,7 @@
 
 Loosely inspired by [Socket.IO](https://socket.io/), it uses **core.async**, **WebSockets**, and **Ajax** under the hood to provide a simple high-level API that enables **reliable, high-performance, bidirectional communications**.
 
-<img width="600" src="../../blob/master/hero.jpg"/>
+<img width="600" src="../../raw/master/hero.jpg"/>
 
 > **Sen-te** (先手) is a Japanese [Go](https://en.wikipedia.org/wiki/Go_(game)) term used to describe a play with such an overwhelming follow-up that it demands an immediate response, leaving its player with the initiative.
 
