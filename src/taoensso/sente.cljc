@@ -749,8 +749,8 @@
           (enc/cond
             (str/blank? client-id)
             (let [err-msg "Client's Ring request doesn't have a client id. Does your server have the necessary keyword Ring middleware (`wrap-params` & `wrap-keyword-params`)?"]
-              (timbre/errorf (str err-msg ": %s")    ring-req) ; Careful re: % in req
-              (throw     (ex-info err-msg {:ring-req ring-req})))
+              (timbre/error (str err-msg ": " lid*))
+              (throw    (ex-info err-msg {:ring-req ring-req, :lid lid*})))
 
             :if-let [resp (possible-rejection-resp ring-req)] resp
 
