@@ -15,7 +15,7 @@ Loosely inspired by [Socket.IO](https://socket.io/), it uses **core.async**, **W
 
 ## Latest release/s
 
-- `2023-07-18` `1.19.1`: [changes](../../releases/tag/v1.19.1)
+- `2023-08-30` `1.19.2`: [changes](../../releases/tag/v1.19.2)
 
 [![Main tests][Main tests SVG]][Main tests URL]
 [![Graal tests][Graal tests SVG]][Graal tests URL]
