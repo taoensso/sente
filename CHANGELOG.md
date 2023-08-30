@@ -1,5 +1,14 @@
 This project uses Break Versioning (https://www.taoensso.com/break-versioning)
 
+## `1.19.2` (2023-08-30)
+
+> 📦 [Available on Clojars](https://clojars.org/com.taoensso/sente/versions/1.19.2)
+
+Identical to `1.19.1`, but includes a hotfix (dbb798a) for [#434] to remove the unnecessary logging of potentially sensitive Ring request info when connecting to a server without a client id.
+
+This should be a safe update for users of `1.19.x`.
+
+
 ## `1.19.1` (2023-07-18)
 
 > 📦 [Available on Clojars](https://clojars.org/com.taoensso/sente/versions/1.19.1)
