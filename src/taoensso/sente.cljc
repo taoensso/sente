@@ -1521,8 +1521,9 @@
                             :done/did-handshake)
 
                           (when (= clj :chsk/ws-ping)
-                            (-chsk-send!    chsk [:chsk/ws-pong] {:flush? true})
-                            (put! (:<server chs) [:chsk/ws-ping])
+                            (-chsk-send! chsk       [:chsk/ws-pong] {:flush? true})
+                            #_(put! (:internal chs) [:chsk/ws-ping]) ; Would be better, but breaking
+                            (put!   (:<server  chs) [:chsk/ws-ping]) ; Odd choice for back compatibility
                             :done/sent-pong)
 
                           (if-let [cb-uuid ?cb-uuid]
