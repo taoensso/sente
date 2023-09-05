@@ -116,7 +116,7 @@ You'll setup something similar on the client side:
 
 After setup, the client will automatically initiate a WebSocket or repeating long-polling connection to your server. Client<->server events are now ready to transmit over the `ch-chsk` channel.
 
-**Last step**: you'll want to **hook your own event handlers up to this channel**. Please see one of the [example projects](./3-Example-projects) and/or [API docs](http://ptaoussanis.github.io/sente/) for details.
+**Last step**: you'll want to **hook your own event handlers up to this channel**. Please see one of the [example projects](./3-Example-projects) and/or [API docs](http://taoensso.github.io/sente/) for details.
 
 ## Client-side API
 

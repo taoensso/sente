@@ -4,7 +4,7 @@ Sente uses two types of connection identifiers: **client-ids** and **user-ids**.
 
 A client-id is a unique identifier for one particular Sente client: i.e. one particular invocation of `make-channel-socket-client!`. This typically means **one particular browser tab** on one device.
 
-By default, clients generate their own random (uuid) client-id. You can override this in your call to [`make-channel-socket-client!`](http://ptaoussanis.github.io/sente/taoensso.sente.html#var-make-channel-socket-client.21).
+By default, clients generate their own random (uuid) client-id. You can override this in your call to [`make-channel-socket-client!`](http://taoensso.github.io/sente/taoensso.sente.html#var-make-channel-socket-client.21).
 
 Note:
 1. Each client chooses its _own_ client-id with no input from the server.
@@ -21,7 +21,7 @@ It is determined _server-side_ as a configurable function of each connecting cha
 
 Typically, you'll configure Sente's user-id to be something like your application's username: if Alice logs into your application with 6 different browser tabs over 3 different devices - she'll have 6 client-ids associated with her user-id. And when your server sends an event "to Alice", it'll be delivered to all 6 of her connected clients.
 
-By default, Sente will use `(fn user-id [ring-req] (get-in ring-req [:session :uid]))` as your user-id function. You can override this in your call to [`make-channel-socket-server!`](http://ptaoussanis.github.io/sente/taoensso.sente.html#var-make-channel-socket-server.21).
+By default, Sente will use `(fn user-id [ring-req] (get-in ring-req [:session :uid]))` as your user-id function. You can override this in your call to [`make-channel-socket-server!`](http://taoensso.github.io/sente/taoensso.sente.html#var-make-channel-socket-server.21).
 
 Note:
 

@@ -10,7 +10,7 @@ This upgrade involves **4 possible breaking changes** detailed below:
 
 **Change 1/4**
 
-The default `wrap-recv-evs?` option has changed in [`make-channel-socket-client!`](http://ptaoussanis.github.io/sente/taoensso.sente.html#var-make-channel-socket-client.21).
+The default `wrap-recv-evs?` option has changed in [`make-channel-socket-client!`](http://taoensso.github.io/sente/taoensso.sente.html#var-make-channel-socket-client.21).
 
 - **Old** default behaviour: events from server are **wrapped** with `[:chsk/recv <event>]`
 - **New** default behaviour: events from server are **unwrapped**
@@ -23,11 +23,11 @@ More info at: [#319](../issues/319)
 
 **Change 2/4**
 
-The default [`*write-legacy-pack-format?*`](http://ptaoussanis.github.io/sente/taoensso.sente.html#var-*write-legacy-pack-format.3F*) value has changed from `true` to `false`.
+The default [`*write-legacy-pack-format?*`](http://taoensso.github.io/sente/taoensso.sente.html#var-*write-legacy-pack-format.3F*) value has changed from `true` to `false`.
 
 This change is only relevant for the small minority of folks that use a custom (non-standard) [`IPacker`](https://github.com/ptaoussanis/sente/blob/f69a5df6d1f3e88d66a148c74e1b5a9084c9c0b9/src/taoensso/sente/interfaces.cljc#L55).
 
-If you do use a custom (non-standard) `IPacker`, please see the [relevant docstring](http://ptaoussanis.github.io/sente/taoensso.sente.html#var-*write-legacy-pack-format.3F*) for details.
+If you do use a custom (non-standard) `IPacker`, please see the [relevant docstring](http://taoensso.github.io/sente/taoensso.sente.html#var-*write-legacy-pack-format.3F*) for details.
 
 **Motivation for change**: the new default value is part of a phased transition to a new Sente message format that better supports non-string (e.g. binary) payloads.
 
