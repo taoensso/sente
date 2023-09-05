@@ -3,7 +3,7 @@
 
 # Sente
 
-### Realtime web comms for Clojure/Script applications
+### Realtime web comms library for Clojure/Script
 
 **Sente** is a small client+server library that makes it easy to build **realtime web applications** with Clojure + ClojureScript.
 
@@ -15,7 +15,7 @@ Loosely inspired by [Socket.IO](https://socket.io/), it uses **core.async**, **W
 
 ## Latest release/s
 
-- `2023-08-30` `1.19.2`: [changes](../../releases/tag/v1.19.2)
+- `2023-08-30` `1.19.2`: [release info](../../releases/tag/v1.19.2)
 
 [![Main tests][Main tests SVG]][Main tests URL]
 [![Graal tests][Graal tests SVG]][Graal tests URL]
@@ -46,8 +46,8 @@ So you can ignore the underlying protocol and deal directly with Sente's unified
 
 ## Documentation
 
-- [Full documentation][GitHub wiki] (**getting started** and more)
-- Auto-generated API reference: [Codox][Codox docs], [clj-doc][clj-doc docs]
+- [Wiki][GitHub wiki] (getting started, usage, etc.)
+- API reference: [cljdoc][cljdoc docs], [Codox][Codox docs]
 
 ## Funding
 
@@ -55,7 +55,7 @@ You can [help support][sponsor] continued work on this project, thank you!! 🙏
 
 ## License
 
-Copyright &copy; 2012-2023 [Peter Taoussanis][].  
+Copyright &copy; 2012-2024 [Peter Taoussanis][].  
 Licensed under [EPL 1.0](LICENSE.txt) (same as Clojure).
 
 <!-- Common -->
@@ -70,7 +70,7 @@ Licensed under [EPL 1.0](LICENSE.txt) (same as Clojure).
 <!-- Project -->
 
 [Codox docs]:   https://taoensso.github.io/sente/
-[clj-doc docs]: https://cljdoc.org/d/com.taoensso/sente/
+[cljdoc docs]: https://cljdoc.org/d/com.taoensso/sente/
 
 [Clojars SVG]: https://img.shields.io/clojars/v/com.taoensso/sente.svg
 [Clojars URL]: https://clojars.org/com.taoensso/sente

@@ -13,7 +13,7 @@ deps.edn:   com.taoensso/sente {:mvn/version "x-y-z"}
 
 ## Server-side setup
 
-First make sure that you're using one of the [supported web servers](https://github.com/ptaoussanis/sente/tree/master/src/taoensso/sente/server_adapters) (PRs for additional server adapters welcome!).
+First make sure that you're using one of the [supported web servers](https://github.com/taoensso/sente/tree/master/src/taoensso/sente/server_adapters) (PRs for additional server adapters welcome!).
 
 Somewhere in your web app's code you'll already have a routing mechanism in place for handling Ring requests by request URL. If you're using [Compojure](https://github.com/weavejester/compojure) for example, you'll have something that looks like this:
 
@@ -116,7 +116,7 @@ You'll setup something similar on the client side:
 
 After setup, the client will automatically initiate a WebSocket or repeating long-polling connection to your server. Client<->server events are now ready to transmit over the `ch-chsk` channel.
 
-**Last step**: you'll want to **hook your own event handlers up to this channel**. Please see one of the [example projects](./3-Example-projects) and/or [API docs](http://ptaoussanis.github.io/sente/) for details.
+**Last step**: you'll want to **hook your own event handlers up to this channel**. Please see one of the [example projects](./3-Example-projects) and/or [API docs](http://taoensso.github.io/sente/) for details.
 
 ## Client-side API
 

@@ -2,7 +2,7 @@
 
 This example dives into Sente's full functionality pretty quickly; it's probably more useful as a reference than a tutorial.
 
-Please see Sente's [top-level README](https://github.com/ptaoussanis/sente) for a gentler introduction to Sente.
+Please see Sente's [top-level README](https://github.com/taoensso/sente) for a gentler introduction to Sente.
 
 ## Instructions
 
@@ -22,6 +22,6 @@ Please see Sente's [top-level README](https://github.com/ptaoussanis/sente) for 
 3. Follow the instructions from that page.
 
 3. Connect your dev environment to that nREPL server, e.g. `(cider-connect)` from Emacs.
-4. Open the example's [`server.clj`](https://github.com/ptaoussanis/sente/blob/master/example-project/src/example/server.clj) file in your dev environment.
+4. Open the example's [`server.clj`](https://github.com/taoensso/sente/blob/master/example-project/src/example/server.clj) file in your dev environment.
 5. Eval `(example.server/start!)` to start a local HTTP server and auto-open a test page in your web browser.
 6. Follow the instructions from that page.
