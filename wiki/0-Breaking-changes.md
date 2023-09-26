@@ -25,7 +25,7 @@ More info at: [#319](../issues/319)
 
 The default [`*write-legacy-pack-format?*`](http://taoensso.github.io/sente/taoensso.sente.html#var-*write-legacy-pack-format.3F*) value has changed from `true` to `false`.
 
-This change is only relevant for the small minority of folks that use a custom (non-standard) [`IPacker`](https://github.com/ptaoussanis/sente/blob/f69a5df6d1f3e88d66a148c74e1b5a9084c9c0b9/src/taoensso/sente/interfaces.cljc#L55).
+This change is only relevant for the small minority of folks that use a custom (non-standard) [`IPacker`](https://github.com/taoensso/sente/blob/f69a5df6d1f3e88d66a148c74e1b5a9084c9c0b9/src/taoensso/sente/interfaces.cljc#L55).
 
 If you do use a custom (non-standard) `IPacker`, please see the [relevant docstring](http://taoensso.github.io/sente/taoensso.sente.html#var-*write-legacy-pack-format.3F*) for details.
 

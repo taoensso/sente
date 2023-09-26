@@ -13,7 +13,7 @@ deps.edn:   com.taoensso/sente {:mvn/version "x-y-z"}
 
 ## Server-side setup
 
-First make sure that you're using one of the [supported web servers](https://github.com/ptaoussanis/sente/tree/master/src/taoensso/sente/server_adapters) (PRs for additional server adapters welcome!).
+First make sure that you're using one of the [supported web servers](https://github.com/taoensso/sente/tree/master/src/taoensso/sente/server_adapters) (PRs for additional server adapters welcome!).
 
 Somewhere in your web app's code you'll already have a routing mechanism in place for handling Ring requests by request URL. If you're using [Compojure](https://github.com/weavejester/compojure) for example, you'll have something that looks like this:
 
