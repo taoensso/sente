@@ -1605,7 +1605,7 @@
                   (when-let [;; No conn send/recv activity w/in kalive window?
                              no-activity? (= udt-t0 udt-t1)]
 
-                    (timbre/debugf "Client will send ws-ping to server: %s"
+                    (timbre/tracef "Client will send ws-ping to server: %s"
                       {:ms-since-last-activity (- (enc/now-udt) udt-t1)
                        :timeout-ms ws-ping-timeout-ms})
 
