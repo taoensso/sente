@@ -1000,7 +1000,7 @@
   [conn-type conns_ uid buffered-evs-pstr n-buffered-evs]
   (have? [:el #{:ajax :ws}] conn-type)
   (let [;; Mean max wait time: sum*1.5 = 2790*1.5 = 4.2s
-        ms-backoffs [90 180 360 720 1440] ; => max 6 attempts
+        ms-backoffs [90 180 360 720 720 720] ; => max 1+6 attempts
         websocket?  (= conn-type :ws)
         udt-t0      (enc/now-udt)]
 
