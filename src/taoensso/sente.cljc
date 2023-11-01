@@ -428,6 +428,9 @@
       (slow) reconnecting poller. Actual event dispatch may occur <= given ms
       after send call (larger values => larger batch windows)."
 
+  ;; TODO param names are inconsistent, e.g.:
+  ;; ws-ping-timeout-ms, send-buf-ms-ajax, ws-ping-timeout-ms
+
   [web-server-ch-adapter
    & [{:keys [recv-buf-or-n ws-kalive-ms lp-timeout-ms ws-ping-timeout-ms
               send-buf-ms-ajax send-buf-ms-ws
@@ -456,8 +459,9 @@
               ;;
               ws-ping-timeout-ms nil #_(enc/ms :secs 5) ; TODO Enable default val
 
-              send-buf-ms-ajax   100
-              send-buf-ms-ws     30
+              send-buf-ms-ajax 100
+              send-buf-ms-ws   30
+
               user-id-fn      (fn [ ring-req] (get-in ring-req [:session :uid]))
               bad-csrf-fn     (fn [_ring-req] {:status 403 :body "Bad CSRF token"})
               bad-origin-fn   (fn [_ring-req] {:status 403 :body "Unauthorized origin"})
@@ -743,7 +747,7 @@
               conn-id     (enc/uuid-str 6) ; 1 per ws/ajax rreq, equiv to server-ch identity
               params      (get ring-req :params)
               client-id   (get params   :client-id)
-              uid         (user-id-fn    ring-req client-id)
+              uid         (user-id-fn ring-req client-id)
               lid*        (lid uid client-id conn-id)]
 
           (enc/cond
