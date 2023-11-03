@@ -173,12 +173,35 @@ client event-msg | `{:keys [event id ?data send-fn]}`
 `:ring-req`      | Ring map for Ajax request or WebSocket's initial handshake request
 `:?reply-fn`     | Present only when client requested a reply
 
-
 ## Summary
 
  * Clients use `chsk-send!` to send `event`s to the server and optionally request a reply with timeout
  * Server uses `chsk-send!` to send `event`s to _all_ the clients (browser tabs, devices, etc.) of a particular connected user by his/her [user-id](./2-Client-and-user-ids).
  * The server can also use an `event-msg`'s `?reply-fn` to _reply_ to a particular client `event` using an _arbitrary edn value_
+
+## Limitations
+
+### Large transfers
+
+I recommend **not** using Sente to transfer large payloads (> 1MB).
+
+The reason is that Sente will by default operate over a WebSocket when possible. This is great for realtime bidirectional communications, but it does mean that there's a bottleneck on that socket.
+
+If a WebSocket connection is saturated dealing with a large transfer, other communications (e.g. notifications) won't be able to get through until the large transfer completes.
+
+In the worst case (with very large payloads and/or very slow connections), this could even cause the **client to disconnect** due to an apparently unresponsive server.
+
+Instead, I recommend using Sente **only for small payloads** (<= 1MB) and for **signalling**. For large payloads do the following:
+
+- **client->server**: the client can just request the large payload over Ajax
+- **server->client**: the server can signal the client to request the large payload over Ajax
+
+(Sente includes a [util](https://taoensso.github.io/sente/taoensso.sente.cljs.html#var-ajax-lite) to make Ajax requests very easy).
+
+This way you're using the ideal tools for each job:
+
+- Sente's realtime socket is reserved for realtime purposes
+- Dedicated Ajax requests are used for large transfers, and have access to normal browser HTTP caching, etc.
 
 ## Channel socket state
 
