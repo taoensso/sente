@@ -83,6 +83,12 @@ You've got two choices:
 
 [@danielsz](https://github.com/danielsz) has kindly provided a detailed example [here](../issues/62#issuecomment-58790741).
 
+# Can I use Sente for large data transfers?
+
+**No**, Sente shouldn't be used to transfer payloads larger than 1MB.
+
+The reason (and easy alternative) are explained [here](./1-Getting-started#large-transfers).
+
 # Lifecycle management (component management/shutdown, etc.)
 
 Using something like [@stuartsierra/component](https://github.com/stuartsierra/component) or [@palletops/leaven](https://github.com/palletops/leaven)?
