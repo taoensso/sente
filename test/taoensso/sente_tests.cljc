@@ -30,4 +30,10 @@
 
 ;;;;
 
+#?(:cljs
+   (defmethod test/report [:cljs.test/default :end-run-tests] [m]
+     (when-not (test/successful? m)
+       ;; Trigger non-zero `lein test-cljs` exit code for CI
+       (throw (ex-info "ClojureScript tests failed" {})))))
+
 #?(:cljs (test/run-tests))
