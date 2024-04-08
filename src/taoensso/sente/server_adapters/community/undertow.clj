@@ -54,11 +54,9 @@
 
   ISenteUndertowAjaxChannel
   (ajax-read! [sch]
-    (let [{:keys [ajax-resp-timeout-ms ajax-resp-timeout-val]}
-          adapter-opts]
-
+    (let [{:keys [ajax-resp-timeout-ms]} adapter-opts]
       (if ajax-resp-timeout-ms
-        (deref resp-promise_ ajax-resp-timeout-ms ajax-resp-timeout-val)
+        (deref resp-promise_ ajax-resp-timeout-ms nil)
         (deref resp-promise_)))))
 
 (defn- ajax-ch [{:keys [on-open on-close]} adapter-opts]
@@ -87,18 +85,12 @@
 
 (defn get-sch-adapter
   "Returns an Undertow ServerChanAdapter. Options:
-     :ajax-resp-timeout-ms  ; Max msecs to wait for Ajax responses (default 60 secs)
-     :ajax-resp-timeout-val ; Value returned in case of above timeout
-                            ; (default `:undertow/ajax-resp-timeout`)"
+     `:ajax-resp-timeout-ms` - Max msecs to wait for Ajax responses (default 60 secs)"
   ([] (get-sch-adapter nil))
   ([{:as   opts
-     :keys [ajax-resp-timeout-ms
-            ajax-resp-timeout-val]
-
-     :or   {ajax-resp-timeout-ms (* 60 1000)
-            ajax-resp-timeout-val :undertow/ajax-resp-timeout}}]
+     :keys [ajax-resp-timeout-ms]
+     :or   {ajax-resp-timeout-ms (* 60 1000)}}]
 
    (UndertowServerChanAdapter.
      (assoc opts
-       :ajax-resp-timeout-ms  ajax-resp-timeout-ms
-       :ajax-resp-timeout-val ajax-resp-timeout-val))))
+       :ajax-resp-timeout-ms ajax-resp-timeout-ms))))
