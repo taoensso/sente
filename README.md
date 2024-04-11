@@ -47,7 +47,7 @@ So you can ignore the underlying protocol and deal directly with Sente's unified
 ## Documentation
 
 - [Wiki][GitHub wiki] (getting started, usage, etc.)
-- API reference: [Codox][Codox docs], [clj-doc][clj-doc docs]
+- API reference: [cljdoc][cljdoc docs], [Codox][Codox docs]
 
 ## Funding
 
@@ -70,7 +70,7 @@ Licensed under [EPL 1.0](LICENSE.txt) (same as Clojure).
 <!-- Project -->
 
 [Codox docs]:   https://taoensso.github.io/sente/
-[clj-doc docs]: https://cljdoc.org/d/com.taoensso/sente/
+[cljdoc docs]: https://cljdoc.org/d/com.taoensso/sente/
 
 [Clojars SVG]: https://img.shields.io/clojars/v/com.taoensso/sente.svg
 [Clojars URL]: https://clojars.org/com.taoensso/sente
