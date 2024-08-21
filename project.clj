@@ -12,7 +12,7 @@
    [com.taoensso/encore      "3.62.1"]
    [org.java-websocket/Java-WebSocket "1.5.3"]
    [org.clojure/tools.reader "1.3.6"]
-   [com.taoensso/timbre      "6.2.2"]]
+   [com.taoensso/timbre      "6.5.0"]]
 
   :test-paths ["test" #_"src"]
 
