@@ -1,4 +1,4 @@
-(defproject com.taoensso/sente "1.19.2"
+(defproject com.taoensso/sente "1.20.0-SNAPSHOT"
   :author "Peter Taoussanis <https://www.taoensso.com>"
   :description "Realtime web comms library for Clojure/Script"
   :url "https://github.com/taoensso/sente"
@@ -54,7 +54,7 @@
 
    :dev [:dev+ :community]
    :dev+
-   {:jvm-opts ["-server" "-Dtaoensso.elide-deprecated=true"]
+   {:jvm-opts ["-server" #_"-Dtaoensso.elide-deprecated=true"]
     :global-vars
     {*warn-on-reflection* true
      *assert*             true
