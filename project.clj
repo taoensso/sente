@@ -8,19 +8,19 @@
    :url  "https://www.eclipse.org/legal/epl-v10.html"}
 
   :dependencies
-  [[org.clojure/core.async   "1.6.673"]
-   [com.taoensso/encore      "3.62.1"]
-   [org.java-websocket/Java-WebSocket "1.5.3"]
-   [org.clojure/tools.reader "1.3.6"]
-   [com.taoensso/timbre      "6.2.2"]]
+  [[org.clojure/core.async   "1.6.681"]
+   [com.taoensso/encore      "3.127.0"]
+   [org.java-websocket/Java-WebSocket "1.5.7"]
+   [org.clojure/tools.reader "1.5.0"]
+   [com.taoensso/timbre      "6.6.0-RC1"]]
 
   :test-paths ["test" #_"src"]
 
   :profiles
   {;; :default [:base :system :user :provided :dev]
-   :provided {:dependencies [[org.clojure/clojurescript "1.11.60"]
+   :provided {:dependencies [[org.clojure/clojurescript "1.11.132"]
                              [org.clojure/clojure       "1.11.1"]]}
-   :c1.12    {:dependencies [[org.clojure/clojure       "1.12.0-alpha9"]]}
+   :c1.12    {:dependencies [[org.clojure/clojure       "1.12.0"]]}
    :c1.11    {:dependencies [[org.clojure/clojure       "1.11.1"]]}
    :c1.10    {:dependencies [[org.clojure/clojure       "1.10.2"]]}
 
@@ -37,10 +37,13 @@
    {:dependencies
     [[org.immutant/web               "2.1.10"]
      [nginx-clojure                  "0.6.0"]
-     [aleph                          "0.6.3"]
+     [aleph                          "0.8.1"]
      [macchiato/core                 "0.2.23"] ; 0.2.24 seems to fail?
      [luminus/ring-undertow-adapter  "1.3.1"]
-     [info.sunng/ring-jetty9-adapter "0.22.0"]]
+     [info.sunng/ring-jetty9-adapter "0.35.1"]
+     [ring/ring-core                            "1.13.0"]
+     [ring/ring-jetty-adapter                   "1.13.0"]
+     [org.ring-clojure/ring-websocket-protocols "1.13.0"]]
 
     ;; For nginx-clojure on Java 17+,
     ;; Ref. https://github.com/nginx-clojure/nginx-clojure/issues/273
@@ -61,13 +64,13 @@
     [[com.cognitect/transit-clj  "1.0.333"]
      [com.cognitect/transit-cljs "0.8.280"]
      [org.clojure/test.check     "1.1.1"]
-     [http-kit                   "2.7.0"]]
+     [http-kit                   "2.8.0"]]
 
     :plugins
     [[lein-pprint    "1.3.2"]
      [lein-ancient   "0.7.0"]
      [lein-cljsbuild "1.1.8"]
-     [com.taoensso.forks/lein-codox "0.10.10"]]
+     [com.taoensso.forks/lein-codox "0.10.11"]]
 
     :codox
     {:language #{:clojure :clojurescript}
