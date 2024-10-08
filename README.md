@@ -1,5 +1,5 @@
 <a href="https://www.taoensso.com/clojure" title="More stuff by @ptaoussanis at www.taoensso.com"><img src="https://www.taoensso.com/open-source.png" alt="Taoensso open source" width="340"/></a>  
-[**Documentation**](#documentation) | [Latest releases](#latest-releases) | [Get support][GitHub issues]
+[**API**][cljdoc docs] | [**Wiki**][GitHub wiki] | [Latest releases](#latest-releases) | [Slack channel][]
 
 # Sente
 
@@ -15,7 +15,8 @@ Loosely inspired by [Socket.IO](https://socket.io/), it uses **core.async**, **W
 
 ## Latest release/s
 
-- `2023-08-30` `1.19.2`: [release info](../../releases/tag/v1.19.2)
+- `2023-08-30` `v1.19.2` (stable): [release info](../../releases/tag/v1.19.2)
+- `2024-10-28` `v1.20.0-RC1` (dev): [release info](../../releases/tag/v1.20.0-RC1)
 
 [![Main tests][Main tests SVG]][Main tests URL]
 [![Graal tests][Graal tests SVG]][Graal tests URL]
@@ -63,14 +64,15 @@ Licensed under [EPL 1.0](LICENSE.txt) (same as Clojure).
 [GitHub releases]: ../../releases
 [GitHub issues]:   ../../issues
 [GitHub wiki]:     ../../wiki
+[Slack channel]: https://www.taoensso.com/sente/slack
 
 [Peter Taoussanis]: https://www.taoensso.com
 [sponsor]:          https://www.taoensso.com/sponsor
 
 <!-- Project -->
 
-[Codox docs]:   https://taoensso.github.io/sente/
-[cljdoc docs]: https://cljdoc.org/d/com.taoensso/sente/
+[Codox docs]:  https://taoensso.github.io/sente/
+[cljdoc docs]: https://cljdoc.org/d/com.taoensso/sente/CURRENT/api/taoensso.sente
 
 [Clojars SVG]: https://img.shields.io/clojars/v/com.taoensso/sente.svg
 [Clojars URL]: https://clojars.org/com.taoensso/sente
