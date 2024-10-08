@@ -1,4 +1,4 @@
-(ns taoensso.sente.server-adapters.jetty
+(ns taoensso.sente.server-adapters.community.jetty
   "Sente adapter for `ring-jetty-adapter`
    (https://github.com/ring-clojure/ring/tree/master/ring-jetty-adapter).
 

@@ -40,7 +40,10 @@
      [aleph                          "0.8.1"]
      [macchiato/core                 "0.2.23"] ; 0.2.24 seems to fail?
      [luminus/ring-undertow-adapter  "1.3.1"]
-     [info.sunng/ring-jetty9-adapter "0.22.0"]]
+     [info.sunng/ring-jetty9-adapter "0.35.1"]
+     [ring/ring-core                            "1.12.2"]
+     [ring/ring-jetty-adapter                   "1.12.2"]
+     [org.ring-clojure/ring-websocket-protocols "1.12.2"]]
 
     ;; For nginx-clojure on Java 17+,
     ;; Ref. https://github.com/nginx-clojure/nginx-clojure/issues/273
