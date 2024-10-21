@@ -1052,7 +1052,7 @@
 
 ;;;; Client API
 
-#?(:cljs (def ajax-lite "Alias of `taoensso.encore/ajax-lite`" enc/ajax-lite))
+#?(:cljs (def ajax-call "Alias of `taoensso.encore/ajax-call`" enc/ajax-call))
 
    (defprotocol IChSocket
      (-chsk-connect!          [chsk])
@@ -1676,7 +1676,7 @@
 
            ;; TODO Buffer before sending (but honor `:flush?`)
            (let [csrf-token-str (get-client-csrf-token-str :dynamic (:csrf-token @state_))]
-             (ajax-lite url
+             (ajax-call url
                (merge ajax-opts
                  {:method     :post
                   :timeout-ms (or ?timeout-ms (:timeout-ms ajax-opts)
@@ -1739,7 +1739,7 @@
                                (do                        retry-count*)))))]
 
                    (reset! curr-xhr_
-                     (ajax-lite url
+                     (ajax-call url
                        (merge ajax-opts
                          {:method     :get ; :timeout-ms timeout-ms
                           :timeout-ms (or (:timeout-ms ajax-opts)
@@ -1907,7 +1907,7 @@
        :headers        ; Map of additional headers to include in the initiating request
                        ; (currently only for Java clients).
        :packer         ; :edn (default), or an IPacker implementation.
-       :ajax-opts      ; Base opts map provided to `taoensso.encore/ajax-lite`, see
+       :ajax-opts      ; Base opts map provided to `taoensso.encore/ajax-call`, see
                        ; relevant docstring for more info.
        :wrap-recv-evs? ; Should events from server be wrapped in [:chsk/recv _]?
                        ; Default false for Sente >= v1.18, true otherwise.
@@ -2178,7 +2178,7 @@
 
   (def ^:deprecated set-logging-level! "DEPRECATED. Please use `timbre/set-level!` instead" timbre/set-level!)
 
-  #?(:cljs (def ^:deprecated ajax-call "DEPRECATED: Please use `ajax-lite` instead" enc/ajax-lite))
+  #?(:cljs (def ^:deprecated ajax-lite "DEPRECATED: Please use `ajax-call` instead" enc/ajax-call))
   #?(:cljs
      (def ^:deprecated default-chsk-url-fn "DEPRECATED"
        (fn [path {:as location :keys [protocol host pathname]} websocket?]
