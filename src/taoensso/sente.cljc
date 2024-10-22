@@ -1350,8 +1350,9 @@
 
 (def client-unloading?_ (atom false))
 #?(:cljs
-   (.addEventListener goog/global "beforeunload"
-     (fn [event] (reset! client-unloading?_ true) nil)))
+   (when-not node-target?
+     (.addEventListener goog/global "beforeunload"
+       (fn [event] (reset! client-unloading?_ true) nil))))
 
 (defn- retry-connect-chsk!
   [chsk backoff-ms-fn connect-fn retry-count]
