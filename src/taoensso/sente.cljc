@@ -111,8 +111,8 @@
 
 (defn- strim [^long max-len s]
   (if (> (count s) max-len)
-    (str (enc/get-substr-by-len s 0 max-len) #_"+")
-    (do                         s)))
+    (str (enc/substr s 0 max-len) #_"+")
+    (do              s)))
 
 (defn- lid "Log id"
   ([uid                  ] (if (= uid :sente/nil-uid) "u_nil" (str "u_" (strim 6 (str uid)))))
@@ -428,6 +428,9 @@
       (slow) reconnecting poller. Actual event dispatch may occur <= given ms
       after send call (larger values => larger batch windows)."
 
+  ;; TODO param names are inconsistent, e.g.:
+  ;; ws-ping-timeout-ms, send-buf-ms-ajax, ws-ping-timeout-ms
+
   [web-server-ch-adapter
    & [{:keys [recv-buf-or-n ws-kalive-ms lp-timeout-ms ws-ping-timeout-ms
               send-buf-ms-ajax send-buf-ms-ws
@@ -456,8 +459,9 @@
               ;;
               ws-ping-timeout-ms nil #_(enc/ms :secs 5) ; TODO Enable default val
 
-              send-buf-ms-ajax   100
-              send-buf-ms-ws     30
+              send-buf-ms-ajax 100
+              send-buf-ms-ws   30
+
               user-id-fn      (fn [ ring-req] (get-in ring-req [:session :uid]))
               bad-csrf-fn     (fn [_ring-req] {:status 403 :body "Bad CSRF token"})
               bad-origin-fn   (fn [_ring-req] {:status 403 :body "Unauthorized origin"})
@@ -743,7 +747,7 @@
               conn-id     (enc/uuid-str 6) ; 1 per ws/ajax rreq, equiv to server-ch identity
               params      (get ring-req :params)
               client-id   (get params   :client-id)
-              uid         (user-id-fn    ring-req client-id)
+              uid         (user-id-fn ring-req client-id)
               lid*        (lid uid client-id conn-id)]
 
           (enc/cond
@@ -1048,7 +1052,7 @@
 
 ;;;; Client API
 
-#?(:cljs (def ajax-lite "Alias of `taoensso.encore/ajax-lite`" enc/ajax-lite))
+#?(:cljs (def ajax-call "Alias of `taoensso.encore/ajax-call`" enc/ajax-call))
 
    (defprotocol IChSocket
      (-chsk-connect!          [chsk])
@@ -1240,7 +1244,7 @@
     React Native, even if they never execute. Currently no other known
     workarounds. Ref. https://github.com/ptaoussanis/sente/issues/247."
      [& body]
-     (when-not (enc/get-sys-val "SENTE_ELIDE_JS_REQUIRE")
+     (when-not (enc/get-env {:as :bool} :sente-elide-js-require)
        `(do ~@body))))
 
 #?(:cljs
@@ -1672,7 +1676,7 @@
 
            ;; TODO Buffer before sending (but honor `:flush?`)
            (let [csrf-token-str (get-client-csrf-token-str :dynamic (:csrf-token @state_))]
-             (ajax-lite url
+             (ajax-call url
                (merge ajax-opts
                  {:method     :post
                   :timeout-ms (or ?timeout-ms (:timeout-ms ajax-opts)
@@ -1735,7 +1739,7 @@
                                (do                        retry-count*)))))]
 
                    (reset! curr-xhr_
-                     (ajax-lite url
+                     (ajax-call url
                        (merge ajax-opts
                          {:method     :get ; :timeout-ms timeout-ms
                           :timeout-ms (or (:timeout-ms ajax-opts)
@@ -1903,7 +1907,7 @@
        :headers        ; Map of additional headers to include in the initiating request
                        ; (currently only for Java clients).
        :packer         ; :edn (default), or an IPacker implementation.
-       :ajax-opts      ; Base opts map provided to `taoensso.encore/ajax-lite`, see
+       :ajax-opts      ; Base opts map provided to `taoensso.encore/ajax-call`, see
                        ; relevant docstring for more info.
        :wrap-recv-evs? ; Should events from server be wrapped in [:chsk/recv _]?
                        ; Default false for Sente >= v1.18, true otherwise.
@@ -2086,19 +2090,20 @@
 
             (execute1
               (fn []
-                (enc/catching
-                  (do
-                    (when trace-evs? (timbre/tracef "Chsk router pre-handler event: %s" event))
-                    (event-msg-handler
-                      (if server?
-                        (have! server-event-msg? event-msg)
-                        (have! client-event-msg? event-msg))))
-                  e1
-                  (enc/catching
-                    (if-let [eh error-handler]
-                      (error-handler  e1 event-msg)
-                      (timbre/errorf  e1 "Chsk router `event-msg-handler` error: %s" event))
-                    e2 (timbre/errorf e2 "Chsk router `error-handler` error: %s"     event)))))
+                (enc/try*
+                  (when trace-evs? (timbre/tracef "Chsk router pre-handler event: %s" event))
+                  (event-msg-handler
+                    (if server?
+                      (have! server-event-msg? event-msg)
+                      (have! client-event-msg? event-msg)))
+
+                  (catch :all t1
+                    (enc/try*
+                      (if-let [eh error-handler]
+                        (error-handler  t1 event-msg)
+                        (timbre/errorf  t1 "Chsk router `event-msg-handler` error: %s" event))
+                      (catch :all t2
+                        (timbre/errorf  t2 "Chsk router `error-handler` error: %s"     event)))))))
 
             (recur)))))
 
@@ -2157,7 +2162,7 @@
 
 (enc/deprecated
   #?(:clj
-     (defn ^:deprecated start-chsk-router-loop!
+     (defn ^:deprecated ^:no-doc start-chsk-router-loop!
        "DEPRECATED: Please use `start-chsk-router!` instead"
        [event-msg-handler ch-recv]
        (start-server-chsk-router! ch-recv
@@ -2165,18 +2170,18 @@
          (fn [ev-msg] (event-msg-handler ev-msg (:ch-recv ev-msg))))))
 
   #?(:cljs
-     (defn ^:deprecated start-chsk-router-loop!
+     (defn ^:deprecated ^:no-doc start-chsk-router-loop!
        "DEPRECATED: Please use `start-chsk-router!` instead"
        [event-handler ch-recv]
        (start-client-chsk-router! ch-recv
          ;; Old handler form: (fn [ev ch-recv])
          (fn [ev-msg] (event-handler (:event ev-msg) (:ch-recv ev-msg))))))
 
-  (def ^:deprecated set-logging-level! "DEPRECATED. Please use `timbre/set-level!` instead" timbre/set-level!)
+  (def ^:deprecated ^:no-doc set-logging-level! "DEPRECATED. Please use `timbre/set-level!` instead" timbre/set-level!)
 
-  #?(:cljs (def ^:deprecated ajax-call "DEPRECATED: Please use `ajax-lite` instead" enc/ajax-lite))
+  #?(:cljs (def ^:deprecated ^:no-doc ajax-lite "DEPRECATED: Please use `ajax-call` instead" enc/ajax-call))
   #?(:cljs
-     (def ^:deprecated default-chsk-url-fn "DEPRECATED"
+     (def ^:deprecated ^:no-doc default-chsk-url-fn
        (fn [path {:as location :keys [protocol host pathname]} websocket?]
          (let [protocol
                (if websocket?

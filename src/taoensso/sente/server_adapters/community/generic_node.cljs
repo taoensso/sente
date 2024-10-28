@@ -96,5 +96,5 @@
 
 (enc/deprecated
   ;; These are stateful, could be problematic?
-  (def generic-node-adapter     "Deprecated" (get-sch-adapter))
-  (def sente-web-server-adapter "Deprecated" generic-node-adapter))
+  (def ^:deprecated ^:no-doc generic-node-adapter (get-sch-adapter))
+  (def ^:deprecated ^:no-doc sente-web-server-adapter generic-node-adapter))

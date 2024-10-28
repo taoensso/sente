@@ -51,5 +51,5 @@
 (defn get-sch-adapter [] (NginxServerChanAdapter.))
 
 (enc/deprecated
-  (def nginx-clojure-adapter (get-sch-adapter))
-  (def sente-web-server-adapter nginx-clojure-adapter))
+  (def ^:deprecated ^:no-doc nginx-clojure-adapter (get-sch-adapter))
+  (def ^:deprecated ^:no-doc sente-web-server-adapter nginx-clojure-adapter))

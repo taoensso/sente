@@ -34,6 +34,6 @@
 (defn get-sch-adapter [] (ImmutantServerChanAdapter.))
 
 (enc/deprecated
-  (defn make-immutant-adapter "Deprecated" [_opts] (get-sch-adapter))
-  (def immutant-adapter "Deprecated" (get-sch-adapter))
-  (def sente-web-server-adapter immutant-adapter))
+  (defn ^:deprecated ^:no-doc make-immutant-adapter [_opts] (get-sch-adapter))
+  (def  ^:deprecated ^:no-doc immutant-adapter              (get-sch-adapter))
+  (def  ^:deprecated ^:no-doc sente-web-server-adapter immutant-adapter))

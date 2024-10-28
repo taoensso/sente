@@ -31,5 +31,5 @@
 (defn get-sch-adapter [] (HttpKitServerChanAdapter.))
 
 (enc/deprecated
-  (def ^:deprecated http-kit-adapter         "Deprecated" (get-sch-adapter))
-  (def ^:deprecated sente-web-server-adapter "Deprecated" http-kit-adapter))
+  (def ^:deprecated ^:no-doc http-kit-adapter (get-sch-adapter))
+  (def ^:deprecated ^:no-doc sente-web-server-adapter http-kit-adapter))

@@ -13,7 +13,7 @@
      WebSocketConnectionCallback
      WebSocketProtocolHandshakeHandler]))
 
-;;;; WebSocket
+;;;; WebSockets
 
 (extend-type WebSocketChannel
   i/IServerChan

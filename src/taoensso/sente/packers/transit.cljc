@@ -17,7 +17,7 @@
    (defn- get-charset ^String [transit-fmt]
      ;; :msgpack appears to need ISO-8859-1 to retain binary data correctly when
      ;; string-encoded, all other (non-binary) formats can get UTF-8:
-     (if (enc/kw-identical? transit-fmt :msgpack) "ISO-8859-1" "UTF-8")))
+     (if (enc/identical-kw? transit-fmt :msgpack) "ISO-8859-1" "UTF-8")))
 
 #?(:clj
    (def ^:private cache-read-handlers
