@@ -12,3 +12,5 @@ pom.xml*
 /checkouts/
 /logs/
 /wiki/.git
+/.clj-kondo/
+/.lsp/
