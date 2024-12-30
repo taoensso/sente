@@ -1350,7 +1350,7 @@
 
 (def client-unloading?_ (atom false))
 #?(:cljs
-   (when-not node-target?
+   (enc/catching ; Not possible on Node, React Native, etc.
      (.addEventListener goog/global "beforeunload"
        (fn [event] (reset! client-unloading?_ true) nil))))
 
