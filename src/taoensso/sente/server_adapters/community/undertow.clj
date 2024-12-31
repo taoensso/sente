@@ -1,6 +1,4 @@
 (ns taoensso.sente.server-adapters.community.undertow
-  "Sente server adapter for ring-undertow-adapter,
-  Ref. <https://github.com/luminus-framework/ring-undertow-adapter>."
   {:author "Nik Peric"}
   (:require
     [ring.adapter.undertow.websocket :as websocket]
@@ -89,8 +87,13 @@
        (ajax-ch callbacks-map adapter-opts))}))
 
 (defn get-sch-adapter
-  "Returns an Undertow ServerChanAdapter. Options:
-     `:ajax-resp-timeout-ms` - Max msecs to wait for Ajax responses (default 60 secs)"
+  "Returns a Sente `ServerChan` adapter for `ring-undertow-adapter` [1].
+
+  Options:
+     `:ajax-resp-timeout-ms` - Max msecs to wait for Ajax responses (default 60 secs),
+                               exception thrown on timeout.
+
+  [1] Ref. <https://github.com/luminus-framework/ring-undertow-adapter>."
   ([] (get-sch-adapter nil))
   ([{:as   opts
      :keys [ajax-resp-timeout-ms]

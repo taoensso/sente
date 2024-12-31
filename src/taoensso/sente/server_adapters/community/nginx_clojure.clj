@@ -1,7 +1,5 @@
 (ns ^:no-doc taoensso.sente.server-adapters.community.nginx-clojure
   ;; `^:no-doc` needed to prevent broken cljdoc build
-  "Sente server adapter for Nginx-Clojure v0.4.2+.
-  Ref. <https://github.com/nginx-clojure/nginx-clojure>."
   {:author "Zhang Yuexiang (@xfeep)"}
   (:require
    [taoensso.encore :as enc]
@@ -48,7 +46,10 @@
 
       {:status 200 :body sch})))
 
-(defn get-sch-adapter [] (NginxServerChanAdapter.))
+(defn get-sch-adapter
+    "Returns a Sente `ServerChan` adapter for `Nginx-Clojure` v0.4.2+.
+  Ref. <https://github.com/nginx-clojure/nginx-clojure>."
+  [] (NginxServerChanAdapter.))
 
 (enc/deprecated
   (def ^:deprecated ^:no-doc nginx-clojure-adapter (get-sch-adapter))

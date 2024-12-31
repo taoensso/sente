@@ -1,6 +1,4 @@
 (ns taoensso.sente.server-adapters.community.aleph
-  "Sente server adapter for Aleph,
-  Ref. <https://github.com/clj-commons/aleph>."
   {:author "Soren Macbeth (@sorenmacbeth)"}
   (:require
    [taoensso.sente.interfaces :as i]
@@ -44,7 +42,10 @@
           {:body s})))))
 
 (defn get-sch-adapter
-  "Supports websocket-connection options in `aleph.http`.
-  If no option map is provided, the default options apply."
+  "Returns a Sente `ServerChan` adapter for `Aleph`,
+  Ref. <https://github.com/clj-commons/aleph>.
+
+  Supports websocket-connection options as in `aleph.http`.
+  If no options map is provided, the default options apply."
   ([    ] (AlephAsyncNetworkChannelAdapter. nil))
   ([opts] (AlephAsyncNetworkChannelAdapter. opts)))

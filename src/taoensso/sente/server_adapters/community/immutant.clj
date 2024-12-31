@@ -1,6 +1,4 @@
 (ns taoensso.sente.server-adapters.community.immutant
-  "Sente server adapter for Immutant v2+,
-  Ref. <https://github.com/immutant/immutant>."
   {:author "Toby Crawley (@tobias)"}
   (:require
    [taoensso.encore :as enc]
@@ -31,7 +29,10 @@
                        (fn [sch {:keys [code reason] :as status-map}]
                          (on-close sch ws? status-map)))))))
 
-(defn get-sch-adapter [] (ImmutantServerChanAdapter.))
+(defn get-sch-adapter
+  "Returns a Sente `ServerChan` adapter for `Immutant` v2+,
+  Ref. <https://github.com/immutant/immutant>."
+  [] (ImmutantServerChanAdapter.))
 
 (enc/deprecated
   (defn ^:deprecated ^:no-doc make-immutant-adapter [_opts] (get-sch-adapter))

@@ -1,7 +1,4 @@
 (ns taoensso.sente.server-adapters.community.jetty
-  "Sente adapter for `ring-jetty-adapter`,
-  Ref. <https://github.com/ring-clojure/ring/tree/master/ring-jetty-adapter>.
-  Adapted from <https://github.com/taoensso/sente/pull/426#issuecomment-1647231979>."
   {:author "Alex Gunnarson (@alexandergunnarson)"}
   (:require
     [ring.core.protocols       :as ring-protocols]
@@ -104,8 +101,14 @@
       (ring-response/response (ajax-ch callbacks-map adapter-opts)))))
 
 (defn get-sch-adapter
-  "Returns an Jetty ServerChanAdapter. Options:
-     `:ajax-resp-timeout-ms` - Max msecs to wait for Ajax responses (default 60 secs)"
+  "Returns a Sente `ServerChan` adapter for `ring-jetty-adapter` [1].
+  Supports Jetty 11.
+
+  Options:
+     `:ajax-resp-timeout-ms` - Max msecs to wait for Ajax responses (default 60 secs),
+                               exception thrown on timeout.
+
+  [1] Ref. <https://github.com/ring-clojure/ring/tree/master/ring-jetty-adapter>."
   ([] (get-sch-adapter nil))
   ([{:as   opts
      :keys [ajax-resp-timeout-ms]
