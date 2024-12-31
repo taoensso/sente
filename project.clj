@@ -8,11 +8,11 @@
    :url  "https://www.eclipse.org/legal/epl-v10.html"}
 
   :dependencies
-  [[org.clojure/core.async   "1.6.681"]
-   [com.taoensso/encore      "3.127.0"]
-   [org.java-websocket/Java-WebSocket "1.5.7"]
+  [[org.clojure/core.async   "1.7.701"]
+   [com.taoensso/encore      "3.133.0"]
+   [org.java-websocket/Java-WebSocket "1.6.0"]
    [org.clojure/tools.reader "1.5.0"]
-   [com.taoensso/timbre      "6.6.0-RC1"]]
+   [com.taoensso/timbre      "6.6.1"]]
 
   :test-paths ["test" #_"src"]
 
@@ -37,10 +37,10 @@
    {:dependencies
     [[org.immutant/web               "2.1.10"]
      [nginx-clojure                  "0.6.0"]
-     [aleph                          "0.8.1"]
+     [aleph                          "0.8.2"]
      [macchiato/core                 "0.2.23"] ; 0.2.24 seems to fail?
-     [luminus/ring-undertow-adapter  "1.3.1"]
-     [info.sunng/ring-jetty9-adapter "0.35.1"]
+     [luminus/ring-undertow-adapter  "1.4.0"]
+     [info.sunng/ring-jetty9-adapter "0.36.1"]
      [ring/ring-core                            "1.13.0"]
      [ring/ring-jetty-adapter                   "1.13.0"]
      [org.ring-clojure/ring-websocket-protocols "1.13.0"]]
