@@ -5,22 +5,31 @@
     [ring.util.response        :as ring-response]
     [ring.websocket            :as ws]
     [ring.websocket.protocols  :as ws.protocols]
+    [taoensso.encore           :as enc]
     [taoensso.sente.interfaces :as i]
     [taoensso.timbre :as timbre])
 
   (:import
-    [org.eclipse.jetty.websocket.api WebSocketListener]
-    [ring.websocket.protocols Socket]))
+   [ring.websocket.protocols Socket]))
 
 ;;;; WebSockets
 
-(extend-type WebSocketListener
-  i/IServerChan
+(enc/compile-if org.eclipse.jetty.websocket.common.WebSocketSession
+  (extend-type  org.eclipse.jetty.websocket.common.WebSocketSession ; Jetty 12
+    i/IServerChan
     (sch-open?  [sch] (.isOpen sch))
     (sch-close! [sch] (.close  sch))
     (sch-send!  [sch-listener _websocket? msg]
       (ws.protocols/-send sch-listener msg)
       true))
+
+  (extend-type org.eclipse.jetty.websocket.api.WebSocketListener ; Jetty 11
+    i/IServerChan
+    (sch-open?  [sch] (.isOpen sch))
+    (sch-close! [sch] (.close  sch))
+    (sch-send!  [sch-listener _websocket? msg]
+      (ws.protocols/-send sch-listener msg)
+      true)))
 
 (extend-type Socket
   i/IServerChan
@@ -102,7 +111,7 @@
 
 (defn get-sch-adapter
   "Returns a Sente `ServerChan` adapter for `ring-jetty-adapter` [1].
-  Supports Jetty 11.
+  Supports Jetty 11, 12.
 
   Options:
      `:ajax-resp-timeout-ms` - Max msecs to wait for Ajax responses (default 60 secs),
