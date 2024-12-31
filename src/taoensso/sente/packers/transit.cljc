@@ -1,12 +1,10 @@
 (ns taoensso.sente.packers.transit
-  "Alpha - subject to change!
-  Optional Transit-format[1] IPacker implementation for use with Sente.
+  "Optional Transit-format[1] IPacker implementation for use with Sente.
   [1] https://github.com/cognitect/transit-format."
   {:author "Peter Taoussanis, @ckarlsen84"}
   (:require
-   [clojure.string    :as str]
-   [taoensso.encore   :as enc :refer [have have! have?]]
-   [taoensso.timbre   :as timbre]
+   [taoensso.encore   :as enc]
+   [taoensso.truss    :as truss]
    [cognitect.transit :as transit]
    [taoensso.sente.interfaces :as interfaces
     :refer [pack unpack]])
@@ -90,8 +88,8 @@
   ([transit-fmt] (get-transit-packer transit-fmt {} {}))
   ([transit-fmt writer-opts reader-opts]
    ;; No transit-cljs support for msgpack atm
-   (have? [:el #{:json :json-verbose #_:msgpack}] transit-fmt)
-   (have? map? writer-opts reader-opts)
+   (truss/have? [:el #{:json :json-verbose #_:msgpack}] transit-fmt)
+   (truss/have? map? writer-opts reader-opts)
    (TransitPacker. transit-fmt writer-opts reader-opts)))
 
 (comment

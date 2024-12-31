@@ -80,9 +80,10 @@
   (:require
    [clojure.string     :as str]
    [clojure.core.async :as async :refer [<! >! put! chan go go-loop]]
-   [taoensso.encore    :as enc   :refer [have have! have? swap-in! reset-in! swapped]]
+   [taoensso.encore    :as enc   :refer [swap-in! reset-in! swapped]]
+   [taoensso.truss     :as truss]
    [taoensso.timbre    :as timbre]
-   [taoensso.sente.interfaces :as interfaces])
+   [taoensso.sente.interfaces :as i])
 
   #?(:cljs (:require-macros [taoensso.sente :as sente-macros :refer [elide-require]]))
   #?(:clj  (:import [org.java_websocket.client WebSocketClient])))
@@ -135,7 +136,7 @@
     :else
     (let [[ev-id _] x]
       (cond
-        (not (keyword? ev-id))  {:wrong-id-type   (expected :keyword            ev-id)}
+        (not (keyword?  ev-id)) {:wrong-id-type   (expected :keyword            ev-id)}
         (not (namespace ev-id)) {:unnamespaced-id (expected :namespaced-keyword ev-id)}
         :else nil))))
 
@@ -209,7 +210,7 @@
   [packer packed]
   (let [[clj ?cb-uuid]
         (try
-          (interfaces/unpack packer packed)
+          (i/unpack packer packed)
           (catch #?(:clj Throwable :cljs :default) t
             (timbre/errorf t "Failed to unpack: %s" packed)
             [[:chsk/bad-package packed] nil]))
@@ -222,7 +223,7 @@
   "[clj ?cb-uuid]->packed"
   ([packer clj         ] (pack packer clj nil))
   ([packer clj ?cb-uuid]
-   (interfaces/pack packer
+   (i/pack packer
      (if-some [cb-uuid (if (= ?cb-uuid :ajax-cb) 0 ?cb-uuid)]
        [clj cb-uuid]
        [clj        ]))))
@@ -232,7 +233,7 @@
     (pack default-edn-packer [:foo])))
 
 (deftype EdnPacker []
-  interfaces/IPacker
+  i/IPacker
   (pack   [_ x] (enc/pr-edn   x))
   (unpack [_ s] (enc/read-edn s)))
 
@@ -241,15 +242,15 @@
 (defn- coerce-packer [x]
   (if (= x :edn)
     default-edn-packer
-    (have #(satisfies? interfaces/IPacker %) x)))
+    (truss/have #(satisfies? i/IPacker %) x)))
 
 (comment
   (do
     (require '[taoensso.sente.packers.transit :as transit])
     (def ^:private default-transit-json-packer (transit/get-transit-packer)))
 
-  (let [pack   interfaces/pack
-        unpack interfaces/unpack
+  (let [pack   i/pack
+        unpack i/unpack
         data   {:a :A :b :B :c "hello world"}]
 
     (enc/qb 1e4 ; [111.96 67.26]
@@ -365,9 +366,6 @@
       (slow) reconnecting poller. Actual event dispatch may occur <= given ms
       after send call (larger values => larger batch windows)."
 
-  ;; TODO param names are inconsistent, e.g.:
-  ;; ws-ping-timeout-ms, send-buf-ms-ajax, ws-ping-timeout-ms
-
   [web-server-ch-adapter
    & [{:keys [recv-buf-or-n ws-kalive-ms lp-timeout-ms ws-ping-timeout-ms
               send-buf-ms-ajax send-buf-ms-ws
@@ -407,8 +405,8 @@
               packer :edn
               allowed-origins :all}}]]
 
-  (have? enc/pos-int? send-buf-ms-ajax send-buf-ms-ws)
-  (have? #(satisfies? interfaces/IServerChanAdapter %) web-server-ch-adapter)
+  (truss/have? enc/pos-int? send-buf-ms-ajax send-buf-ms-ws)
+  (truss/have? #(satisfies? i/IServerChanAdapter %) web-server-ch-adapter)
 
   (let [max-ms default-client-side-ajax-timeout-ms]
     (when (>= lp-timeout-ms max-ms)
@@ -417,7 +415,7 @@
           {:lp-timeout-ms lp-timeout-ms
            :default-client-side-ajax-timeout-ms max-ms}))))
 
-  (let [allowed-origins (have [:or set? #{:all}] allowed-origins)
+  (let [allowed-origins (truss/have [:or set? #{:all}] allowed-origins)
         packer  (coerce-packer packer)
         ch-recv (chan recv-buf-or-n)
 
@@ -432,7 +430,7 @@
         connected-uids_ (atom {:ws #{} :ajax #{} :any #{}}) ; Public
 
         connect-uid!?
-        (fn [conn-type uid] {:pre [(have? uid)]}
+        (fn [conn-type uid] {:pre [(truss/have? uid)]}
           (let [newly-connected?
                 (swap-in! connected-uids_ []
                   (fn [{:keys [ws ajax any] :as old-m}]
@@ -449,7 +447,7 @@
             newly-connected?))
 
         maybe-disconnect-uid!?
-        (fn [uid] {:pre [(have? uid)]}
+        (fn [uid] {:pre [(truss/have? uid)]}
           (let [newly-disconnected?
                 (swap-in! connected-uids_ []
                   (fn [{:keys [ws ajax any] :as old-m}]
@@ -503,8 +501,8 @@
                                (swapped m nil)))))]
 
                     (let [[buffered-evs ev-uuids] pulled]
-                      (have? vector? buffered-evs)
-                      (have? set?    ev-uuids)
+                      (truss/have? vector? buffered-evs)
+                      (truss/have? set?    ev-uuids)
 
                       (let [packed-buffered-evs (pack packer buffered-evs)]
                         (send-buffered-server-evs>clients! conn-type
@@ -518,10 +516,10 @@
                   (flush-buffer! :ajax))
 
                 (doseq [[?sch _udt] (vals (get-in @conns_ [:ws uid]))]
-                  (when-let [sch ?sch] (interfaces/sch-close! sch)))
+                  (when-let [sch ?sch] (i/sch-close! sch)))
 
                 (doseq [[?sch _udt] (vals (get-in @conns_ [:ajax uid]))]
-                  (when-let [sch ?sch] (interfaces/sch-close! sch))))
+                  (when-let [sch ?sch] (i/sch-close! sch))))
 
               (do
                 ;; Buffer event
@@ -624,7 +622,7 @@
         (enc/cond
           :if-let [resp (possible-rejection-resp ring-req)] resp
           :else
-          (interfaces/ring-req->server-ch-resp web-server-ch-adapter ring-req
+          (i/ring-req->server-ch-resp web-server-ch-adapter ring-req
             {:ring-async-resp-fn  ?ring-async-resp-fn
              :ring-async-raise-fn ?ring-async-raise-fn
 
@@ -643,7 +641,7 @@
                              (lid (user-id-fn ring-req client-id) client-id)
                              resp-clj)
 
-                           (interfaces/sch-send! server-ch websocket?
+                           (i/sch-send! server-ch websocket?
                              (pack packer resp-clj)))))]
 
                  (put-server-event-msg>ch-recv! ch-recv
@@ -706,7 +704,7 @@
                             [:chsk/handshake [uid nil]]
                             [:chsk/handshake [uid nil ?handshake-data]])]
                       ;; Returns true iff server-ch open during call
-                      (interfaces/sch-send! server-ch websocket?
+                      (i/sch-send! server-ch websocket?
                         (pack packer handshake-ev))))
 
                   on-error
@@ -731,7 +729,7 @@
                           ;; Auto reply to ping
                           (when-let [cb-uuid ?cb-uuid]
                             (timbre/debugf "[ws/on-msg] Server will auto-reply to ping from %s" lid*)
-                            (interfaces/sch-send! server-ch websocket?
+                            (i/sch-send! server-ch websocket?
                               (pack packer "pong" cb-uuid)))
 
                           (receive-event-msg! clj nil))
@@ -743,7 +741,7 @@
                               (timbre/debugf "[ws/on-msg] Server will reply to message from %s: %s" lid* resp-clj)
 
                               ;; true iff apparent success:
-                              (interfaces/sch-send! server-ch websocket?
+                              (i/sch-send! server-ch websocket?
                                 (pack packer resp-clj ?cb-uuid))))))))
 
                   on-close
@@ -828,9 +826,9 @@
 
                                       {:keys [recur? udt ms-timeout expecting-pong? force-close?]}
                                       (enc/cond
-                                        (nil? ?conn-entry)                                     {:recur? false}
-                                        (not= conn-id conn-id*)                                {:recur? false}
-                                        (when-let [sch ?sch] (not (interfaces/sch-open? sch))) {:recur? false, :force-close? true}
+                                        (nil? ?conn-entry)                            {:recur? false}
+                                        (not= conn-id conn-id*)                       {:recur? false}
+                                        (when-let [sch ?sch] (not (i/sch-open? sch))) {:recur? false, :force-close? true}
 
                                         (not= udt-t0 udt-t1) ; Activity in last kalive window
                                         {:recur? true, :udt udt-t1, :ms-timeout ws-kalive-ms, :expecting-pong? false}
@@ -840,7 +838,7 @@
                                         expecting-pong?
                                         (do
                                           ;; Was expecting pong (=> activity) in last kalive window
-                                          (interfaces/sch-close! server-ch)
+                                          (i/sch-close! server-ch)
                                           {:recur? false})
 
                                         :else
@@ -849,7 +847,7 @@
                                                  ;; conn's :on-close immediately, i.e. no need to wait
                                                  ;; for a missed pong.
                                                  ping-apparently-sent?
-                                                 (interfaces/sch-send! server-ch websocket?
+                                                 (i/sch-send! server-ch websocket?
                                                    (pack packer :chsk/ws-ping))]
 
                                           (if ws-ping-timeout-ms
@@ -899,14 +897,14 @@
                                 (when-let [[_?sch _udt conn-id*] (get-in @conns_ [:ajax uid client-id])]
                                   (when (= conn-id conn-id*)
                                     (timbre/debugf "[ajax/on-open] Polling timeout for %s" lid*)
-                                    (interfaces/sch-send! server-ch websocket?
+                                    (i/sch-send! server-ch websocket?
                                       (pack packer :chsk/timeout))))))
 
                             (when (connect-uid!? :ajax uid)
                               (timbre/infof "[ajax/on-open] uid port open for %s" lid*)
                               (receive-event-msg! [:chsk/uidport-open uid])))))))]
 
-              (interfaces/ring-req->server-ch-resp web-server-ch-adapter ring-req
+              (i/ring-req->server-ch-resp web-server-ch-adapter ring-req
                 {:ring-async-resp-fn  ?ring-async-resp-fn
                  :ring-async-raise-fn ?ring-async-raise-fn
                  :on-open             on-open
@@ -928,7 +926,7 @@
   "Actually pushes buffered events (as packed-str) to all uid's conns.
   Allows some time for possible reconnects."
   [conn-type conns_ uid packed-buffered-evs n-buffered-evs]
-  (have? [:el #{:ajax :ws}] conn-type)
+  (truss/have? [:el #{:ajax :ws}] conn-type)
   (let [;; Mean max wait time: sum*1.5 = 2790*1.5 = 4.2s
         ms-backoffs [90 180 360 720 720 720] ; => max 1+6 attempts
         websocket?  (= conn-type :ws)
@@ -944,7 +942,7 @@
                                       (when-let [[?sch _udt conn-id] (get-in @conns_ [conn-type uid client-id])]
                                         (when-let [sch ?sch]
                                           (when-not (simulated-bad-conn?)
-                                            (when (interfaces/sch-send! sch websocket? packed-buffered-evs)
+                                            (when (i/sch-send! sch websocket? packed-buffered-evs)
                                               conn-id))))]
 
                              (swap-in! conns_ [conn-type uid client-id]
@@ -1074,8 +1072,8 @@
              open-changed?)))))
 
    (defn- chsk-state->closed [state reason]
-     (have? map? state)
-     (have?
+     (truss/have? map? state)
+     (truss/have?
        [:el #{:clean :unexpected
               :requested-disconnect
               :requested-reconnect
@@ -1100,7 +1098,7 @@
      (if (or (nil? ?cb) (ifn? ?cb))
        ?cb
        (do
-         (have? enc/chan? ?cb)
+         (truss/have? enc/chan? ?cb)
          (assert-event ev)
          (let [[ev-id _] ev
                cb-ch ?cb]
@@ -1110,7 +1108,7 @@
                 reply]))))))
 
    (defn- receive-buffered-evs! [chs clj]
-     (let [buffered-evs (have vector? clj)]
+     (let [buffered-evs (truss/have vector? clj)]
 
        (timbre/tracef "Client received %s buffered evs from server: %s"
          (count buffered-evs)
@@ -1127,8 +1125,8 @@
        (let [[x1] x] (= x1 :chsk/handshake))))
 
    (defn- receive-handshake! [chsk-type chsk clj]
-     (have? [:el #{:ws :ajax}] chsk-type)
-     (have? handshake? clj)
+     (truss/have? [:el #{:ws :ajax}] chsk-type)
+     (truss/have? handshake? clj)
 
      (let [[_ [?uid _ ?handshake-data]] clj
            {:keys [chs ever-opened?_]} chsk
@@ -1161,9 +1159,8 @@
 
 #?(:clj
    (defmacro ^:private elide-require
-     "Experimental. The presence of `js/require` calls can cause issues with
-    React Native, even if they never execute. Currently no other known
-    workarounds. Ref. https://github.com/ptaoussanis/sente/issues/247."
+     "`js/require` calls can cause issues with React Native static analysis even
+     if they never execute, Ref. <https://github.com/ptaoussanis/sente/issues/247>."
      [& body]
      (when-not (enc/get-env {:as :bool} :sente-elide-js-require)
        `(do ~@body))))
@@ -1175,23 +1172,14 @@
        1. Add the lein-npm[2] plugin to your `project.clj`,
        2. Add: `:npm {:dependencies [[websocket \"1.0.23\"]]}`
 
-     [1] Ref. https://www.npmjs.com/package/websocket
-     [2] Ref. https://github.com/RyanMcG/lein-npm"
+     [1] Ref. <https://www.npmjs.com/package/websocket>
+     [2] Ref. <https://github.com/RyanMcG/lein-npm>"
 
-     ;; This `let` silliness intended to work around React Native's
-     ;; static analysis tool, to prevent it from detecting a
-     ;; missing package.
-     ;;
-     ;; Ref. https://github.com/ptaoussanis/sente/issues/247#issuecomment-555219121
-     ;;
      (let [make-package-name (fn [prefix] (str prefix "socket"))
-           require-fn
-           (if (exists? js/require)
-             js/require
-             (constantly :no-op))]
+           require-fn (if (exists? js/require) js/require (constantly :no-op))]
 
-       (delay ; Eager eval causes issues with React Native, Ref. #247,
-         (elide-require ; TODO is this now safe to remove?
+       (delay           ; For React Native, Ref. #247
+         (elide-require ; For React Native, Ref. #247
            (when (and node-target? (exists? js/require))
              (try
                (require-fn (make-package-name "web"))
@@ -1259,7 +1247,7 @@
   "Returns non-blank client CSRF token ?string from given token string
   or (fn [])->?string."
   [warn? token-or-fn]
-  (when token-or-fn
+  (when  token-or-fn
     (let [dynamic? (fn? token-or-fn)]
       (if-let [token (enc/as-?nblank (if dynamic? (token-or-fn) token-or-fn))]
         token
@@ -1271,7 +1259,7 @@
 
 (def client-unloading?_ (atom false))
 #?(:cljs
-   (enc/catching ; Not possible on Node, React Native, etc.
+   (truss/catching ; Not possible on Node, React Native, etc.
      (.addEventListener goog/global "beforeunload"
        (fn [event] (reset! client-unloading?_ true) nil))))
 
@@ -1351,7 +1339,7 @@
               packed (pack packer ev ?cb-uuid)]
 
           (when-let [cb-uuid ?cb-uuid]
-            (reset-in! cbs-waiting_ [cb-uuid] (have ?cb-fn))
+            (reset-in! cbs-waiting_ [cb-uuid] (truss/have ?cb-fn))
             (when-let [timeout-ms ?timeout-ms]
               (go
                 (<! (async/timeout timeout-ms))
@@ -1373,7 +1361,7 @@
             (do
               (when-let [cb-uuid ?cb-uuid]
                 (let [cb-fn* (or (pull-unused-cb-fn! cbs-waiting_ cb-uuid)
-                                 (have ?cb-fn))]
+                                 (truss/have ?cb-fn))]
                   (cb-fn* :chsk/error)))
 
               (-chsk-reconnect! chsk :ws-error)
@@ -1455,7 +1443,7 @@
                     ;; Fires repeatedly (on each connection attempt) while server down
                     (fn #?(:cljs [ws-ev] :clj [code reason _remote?])
                       (when (own-socket?)
-                        (let [;; For codes, Ref. https://www.rfc-editor.org/rfc/rfc6455.html#section-7.1.5
+                        (let [;; For codes, Ref. <https://www.rfc-editor.org/rfc/rfc6455.html#section-7.1.5>
                               last-ws-close ; For advanced debugging, etc.
                               #?(:clj
                                  {:udt    (enc/now-udt)
@@ -1751,7 +1739,6 @@
 
      (-chsk-connect! [chsk]
        ;; Currently using a simplistic downgrade-only strategy.
-       ;; TODO Consider smarter strategy that can also upgrade?
        (let [ajax-chsk-opts (assoc ajax-chsk-opts :state_ state_)
              ws-chsk-opts   (assoc   ws-chsk-opts :state_ state_)
 
@@ -1794,7 +1781,7 @@
 
    (defn- get-chsk-url [protocol host path type]
      (let [protocol (case protocol :http "http:" :https "https:" protocol)
-           protocol (have [:el #{"http:" "https:"}] protocol)
+           protocol (truss/have [:el #{"http:" "https:"}] protocol)
            protocol (case type
                       :ajax     protocol
                       :ws (case protocol "https:" "wss:" "http:" "ws:"))]
@@ -1826,7 +1813,6 @@
        :ajax-opts      ; Base opts map provided to `taoensso.encore/ajax-call`, see
                        ; relevant docstring for more info.
        :wrap-recv-evs? ; Should events from server be wrapped in [:chsk/recv _]?
-                       ; Default false for Sente >= v1.18, true otherwise.
 
        :ws-kalive-ms       ; Ping to keep a WebSocket conn alive if no activity
                            ; w/in given msecs. Should be different to server's :ws-kalive-ms.
@@ -1855,8 +1841,8 @@
                ws-ping-timeout-ms 5000
                ws-constructor     default-client-ws-constructor}}]]
 
-     (have? [:in #{:ajax :ws :auto}] type)
-     (have? enc/nblank-str? client-id)
+     (truss/have? [:in #{:ajax :ws :auto}] type)
+     (truss/have? enc/nblank-str? client-id)
 
      ;; Check once now to trigger possible warning
      (get-client-csrf-token-str true ?csrf-token-or-fn)
@@ -1867,7 +1853,7 @@
            (let [;; Not available with React Native, etc.
                  ;; Must always provide explicit path for Java client.
                  win-loc  #?(:clj nil :cljs (enc/get-win-loc))
-                 path     (have (or path (:pathname win-loc)))]
+                 path     (truss/have (or path (:pathname win-loc)))]
 
              (if-let [f (:chsk-url-fn opts)] ; Deprecated
                [(f path win-loc :ws)
@@ -2001,15 +1987,15 @@
 
             (execute1
               (fn []
-                (enc/try*
+                (truss/try*
                   (when trace-evs? (timbre/tracef "Chsk router pre-handler event: %s" event))
                   (event-msg-handler
                     (if server?
-                      (have! server-event-msg? event-msg)
-                      (have! client-event-msg? event-msg)))
+                      (truss/have! server-event-msg? event-msg)
+                      (truss/have! client-event-msg? event-msg)))
 
                   (catch :all t1
-                    (enc/try*
+                    (truss/try*
                       (if-let [eh error-handler]
                         (error-handler  t1 event-msg)
                         (timbre/errorf  t1 "Chsk router `event-msg-handler` error: %s" event))

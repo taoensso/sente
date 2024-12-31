@@ -1,10 +1,7 @@
 (ns taoensso.sente.interfaces
-  "Alpha, subject to change.
-  Public interfaces / extension points.
-  Ref. https://github.com/ptaoussanis/sente/issues/425 for more info."
-  (:require [taoensso.encore :as enc]))
+  "Public interfaces / extension points.")
 
-;;;; Web servers
+;;;; HTTP servers
 
 (defprotocol IServerChanAdapter ; sch-adapter
   "For Sente to support a web server, an \"adapter\" for that server

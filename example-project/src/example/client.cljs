@@ -228,7 +228,7 @@
             ;;; our channel socket to reconnect, thereby picking up the new
             ;;; session.
 
-            (sente/ajax-lite "/login"
+            (sente/ajax-call "/login"
               {:method :post
                :headers {:X-CSRF-Token (:csrf-token @chsk-state)}
                :params  {:user-id (str user-id)}}
@@ -251,7 +251,7 @@
       (let [c (async/chan)]
         (go-loop [uids (range 11)]
           (when-let [[next-uid] uids]
-            (sente/ajax-lite "/login"
+            (sente/ajax-call "/login"
               {:method :post
                :headers {:X-CSRF-Token (:csrf-token @chsk-state)}
                :params  {:user-id (str next-uid)}}

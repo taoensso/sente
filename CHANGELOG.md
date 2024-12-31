@@ -16,7 +16,7 @@ Happy holidays everyone! 🎄🫶
 > No breaking changes intended
 
 * **\[fix]** [#458] Fix React Native build: catch invalid call \[4e3f16c]
-* **\[new]** [#477] [Community adapters] Support both Jetty 11 and 12 (@stefanroex) \[79c784d]
+* **\[new]** [#447] [Community adapters] Support both Jetty 11 and 12 (@stefanroex) \[79c784d]
 * **\[new]** [#447] [Community adapters] Improve error message on Ajax read timeouts \[9da662c]
 * **\[doc]** [Community adapters] Improve constructor docstrings \[1c7a93c]
 
