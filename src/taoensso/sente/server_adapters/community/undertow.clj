@@ -54,10 +54,15 @@
 
   ISenteUndertowAjaxChannel
   (ajax-read! [sch]
-    (let [{:keys [ajax-resp-timeout-ms]} adapter-opts]
-      (if ajax-resp-timeout-ms
-        (deref resp-promise_ ajax-resp-timeout-ms nil)
-        (deref resp-promise_)))))
+    (let [{:keys [ajax-resp-timeout-ms]} adapter-opts
+          resp
+          (if ajax-resp-timeout-ms
+            (deref resp-promise_ ajax-resp-timeout-ms ::timeout)
+            (deref resp-promise_))]
+
+      (if (= resp ::timeout)
+        (throw (ex-info "Ajax read timeout" {:timeout-msecs ajax-resp-timeout-ms}))
+        resp))))
 
 (defn- ajax-ch [{:keys [on-open on-close]} adapter-opts]
   (let [open?_ (atom true)
