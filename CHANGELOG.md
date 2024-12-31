@@ -2,6 +2,47 @@ This project uses [**Break Versioning**](https://www.taoensso.com/break-versioni
 
 ---
 
+# `v1.20.0` (2024-12-31)
+
+- **Dependency**: [on Clojars](https://clojars.org/com.taoensso/sente/versions/1.20.0)
+- **Versioning**: [Break Versioning](https://www.taoensso.com/break-versioning)
+
+This is a major **non-breaking maintenance and feature release**. As always, **please report any unexpected problems** 🙏 - [Peter Taoussanis](https://www.taoensso.com)
+
+Happy holidays everyone! 🎄🫶
+
+## Since `v1.20.0-RC1` (2024-10-28)
+
+> No breaking changes intended
+
+* **\[fix]** [#458] Fix React Native build: catch invalid call \[4e3f16c]
+* **\[new]** [#477] [Community adapters] Support both Jetty 11 and 12 (@stefanroex) \[79c784d]
+* **\[new]** [#447] [Community adapters] Improve error message on Ajax read timeouts \[9da662c]
+* **\[doc]** [Community adapters] Improve constructor docstrings \[1c7a93c]
+
+## Since `v1.19.2` (2023-08-30)
+
+> No breaking changes intended
+
+### Changes
+
+* **\[mod]** [#440] Decrease log level of noisy ws-ping events (@jwr) \[4241e6c]
+* **\[mod]** Tune send backoff time \[84e8b2a]
+
+### Fixes
+
+* **\[fix]** [#448] [#453] Fix NodeJS build: don't add `beforeunload` event listener (@theasp) \[dc6b34e]
+* **\[fix]** [#458] Fix React Native build: catch invalid call \[4e3f16c]
+* **\[fix]** [#445] [#444] [Community adapters] Undertow: remove invalid option (@danielsz) \[55167f5]
+
+### New
+
+* **\[new]** [#447] [Community adapters] Add Jetty 11/12 adapter (@alexandergunnarson) \[8ecb2d9]
+* **\[doc]** [Community adapters] Improve constructor docstrings \[1c7a93c]
+* **\[doc]** [#439] Add guidance on large transfers \[513a42d]
+
+---
+
 # `v1.20.0-RC1` (2024-10-28)
 
 - **Dependency**: [on Clojars](https://clojars.org/com.taoensso/sente/versions/1.20.0-RC1)

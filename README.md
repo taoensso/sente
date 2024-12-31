@@ -15,8 +15,7 @@ Loosely inspired by [Socket.IO](https://socket.io/), it uses **core.async**, **W
 
 ## Latest release/s
 
-- `2023-08-30` `v1.19.2` (stable): [release info](../../releases/tag/v1.19.2)
-- `2024-10-28` `v1.20.0-RC1` (dev): [release info](../../releases/tag/v1.20.0-RC1)
+- `2024-12-31` `v1.20.0` (dev): [release info](../../releases/tag/v1.20.0)
 
 [![Main tests][Main tests SVG]][Main tests URL]
 [![Graal tests][Graal tests SVG]][Graal tests URL]
@@ -28,8 +27,7 @@ See [here][GitHub releases] for earlier releases.
 - **Bidirectional a/sync comms** over **WebSockets** with **auto Ajax fallback**
 - **It just works**: auto keep-alive, buffering, protocol selection, reconnects
 - **Efficient design** with auto event batching for low-bandwidth use, even over Ajax
-- Send **arbitrary Clojure vals** over [edn](https://github.com/edn-format/edn
-) or [Transit](https://github.com/cognitect/transit-clj) (JSON, MessagePack, etc.)
+- Send **arbitrary Clojure vals** over [edn](https://github.com/edn-format/edn) or [Transit](https://github.com/cognitect/transit-clj) (JSON, MessagePack, etc.)
 - Tiny, easy-to-use [API](../../wiki/1-Getting-started#usage)
 - Support for users simultaneously connected with **multiple clients** and/or devices
 - Realtime info on **which users are connected**, and over which protocols
