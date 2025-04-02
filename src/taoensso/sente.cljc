@@ -2003,7 +2003,7 @@
             :packer    packer
             :ws-kalive-ms       ws-kalive-ms
             :ws-ping-timeout-ms ws-ping-timeout-ms
-            :ws-constructor     default-client-ws-constructor}
+            :ws-constructor     ws-constructor}
 
            ws-chsk-opts
            (merge common-chsk-opts
