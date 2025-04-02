@@ -1316,7 +1316,8 @@
                   (enc/oget @?node-npm-websocket_ "w3cwebsocket"))]
 
        (delay
-         (let [socket (WebSocket. uri-str)]
+         (let [protocols (:sec-websocket-protocol headers)
+               socket (WebSocket. uri-str protocols)]
            (doto socket
              (aset "onerror"   on-error)
              (aset "onmessage" on-message) ; Nb receives both push & cb evs!
@@ -1569,13 +1570,19 @@
                           {:on-error   on-error
                            :on-message on-message
                            :on-close   on-close
-                           :headers    headers
+                           :headers    (update headers :sec-websocket-protocol
+                                               (fn [x]
+                                                 (let [csrf-token (str "sente-csrf-token-"
+                                                                     (get-client-csrf-token-str :dynamic
+                                                                       (:csrf-token @state_)))]
+                                                   (cond
+                                                     (string? x) [x csrf-token]
+                                                     (coll? x) (conj x csrf-token)
+                                                     :else csrf-token))))
                            :uri-str
                            (enc/merge-url-with-query-string url
                              (merge params ; 1st (don't clobber impl.):
-                               {:client-id  client-id
-                                :csrf-token (get-client-csrf-token-str :dynamic
-                                              (:csrf-token @state_))}))}))
+                               {:client-id client-id}))}))
 
                       (catch #?(:clj Throwable :cljs :default) t
                         (timbre/errorf t "Error creating WebSocket client")
