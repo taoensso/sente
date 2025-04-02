@@ -369,6 +369,8 @@
   (allow-origin? #{"http://site.com"} {:headers {"referer" "http://attacker.com/"}})
   (allow-origin? #{"http://site.com"} {:headers {"referer" "http://site.com.attacker.com/"}}))
 
+(def ^:private sente-csrf-token-prefix "sente-csrf-token-")
+
 (defn make-channel-socket-server!
   "Takes a web server adapter[1] and returns a map with keys:
 
@@ -633,6 +635,21 @@
           ;; undefined):
           nil)
 
+        sente-csrf-token-pred
+        (fn [s]
+          (when (str/starts-with? s sente-csrf-token-prefix)
+            (subs s (count sente-csrf-token-prefix))))
+
+        ws-csrf-token
+        (fn [ring-req]
+          (let [headers (get ring-req :headers)]
+            (when-let [ws? (= "websocket"  (get headers "upgrade") )]
+              (let [sec-websocket-protocol (get headers "sec-websocket-protocol")
+                    protocol-vals
+                    (when (string? sec-websocket-protocol)
+                      (str/split   sec-websocket-protocol #", *"))]
+                (enc/rsome sente-csrf-token-pred protocol-vals)))))
+
         bad-csrf?
         (fn [ring-req]
           (if (nil? csrf-token-fn) ; Provides a way to disable CSRF check
@@ -642,7 +659,8 @@
                     (or
                       (get-in ring-req [:params    :csrf-token])
                       (get-in ring-req [:headers "x-csrf-token"])
-                      (get-in ring-req [:headers "x-xsrf-token"]))]
+                      (get-in ring-req [:headers "x-xsrf-token"])
+                      (ws-csrf-token ring-req))]
 
                 (not
                   (enc/const-str=
@@ -1316,7 +1334,8 @@
                   (enc/oget @?node-npm-websocket_ "w3cwebsocket"))]
 
        (delay
-         (let [socket (WebSocket. uri-str)]
+         (let [protocols (get headers :sec-websocket-protocol)
+               socket    (WebSocket. uri-str protocols)]
            (doto socket
              (aset "onerror"   on-error)
              (aset "onmessage" on-message) ; Nb receives both push & cb evs!
@@ -1569,13 +1588,20 @@
                           {:on-error   on-error
                            :on-message on-message
                            :on-close   on-close
-                           :headers    headers
+                           :headers
+                           (update headers :sec-websocket-protocol
+                             (fn [x]
+                               (let [csrf-token
+                                     (str    sente-csrf-token-prefix
+                                       (get-client-csrf-token-str :dynamic (:csrf-token @state_)))]
+                                 (cond
+                                   (string? x)      [x csrf-token]
+                                   (coll?   x) (conj x csrf-token)
+                                   :else               csrf-token))))
+
                            :uri-str
                            (enc/merge-url-with-query-string url
-                             (merge params ; 1st (don't clobber impl.):
-                               {:client-id  client-id
-                                :csrf-token (get-client-csrf-token-str :dynamic
-                                              (:csrf-token @state_))}))}))
+                             (assoc params :client-id client-id))}))
 
                       (catch #?(:clj Throwable :cljs :default) t
                         (timbre/errorf t "Error creating WebSocket client")
