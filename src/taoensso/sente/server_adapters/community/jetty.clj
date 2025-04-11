@@ -21,9 +21,10 @@
     (sch-close! [sch] (.close  sch))
     (sch-send!  [sch-listener _websocket? msg]
       (ws.protocols/-send sch-listener msg)
-      true))
+      true)))
 
-  (extend-type org.eclipse.jetty.websocket.api.WebSocketListener ; Jetty 11
+(enc/compile-if org.eclipse.jetty.websocket.api.WebSocketListener
+  (extend-type  org.eclipse.jetty.websocket.api.WebSocketListener ; Jetty 11
     i/IServerChan
     (sch-open?  [sch] (.isOpen sch))
     (sch-close! [sch] (.close  sch))
