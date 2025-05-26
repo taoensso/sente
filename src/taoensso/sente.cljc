@@ -199,8 +199,8 @@
       )))
 
 ;;; Note that cb replys need _not_ be `event` form!
-#?(:cljs (defn cb-error?   [cb-reply-clj] (#{:chsk/closed :chsk/timeout :chsk/error} cb-reply-clj)))
-#?(:cljs (defn cb-success? [cb-reply-clj] (not (cb-error? cb-reply-clj))))
+(defn cb-error?   [cb-reply-clj] (#{:chsk/closed :chsk/timeout :chsk/error} cb-reply-clj))
+(defn cb-success? [cb-reply-clj] (not (cb-error? cb-reply-clj)))
 
 ;;;; Packing
 ;; * Client<->server payloads are arbitrary Clojure vals (cb replies or events).
