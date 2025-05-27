@@ -2144,19 +2144,32 @@
 
 ;;;; Platform aliases
 
-(def event-msg? #?(:clj server-event-msg? :cljs client-event-msg?))
+(def event-msg?
+  "Alias for:
+  Cljs: `client-event-msg?`.
+  Clj:  `server-event-msg?`.
+
+  If you're using a Clj client or Cljs server, use the above utils
+  directly instead."
+  #?(:clj server-event-msg? :cljs client-event-msg?))
 
 (def make-channel-socket!
-  "Platform-specific alias for `make-channel-socket-server!` or
-  `make-channel-socket-client!`. Please see the appropriate aliased fn
-   docstring for details."
+  "Alias for:
+  Cljs: `make-channel-socket-client!`.
+  Clj:  `make-channel-socket-server!`.
+
+  If you're using a Clj client or Cljs server, use the above utils
+  directly instead. See above docstrings for details."
   #?(:clj  make-channel-socket-server!
      :cljs make-channel-socket-client!))
 
 (def start-chsk-router!
-  "Platform-specific alias for `start-server-chsk-router!` or
-  `start-client-chsk-router!`. Please see the appropriate aliased fn
-  docstring for details."
+  "Alias for:
+  Cljs: `start-client-chsk-router!`.
+  Clj:  `start-server-chsk-router!`.
+
+  If you're using a Clj client or Cljs server, use the above utils
+  directly instead. See above docstrings for details."
   #?(:clj  start-server-chsk-router!
      :cljs start-client-chsk-router!))
 
