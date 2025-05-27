@@ -385,9 +385,10 @@
     :allowed-origins   ; e.g. #{\"http://site.com\" ...}, defaults to :all. ; Alpha
 
     :csrf-token-fn     ; ?(fn [ring-req]) -> CSRF-token for Ajax POSTs and WS handshake.
-                       ; nil => CSRF check will be DISABLED (can pose a *CSRF SECURITY RISK*
-                       ; for website use cases, so please ONLY disable this check if you're
-                       ; very sure you understand the implications!).
+                       ; nil fn or `:sente/skip-CSRF-check` return val => CSRF check will be
+                       ; SKIPPED (can pose a *CSRF SECURITY RISK* for website use cases, so
+                       ; please ONLY do this check if you're very sure you understand the
+                       ; security implications!).
 
     :authorized?-fn    ; ?(fn [ring-req]) -> When non-nil, (authorized?-fn <ring-req>)
                        ; must return truthy, otherwise connection requests will be
@@ -637,19 +638,21 @@
 
         bad-csrf?
         (fn [ring-req]
-          (if (nil? csrf-token-fn) ; Provides a way to disable CSRF check
-            false
+          (if (nil? csrf-token-fn)
+            false ; Pass (skip check)
             (if-let [reference-csrf-token (csrf-token-fn ring-req)]
-              (let [csrf-token-from-client
-                    (or
-                      (get-in ring-req [:params    :csrf-token])
-                      (get-in ring-req [:headers "x-csrf-token"])
-                      (get-in ring-req [:headers "x-xsrf-token"]))]
+              (if (= reference-csrf-token :sente/skip-CSRF-check)
+                false ; Pass (skip check)
+                (let [csrf-token-from-client
+                      (or
+                        (get-in ring-req [:params    :csrf-token])
+                        (get-in ring-req [:headers "x-csrf-token"])
+                        (get-in ring-req [:headers "x-xsrf-token"]))]
 
-                (not
-                  (enc/const-str=
-                    reference-csrf-token
-                    csrf-token-from-client)))
+                  (not
+                    (enc/const-str=
+                      reference-csrf-token
+                      csrf-token-from-client))))
 
               true ; By default fail if no CSRF token
               )))
