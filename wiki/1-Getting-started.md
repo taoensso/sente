@@ -78,6 +78,8 @@ Add a CSRF token somewhere in your HTML:
   [:div#sente-csrf-token {:data-csrf-token csrf-token}])
 ```
 
+If you're using reitit, be aware that `wrap-session` will not work as expected by default. [See here for workaround](https://github.com/metosin/reitit/issues/205)
+
 ## Client-side setup
 
 You'll setup something similar on the client side:
