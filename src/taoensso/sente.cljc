@@ -30,7 +30,7 @@
 
     * Client-side events:
         [:chsk/ws-ping] ; ws-ping from server
-        [:chsk/handshake [<?uid> nil[4] <?handshake-data> <first-handshake?>]]
+        [:chsk/handshake [<?uid> nil <?handshake-data> <first-handshake?>]]
         [:chsk/state     [<old-state-map> <new-state-map> <open-change?>]]
         [:chsk/recv      <ev-as-pushed-from-server>] ; Server>user push
 
@@ -75,10 +75,7 @@
     * Single HTTP req+session persists over entire chsk session but cannot
       modify sessions! Use standard a/sync HTTP Ring req/resp for logins, etc.
     * Easy to wrap standard HTTP Ring resps for transport over chsks. Prefer
-      this approach to modifying handlers (better portability).
-
-  [4] Used to be a csrf-token. Was removed in v1.14 for security reasons.
-  A `nil` remains for limited backwards-compatibility with pre-v1.14 clients."
+      this approach to modifying handlers (better portability)."
 
   {:author "Peter Taoussanis (@ptaoussanis)"}
   (:require
@@ -1158,12 +1155,7 @@
 
            handshake-ev
            [:chsk/handshake
-            [?uid nil ?handshake-data first-handshake?]
-
-            #_ ; TODO In a future breaking release?
-            {:uid              ?uid
-             :handshake-data   ?handshake-data
-             :first-handshake? first-handshake?}]]
+            [?uid nil ?handshake-data first-handshake?]]]
 
        (timbre/infof "Client received %s %s handshake from server: %s"
          (if first-handshake? "first" "new")
