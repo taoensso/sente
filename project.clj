@@ -69,12 +69,7 @@
     :plugins
     [[lein-pprint    "1.3.2"]
      [lein-ancient   "0.7.0"]
-     [lein-cljsbuild "1.1.8"]
-     [com.taoensso.forks/lein-codox "0.10.11"]]
-
-    :codox
-    {:language #{:clojure :clojurescript}
-     :base-language :clojure}}}
+     [lein-cljsbuild "1.1.8"]]}}
 
   :cljsbuild
   {:test-commands {"node" ["node" "target/test.js"]}
