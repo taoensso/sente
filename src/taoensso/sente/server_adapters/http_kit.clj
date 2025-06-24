@@ -29,7 +29,3 @@
          :on-open    (when on-open  (fn [sch          ] (on-open  sch ws?)))}))))
 
 (defn get-sch-adapter [] (HttpKitServerChanAdapter.))
-
-(enc/deprecated
-  (def ^:deprecated ^:no-doc http-kit-adapter (get-sch-adapter))
-  (def ^:deprecated ^:no-doc sente-web-server-adapter http-kit-adapter))

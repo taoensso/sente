@@ -10,8 +10,3 @@
   "Dogfort doesn't need anything special, can just use the `generic-node-ws`
   adapter."
   [] (generic-node/get-sch-adapter))
-
-(enc/deprecated
-  ;; These are stateful, could be problematic?
-  (def ^:deprecated ^:no-doc dogfort-adapter (get-sch-adapter))
-  (def ^:deprecated ^:no-doc sente-web-server-adapter dogfort-adapter))

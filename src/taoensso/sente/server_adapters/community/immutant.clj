@@ -33,8 +33,3 @@
   "Returns a Sente `ServerChan` adapter for `Immutant` v2+,
   Ref. <https://github.com/immutant/immutant>."
   [] (ImmutantServerChanAdapter.))
-
-(enc/deprecated
-  (defn ^:deprecated ^:no-doc make-immutant-adapter [_opts] (get-sch-adapter))
-  (def  ^:deprecated ^:no-doc immutant-adapter              (get-sch-adapter))
-  (def  ^:deprecated ^:no-doc sente-web-server-adapter immutant-adapter))

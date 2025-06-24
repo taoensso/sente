@@ -50,7 +50,3 @@
     "Returns a Sente `ServerChan` adapter for `Nginx-Clojure` v0.4.2+.
   Ref. <https://github.com/nginx-clojure/nginx-clojure>."
   [] (NginxServerChanAdapter.))
-
-(enc/deprecated
-  (def ^:deprecated ^:no-doc nginx-clojure-adapter (get-sch-adapter))
-  (def ^:deprecated ^:no-doc sente-web-server-adapter nginx-clojure-adapter))
