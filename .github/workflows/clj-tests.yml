@@ -1,36 +1,26 @@
-name: Graal tests
+name: Clj tests
 on: [push, pull_request]
 
 jobs:
   tests:
     strategy:
       matrix:
-        java: ['17']
-        os: [ubuntu-latest, macOS-latest, windows-latest]
-
+        java: ['17', '19', '21']
+        os: [ubuntu-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - uses: graalvm/setup-graalvm@v1
+      - uses: actions/setup-java@v4
         with:
-          version: 'latest'
+          distribution: 'corretto'
           java-version: ${{ matrix.java }}
-          components: 'native-image'
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-
       - uses: DeLaGuardo/setup-clojure@12.5
         with:
           lein: latest
-          bb: latest
-
       - uses: actions/cache@v4
+        id: cache-deps
         with:
           path: ~/.m2/repository
           key: deps-${{ hashFiles('project.clj') }}
           restore-keys: deps-
-
-      - name: Run Graal tests
-        run: bb graal-tests
-
-#     - name: Run Babashka tests
-#       run: bb bb-tests
+      - run: lein test-clj
