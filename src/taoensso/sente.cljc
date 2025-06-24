@@ -9,7 +9,7 @@
     [2] Emulate with dummy-cb wrapping
     [3] Emulate with long-polling
 
-  Abbreviations:
+  Terminology:
     * chsk      - Channel socket (Sente's own pseudo \"socket\")
     * server-ch - Underlying web server's async channel that implement
                   Sente's server channel interface
@@ -20,8 +20,7 @@
     * cb        - Callback
     * tout      - Timeout
     * ws        - WebSocket/s
-    * pstr      - Packed string. Arbitrary Clojure data serialized as a
-                  string (e.g. edn) for client<->server comms
+    * packed    - Arbitrary Clojure value serialized for client<->server comms
     * udt       - Unix timestamp (datetime long)
 
   Special messages:
@@ -205,7 +204,8 @@
 ;; * Client<->server payloads are arbitrary Clojure vals (cb replies or events).
 ;; * Payloads are packed for client<->server transit.
 
-(defn- unpack "packed->[clj ?cb-uuid]"
+(defn- unpack
+  "packed->[clj ?cb-uuid]"
   [packer packed]
   (let [[clj ?cb-uuid]
         (try
@@ -218,14 +218,14 @@
 
     [clj ?cb-uuid]))
 
-(defn- pack "[clj ?cb-uuid]->packed"
+(defn- pack
+  "[clj ?cb-uuid]->packed"
   ([packer clj         ] (pack packer clj nil))
   ([packer clj ?cb-uuid]
-   (let [?cb-uuid (if (= ?cb-uuid :ajax-cb) 0 ?cb-uuid)]
-     (interfaces/pack packer
-       (if-some [cb-uuid ?cb-uuid]
-         [clj cb-uuid]
-         [clj        ])))))
+   (interfaces/pack packer
+     (if-some [cb-uuid (if (= ?cb-uuid :ajax-cb) 0 ?cb-uuid)]
+       [clj cb-uuid]
+       [clj        ]))))
 
 (comment
   (unpack default-edn-packer
@@ -519,9 +519,9 @@
                       (have? vector? buffered-evs)
                       (have? set?    ev-uuids)
 
-                      (let [buffered-evs-ppstr (pack packer buffered-evs)]
+                      (let [packed-buffered-evs (pack packer buffered-evs)]
                         (send-buffered-server-evs>clients! conn-type
-                          conns_ uid buffered-evs-ppstr (count buffered-evs))))))]
+                          conns_ uid packed-buffered-evs (count buffered-evs))))))]
 
             (if (= ev [:chsk/close]) ; Currently undocumented
               (do
@@ -645,9 +645,9 @@
              (fn [server-ch websocket?]
                (assert (not websocket?))
                (let [params        (get ring-req :params)
-                     ppstr         (get params   :ppstr)
+                     packed    (or (get params   :packed) (get params :ppstr))
                      client-id     (get params   :client-id)
-                     [clj has-cb?] (unpack packer ppstr)
+                     [clj has-cb?] (unpack packer packed)
                      reply-fn
                      (let [replied?_ (atom false)]
                        (fn [resp-clj] ; Any clj form
@@ -729,13 +729,13 @@
                       lid* error))
 
                   on-msg
-                  (fn [server-ch websocket? req-ppstr]
+                  (fn [server-ch websocket? packed]
                     (assert websocket?)
                     (swap-in! conns_ [:ws uid client-id]
                       (fn [[?sch _udt conn-id]]
                         (when conn-id [?sch (enc/now-udt) conn-id])))
 
-                    (let [[clj ?cb-uuid] (unpack packer req-ppstr)]
+                    (let [[clj ?cb-uuid] (unpack packer packed)]
                       ;; clj should be ev
                       (cond
                         (= clj [:chsk/ws-pong]) (receive-event-msg! clj nil)
@@ -940,7 +940,7 @@
 (defn- send-buffered-server-evs>clients!
   "Actually pushes buffered events (as packed-str) to all uid's conns.
   Allows some time for possible reconnects."
-  [conn-type conns_ uid buffered-evs-pstr n-buffered-evs]
+  [conn-type conns_ uid packed-buffered-evs n-buffered-evs]
   (have? [:el #{:ajax :ws}] conn-type)
   (let [;; Mean max wait time: sum*1.5 = 2790*1.5 = 4.2s
         ms-backoffs [90 180 360 720 720 720] ; => max 1+6 attempts
@@ -957,7 +957,7 @@
                                       (when-let [[?sch _udt conn-id] (get-in @conns_ [conn-type uid client-id])]
                                         (when-let [sch ?sch]
                                           (when-not (simulated-bad-conn?)
-                                            (when (interfaces/sch-send! sch websocket? buffered-evs-pstr)
+                                            (when (interfaces/sch-send! sch websocket? packed-buffered-evs)
                                               conn-id))))]
 
                              (swap-in! conns_ [conn-type uid client-id]
@@ -1361,7 +1361,7 @@
 
         ;; TODO Buffer before sending (but honor `:flush?`)
         (let [?cb-uuid (when ?cb-fn (enc/uuid-str 6))
-              ppstr (pack packer ev ?cb-uuid)]
+              packed (pack packer ev ?cb-uuid)]
 
           (when-let [cb-uuid ?cb-uuid]
             (reset-in! cbs-waiting_ [cb-uuid] (have ?cb-fn))
@@ -1374,8 +1374,8 @@
           (or
             (when-let [[s _sid] @socket_]
               (try
-                #?(:cljs (.send                  s         ppstr)
-                   :clj  (.send ^WebSocketClient s ^String ppstr))
+                #?(:cljs (.send                  s packed)
+                   :clj  (.send ^WebSocketClient s packed))
 
                 (reset! udt-last-comms_ (enc/now-udt))
                 :apparent-success
@@ -1437,15 +1437,10 @@
                                 {:udt (enc/now-udt), :ex ex})))))
 
                     on-message ; Nb receives both push & cb evs!
-                    (fn #?(:cljs [ws-ev] :clj [ppstr])
-                      (let [ppstr #?(:clj            ppstr
-                                     :cljs (enc/oget ws-ev "data"))
-
-                            ;; `clj` may/not satisfy `event?` since
-                            ;; we also receive cb replies here. This
-                            ;; is why we prefix pstrs to indicate
-                            ;; whether they're wrapped or not
-                            [clj ?cb-uuid] (unpack packer ppstr)]
+                    (fn #?(:cljs [ws-ev] :clj [packed])
+                      (let [#?@(:cljs [packed (enc/oget ws-ev "data")])
+                            ;; `clj` may/not satisfy `event?` since we also receive cb replies here
+                            [clj ?cb-uuid] (unpack packer packed)]
 
                         (reset! udt-last-comms_ (enc/now-udt))
 
@@ -1617,14 +1612,14 @@
                  {:method     :post
                   :timeout-ms (or ?timeout-ms (:timeout-ms ajax-opts)
                                   default-client-side-ajax-timeout-ms)
-                  :resp-type  :text ; We'll do our own pstr decoding
+                  :resp-type  :text ; TODO Support binary?
                   :headers
                   (merge
                     (:headers ajax-opts) ; 1st (don't clobber impl.)
                     {:X-CSRF-Token csrf-token-str})
 
                   :params
-                  (let [ppstr (pack packer ev (when ?cb-fn :ajax-cb))]
+                  (let [packed (pack packer ev (when ?cb-fn :ajax-cb))]
                     (merge params ; 1st (don't clobber impl.):
                       {:udt        (enc/now-udt) ; Force uncached resp
 
@@ -1637,7 +1632,7 @@
                        ;; implementation:
                        :client-id  client-id
 
-                       :ppstr      ppstr}))})
+                       :packed     packed}))})
 
                (fn ajax-cb [{:keys [?error ?content]}]
                  (if ?error
@@ -1647,9 +1642,8 @@
                        (swap-chsk-state! chsk #(chsk-state->closed % :unexpected))
                        (when ?cb-fn (?cb-fn :chsk/error))))
 
-                   (let [content ?content
-                         resp-ppstr content
-                         [resp-clj _] (unpack packer resp-ppstr)]
+                   (let [packed ?content
+                         [resp-clj _] (unpack packer packed)]
                      (if ?cb-fn
                        (?cb-fn resp-clj)
                        (when (not= resp-clj :chsk/dummy-cb-200)
@@ -1680,7 +1674,7 @@
                          {:method     :get ; :timeout-ms timeout-ms
                           :timeout-ms (or (:timeout-ms ajax-opts)
                                         default-client-side-ajax-timeout-ms)
-                          :resp-type  :text ; Prefer to do our own pstr reading
+                          :resp-type  :text ; TODO Support binary?
                           :xhr-cb-fn  (fn [xhr] (reset! curr-xhr_ xhr))
                           :params
                           (merge
@@ -1716,9 +1710,8 @@
                                (retry-fn)))
 
                            ;; The Ajax long-poller is used only for events, never cbs:
-                           (let [content ?content
-                                 ppstr content
-                                 [clj] (unpack packer ppstr)
+                           (let [packed ?content
+                                 [clj] (unpack packer packed)
                                  handshake? (handshake? clj)]
 
                              (when handshake?
