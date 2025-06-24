@@ -93,8 +93,3 @@
         (:response ring-req)))))
 
 (defn get-sch-adapter [] (GenericNodeServerChanAdapter.))
-
-(enc/deprecated
-  ;; These are stateful, could be problematic?
-  (def ^:deprecated ^:no-doc generic-node-adapter (get-sch-adapter))
-  (def ^:deprecated ^:no-doc sente-web-server-adapter generic-node-adapter))

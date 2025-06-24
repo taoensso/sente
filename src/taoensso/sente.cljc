@@ -1944,15 +1944,10 @@
 
                ws-kalive-ms       20000
                ws-ping-timeout-ms 5000
-               ws-constructor     default-client-ws-constructor}}
-
-       _deprecated-more-opts]]
+               ws-constructor     default-client-ws-constructor}}]]
 
      (have? [:in #{:ajax :ws :auto}] type)
      (have? enc/nblank-str? client-id)
-
-     (when (not (nil? _deprecated-more-opts)) (timbre/warnf "`make-channel-socket-client!` fn signature CHANGED with Sente v0.10.0."))
-     (when (contains? opts :lp-timeout)       (timbre/warnf ":lp-timeout opt has CHANGED; please use :lp-timout-ms."))
 
      ;; Check once now to trigger possible warning
      (get-client-csrf-token-str true ?csrf-token-or-fn)
@@ -2177,34 +2172,3 @@
   directly instead. See above docstrings for details."
   #?(:clj  start-server-chsk-router!
      :cljs start-client-chsk-router!))
-
-;;;; Deprecated
-
-(enc/deprecated
-  #?(:clj
-     (defn ^:deprecated ^:no-doc start-chsk-router-loop!
-       "DEPRECATED: Please use `start-chsk-router!` instead"
-       [event-msg-handler ch-recv]
-       (start-server-chsk-router! ch-recv
-         ;; Old handler form: (fn [ev-msg ch-recv])
-         (fn [ev-msg] (event-msg-handler ev-msg (:ch-recv ev-msg))))))
-
-  #?(:cljs
-     (defn ^:deprecated ^:no-doc start-chsk-router-loop!
-       "DEPRECATED: Please use `start-chsk-router!` instead"
-       [event-handler ch-recv]
-       (start-client-chsk-router! ch-recv
-         ;; Old handler form: (fn [ev ch-recv])
-         (fn [ev-msg] (event-handler (:event ev-msg) (:ch-recv ev-msg))))))
-
-  (def ^:deprecated ^:no-doc set-logging-level! "DEPRECATED. Please use `timbre/set-level!` instead" timbre/set-level!)
-
-  #?(:cljs (def ^:deprecated ^:no-doc ajax-lite "DEPRECATED: Please use `ajax-call` instead" enc/ajax-call))
-  #?(:cljs
-     (def ^:deprecated ^:no-doc default-chsk-url-fn
-       (fn [path {:as location :keys [protocol host pathname]} websocket?]
-         (let [protocol
-               (if websocket?
-                 (if (= protocol "https:") "wss:" "ws:")
-                 protocol)]
-           (str protocol "//" host (or path pathname)))))))
