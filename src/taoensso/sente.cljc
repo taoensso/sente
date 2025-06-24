@@ -381,20 +381,7 @@
        :or   {recv-buf-or-n      (async/sliding-buffer 1000)
               ws-kalive-ms       (enc/ms :secs 25) ; < Heroku 55s timeout
               lp-timeout-ms      (enc/ms :secs 20) ; < Heroku 30s timeout
-
-              ;; TODO Default initially disabled since it can take some time
-              ;; for clients to update in the wild. We want to ensure that all
-              ;; clients DO respond to pings before enabling the server to close
-              ;; unresponsive connections.
-              ;;
-              ;; So we're rolling this new feature out in 2 steps:
-              ;;   1. Update clients to respond to pings (with pongs)
-              ;;   2. Update servers to regard lack of pong as broken conn
-              ;;
-              ;; The feature can be enabled early by manually providing a
-              ;; `ws-ping-timeout-ms` val in opts.
-              ;;
-              ws-ping-timeout-ms nil #_(enc/ms :secs 5) ; TODO Enable default val
+              ws-ping-timeout-ms (enc/ms :secs 5)
 
               send-buf-ms-ajax 100
               send-buf-ms-ws   30
