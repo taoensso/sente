@@ -38,7 +38,6 @@
         [:chsk/ws-pong] ; ws-pong from client
         [:chsk/uidport-open  <uid>]
         [:chsk/uidport-close <uid>]
-        [:chsk/bad-package   <packed-str>]
         [:chsk/bad-event     <event>]
 
   Channel socket state map:
@@ -197,65 +196,42 @@
       (timbre/warnf "Bad `event-msg` from server: %s" ev-msg) ; Log and drop
       )))
 
-;;; Note that cb replys need _not_ be `event` form!
-(defn cb-error?   [cb-reply-clj] (#{:chsk/closed :chsk/timeout :chsk/error} cb-reply-clj))
-(defn cb-success? [cb-reply-clj] (not (cb-error? cb-reply-clj)))
+;; Note that cb replies need _not_ be `event` form!
+(defn cb-error?   [arb-reply-clj] (case arb-reply-clj (:chsk/closed :chsk/timeout :chsk/error) true  false))
+(defn cb-success? [arb-reply-clj] (case arb-reply-clj (:chsk/closed :chsk/timeout :chsk/error) false true))
 
-;;;; Packing
-;; * Client<->server payloads are arbitrary Clojure vals (cb replies or events).
-;; * Payloads are packed for client<->server transit.
+;;;; Packing (see `i/IPacker2`)
 
-(defn- unpack
-  "packed->[clj ?cb-uuid]"
-  [packer packed]
-  (let [[clj ?cb-uuid]
-        (try
-          (i/unpack packer packed)
-          (catch #?(:clj Throwable :cljs :default) t
-            (timbre/errorf t "Failed to unpack: %s" packed)
-            [[:chsk/bad-package packed] nil]))
+(def ^:no-doc edn-packer
+  "Basic EDN-based packer implementation."
+  (reify i/IPacker2
+    (pack [_ ws? clj cb-fn]
+      (cb-fn
+        (truss/try*
+          (do           {:value (enc/pr-edn clj)})
+          (catch :all t {:error t}))))
 
-        ?cb-uuid (if (= 0 ?cb-uuid) :ajax-cb ?cb-uuid)]
+    (unpack [_ ws? packed cb-fn]
+      (cb-fn
+        (truss/try*
+          (do           {:value (enc/read-edn packed)})
+          (catch :all t {:error t}))))))
 
-    [clj ?cb-uuid]))
+(defn- coerce-packer [x] (if (= x :edn) edn-packer (truss/have [:satisfies? i/IPacker2] x)))
 
-(defn- pack
-  "[clj ?cb-uuid]->packed"
-  ([packer clj         ] (pack packer clj nil))
-  ([packer clj ?cb-uuid]
-   (i/pack packer
-     (if-some [cb-uuid (if (= ?cb-uuid :ajax-cb) 0 ?cb-uuid)]
-       [clj cb-uuid]
-       [clj        ]))))
+(defn- on-packed [packer ws?  clj ?cb-uuid cb-fn]
+  (i/pack         packer ws? [clj ?cb-uuid] ; Note wrapping to add ?cb-uuid
+    (fn [{error :error, packed :value}]
+      (if error
+        (timbre/errorf error "Failed to pack: %s" clj)
+        (cb-fn packed)))))
 
-(comment
-  (unpack default-edn-packer
-    (pack default-edn-packer [:foo])))
-
-(deftype EdnPacker []
-  i/IPacker
-  (pack   [_ x] (enc/pr-edn   x))
-  (unpack [_ s] (enc/read-edn s)))
-
-(def ^:private default-edn-packer (EdnPacker.))
-
-(defn- coerce-packer [x]
-  (if (= x :edn)
-    default-edn-packer
-    (truss/have #(satisfies? i/IPacker %) x)))
-
-(comment
-  (do
-    (require '[taoensso.sente.packers.transit :as transit])
-    (def ^:private default-transit-json-packer (transit/get-transit-packer)))
-
-  (let [pack   i/pack
-        unpack i/unpack
-        data   {:a :A :b :B :c "hello world"}]
-
-    (enc/qb 1e4 ; [111.96 67.26]
-      (let [pk default-edn-packer]          (unpack pk (pack pk data)))
-      (let [pk default-transit-json-packer] (unpack pk (pack pk data))))))
+(defn- on-unpacked [packer ws? packed cb-fn]
+  (i/unpack         packer ws? packed
+    (fn [{error :error, clj :value}]
+      (if error
+        (timbre/errorf error "Failed to unpack: %s" packed)
+        (cb-fn clj)))))
 
 ;;;; Server API
 
@@ -305,6 +281,14 @@
   (allow-origin? #{"http://site.com"} {:headers {"origin"  "http://attacker.com"}})
   (allow-origin? #{"http://site.com"} {:headers {"referer" "http://attacker.com/"}})
   (allow-origin? #{"http://site.com"} {:headers {"referer" "http://site.com.attacker.com/"}}))
+
+#?(:clj
+   (defn- stream->ba [x]
+     (if (instance? java.io.InputStream x)
+       (with-open [in x, out (java.io.ByteArrayOutputStream.)]
+         (clojure.java.io/copy in out)
+         (.toByteArray            out))
+       x)))
 
 (defn make-channel-socket-server!
   "Takes a web server adapter[1] and returns a map with keys:
@@ -504,9 +488,10 @@
                       (truss/have? vector? buffered-evs)
                       (truss/have? set?    ev-uuids)
 
-                      (let [packed-buffered-evs (pack packer buffered-evs)]
-                        (send-buffered-server-evs>clients! conn-type
-                          conns_ uid packed-buffered-evs (count buffered-evs))))))]
+                      (on-packed packer (= conn-type :ws) buffered-evs nil
+                        (fn [packed]
+                          (send-buffered-server-evs>clients! conn-type
+                            conns_ uid packed (count buffered-evs)))))))]
 
             (if (= ev [:chsk/close]) ; Currently undocumented
               (do
@@ -625,42 +610,53 @@
           (i/ring-req->server-ch-resp web-server-ch-adapter ring-req
             {:ring-async-resp-fn  ?ring-async-resp-fn
              :ring-async-raise-fn ?ring-async-raise-fn
-
              :on-open
              (fn [server-ch websocket?]
-               (assert (not websocket?))
-               (let [params        (get ring-req :params)
-                     packed    (or (get params   :packed) (get params :ppstr))
-                     client-id     (get params   :client-id)
-                     [clj has-cb?] (unpack packer packed)
-                     reply-fn
-                     (let [replied?_ (atom false)]
-                       (fn [resp-clj] ; Any clj form
-                         (when (compare-and-set! replied?_ false true)
-                           (timbre/debugf "[ajax/on-open] Server will reply to message from %s: %s"
-                             (lid (user-id-fn ring-req client-id) client-id)
-                             resp-clj)
+               (enc/cond
+                 :do (assert (not websocket?))
 
-                           (i/sch-send! server-ch websocket?
-                             (pack packer resp-clj)))))]
+                 :let
+                 [params    (get ring-req :params)
+                  client-id (get params   :client-id)
+                  binary?   (get params   :binary?)
+                  packed
+                  (if-not binary?
+                    (do        (get params   :ppstr)) ; Expect form-urlencoded
+                    (let [body (get ring-req :body)]  ; Expect `InputStream` bytes
+                      #?(:clj (stream->ba body), :cljs body)))]
 
-                 (put-server-event-msg>ch-recv! ch-recv
-                   (merge ev-msg-const
-                     {;; Note that the client-id is provided here just for the
-                      ;; user's convenience. non-lp-POSTs don't actually need a
-                      ;; client-id for Sente's own implementation:
-                      :client-id client-id #_"unnecessary-for-non-lp-POSTs"
-                      :ring-req  ring-req
-                      :event     clj
-                      :uid       (user-id-fn ring-req client-id)
-                      :?reply-fn (when has-cb? reply-fn)}))
+                 :do
+                 (on-unpacked packer websocket? packed
+                   (fn [[ev-clj has-cb?]]
+                     (let [replied?_ (atom false)
+                           reply-fn
+                           (fn [arb-reply-clj]
+                             (when (compare-and-set! replied?_ false true)
+                               (timbre/debugf "[ajax/on-open] Server will reply to message from %s: %s"
+                                 (lid (user-id-fn ring-req client-id) client-id)
+                                 arb-reply-clj)
 
-                 (if has-cb?
-                   (when-let [ms lp-timeout-ms]
-                     (go
-                       (<! (async/timeout ms))
-                       (reply-fn :chsk/timeout)))
-                   (reply-fn :chsk/dummy-cb-200))))}))))
+                               (when (i/sch-open? server-ch)
+                                 (on-packed packer websocket? arb-reply-clj nil
+                                   (fn [packed] (i/sch-send! server-ch websocket? packed)))
+                                 true)))]
+
+                       (put-server-event-msg>ch-recv! ch-recv
+                         (enc/merge ev-msg-const
+                           {:ring-req  ring-req
+                            :client-id client-id ; For user's convenience (not used by Sente)
+                            :event     ev-clj
+                            :uid       (user-id-fn ring-req client-id)
+                            :?reply-fn (when has-cb? reply-fn)}))
+
+                       (if has-cb?
+                         (when-let [ms lp-timeout-ms]
+                           (go
+                             (<! (async/timeout ms))
+                             (reply-fn :chsk/timeout)))
+                         (reply-fn :chsk/dummy-cb-200)))))
+
+                 :then nil))}))))
 
      ;; Ajax handshake/poll, or WebSocket handshake
      :ajax-get-or-ws-handshake-fn
@@ -695,17 +691,12 @@
                           :?reply-fn ?reply-fn
                           :uid       uid}))))
 
-                  send-handshake!?
+                  send-handshake!
                   (fn [server-ch websocket?]
                     (timbre/infof "Server will send %s handshake to %s" (if websocket? :ws :ajax) lid*)
-                    (let [?handshake-data (handshake-data-fn ring-req)
-                          handshake-ev
-                          (if (nil? ?handshake-data) ; Micro optimization
-                            [:chsk/handshake [uid nil]]
-                            [:chsk/handshake [uid nil ?handshake-data]])]
-                      ;; Returns true iff server-ch open during call
-                      (i/sch-send! server-ch websocket?
-                        (pack packer handshake-ev))))
+                    (on-packed packer websocket?
+                      [:chsk/handshake [uid nil (handshake-data-fn ring-req)]] nil
+                      (fn [packed] (i/sch-send! server-ch websocket? packed))))
 
                   on-error
                   (fn [server-ch websocket? error]
@@ -720,29 +711,29 @@
                       (fn [[?sch _udt conn-id]]
                         (when conn-id [?sch (enc/now-udt) conn-id])))
 
-                    (let [[clj ?cb-uuid] (unpack packer packed)]
-                      ;; clj should be ev
-                      (cond
-                        (= clj [:chsk/ws-pong]) (receive-event-msg! clj nil)
-                        (= clj [:chsk/ws-ping])
-                        (do
-                          ;; Auto reply to ping
-                          (when-let [cb-uuid ?cb-uuid]
-                            (timbre/debugf "[ws/on-msg] Server will auto-reply to ping from %s" lid*)
-                            (i/sch-send! server-ch websocket?
-                              (pack packer "pong" cb-uuid)))
+                    (on-unpacked packer websocket? packed
+                      (fn   [[ev-clj ?cb-uuid]]
+                        (case ev-clj
+                          [:chsk/ws-pong] (receive-event-msg! ev-clj nil)
+                          [:chsk/ws-ping]
+                          (do
+                            ;; Auto reply to ping
+                            (when-let [cb-uuid ?cb-uuid]
+                              (timbre/debugf "[ws/on-msg] Server will auto-reply to ping from %s" lid*)
+                              (on-packed packer websocket? "pong" cb-uuid
+                                (fn [packed] (i/sch-send! server-ch websocket? packed))))
 
-                          (receive-event-msg! clj nil))
+                            (receive-event-msg! ev-clj nil))
 
-                        :else
-                        (receive-event-msg! clj
-                          (when ?cb-uuid
-                            (fn reply-fn [resp-clj] ; Any clj form
-                              (timbre/debugf "[ws/on-msg] Server will reply to message from %s: %s" lid* resp-clj)
-
-                              ;; true iff apparent success:
-                              (i/sch-send! server-ch websocket?
-                                (pack packer resp-clj ?cb-uuid))))))))
+                          ;; else
+                          (receive-event-msg! ev-clj
+                            (when-let [cb-uuid ?cb-uuid]
+                              (fn reply-fn [arb-reply-clj]
+                                (when (i/sch-open? server-ch)
+                                  (timbre/debugf "[ws/on-msg] Server will reply to message from %s: %s" lid* arb-reply-clj)
+                                  (on-packed packer websocket? arb-reply-clj cb-uuid
+                                    (fn [packed] (i/sch-send! server-ch websocket? packed)))
+                                  true))))))))
 
                   on-close
                   (fn [server-ch websocket? _status]
@@ -808,72 +799,71 @@
                       ;; WebSocket handshake
                       (do
                         (timbre/infof "[ws/on-open] New server WebSocket sch for %s" lid*)
-                        (when (send-handshake!? server-ch websocket?)
-                          (let [[_ udt-open]
-                                (swap-in! conns_ [:ws uid client-id]
-                                  (fn [_] [server-ch (enc/now-udt) conn-id]))]
+                        (send-handshake! server-ch websocket?)
+                        (let [[_ udt-open]
+                              (swap-in! conns_ [:ws uid client-id]
+                                (fn [_] [server-ch (enc/now-udt) conn-id]))]
 
-                            ;; Server-side loop to detect broken conns, Ref. #230
-                            (when ws-kalive-ms
-                              (go-loop [udt-t0          udt-open
-                                        ms-timeout      ws-kalive-ms
-                                        expecting-pong? false]
+                          ;; Server-side loop to detect broken conns, Ref. #230
+                          (when ws-kalive-ms
+                            (go-loop [udt-t0          udt-open
+                                      ms-timeout      ws-kalive-ms
+                                      expecting-pong? false]
 
-                                (<! (async/timeout ms-timeout))
+                              (<! (async/timeout ms-timeout))
 
-                                (let [?conn-entry (get-in @conns_ [:ws uid client-id])
-                                      [?sch udt-t1 conn-id*] ?conn-entry
+                              (let [?conn-entry (get-in @conns_ [:ws uid client-id])
+                                    [?sch udt-t1 conn-id*] ?conn-entry
 
-                                      {:keys [recur? udt ms-timeout expecting-pong? force-close?]}
-                                      (enc/cond
-                                        (nil? ?conn-entry)                            {:recur? false}
-                                        (not= conn-id conn-id*)                       {:recur? false}
-                                        (when-let [sch ?sch] (not (i/sch-open? sch))) {:recur? false, :force-close? true}
+                                    {:keys [recur? udt ms-timeout expecting-pong? force-close?]}
+                                    (enc/cond
+                                      (nil? ?conn-entry)                            {:recur? false}
+                                      (not= conn-id conn-id*)                       {:recur? false}
+                                      (when-let [sch ?sch] (not (i/sch-open? sch))) {:recur? false, :force-close? true}
 
-                                        (not= udt-t0 udt-t1) ; Activity in last kalive window
-                                        {:recur? true, :udt udt-t1, :ms-timeout ws-kalive-ms, :expecting-pong? false}
+                                      (not= udt-t0 udt-t1) ; Activity in last kalive window
+                                      {:recur? true, :udt udt-t1, :ms-timeout ws-kalive-ms, :expecting-pong? false}
 
-                                        :do (timbre/debugf "[ws/on-open] kalive loop inactivity for %s" lid*)
+                                      :do (timbre/debugf "[ws/on-open] kalive loop inactivity for %s" lid*)
 
-                                        expecting-pong?
-                                        (do
-                                          ;; Was expecting pong (=> activity) in last kalive window
-                                          (i/sch-close! server-ch)
-                                          {:recur? false})
+                                      expecting-pong?
+                                      (do
+                                        ;; Was expecting pong (=> activity) in last kalive window
+                                        (i/sch-close! server-ch)
+                                        {:recur? false})
 
-                                        :else
-                                        (if-let [;; If a conn has gone bad but is still marked as open,
-                                                 ;; attempting to send a ping will usually trigger the
-                                                 ;; conn's :on-close immediately, i.e. no need to wait
-                                                 ;; for a missed pong.
-                                                 ping-apparently-sent?
-                                                 (i/sch-send! server-ch websocket?
-                                                   (pack packer :chsk/ws-ping))]
+                                      (i/sch-open? server-ch)
+                                      (do
+                                        ;; If conn has gone bad, attempting to send a ping will usu.
+                                        ;; immediately trigger the conn's `:on-close`, i.e. shouldn't
+                                        ;; usually need to wait for a missed pong
+                                        (on-packed packer websocket? :chsk/ws-ping nil
+                                          (fn [packed] (i/sch-send! server-ch websocket? packed)))
 
-                                          (if ws-ping-timeout-ms
-                                            {:recur? true, :udt udt-t1, :ms-timeout ws-ping-timeout-ms, :expecting-pong? true}
-                                            {:recur? true, :udt udt-t1, :ms-timeout ws-kalive-ms,       :expecting-pong? false})
+                                        (if ws-ping-timeout-ms
+                                          {:recur? true, :udt udt-t1, :ms-timeout ws-ping-timeout-ms, :expecting-pong? true}
+                                          {:recur? true, :udt udt-t1, :ms-timeout ws-kalive-ms,       :expecting-pong? false}))
 
-                                          {:recur? false, :force-close? true}))]
+                                      :else {:recur? false, :force-close? true})]
 
-                                  (if recur?
-                                    (recur udt ms-timeout expecting-pong?)
-                                    (do
-                                      (timbre/debugf "[ws/on-open] Ending kalive loop for %s" lid*)
-                                      (when force-close?
-                                        ;; It's rare but possible for a conn's :on-close to fire
-                                        ;; *before* a handshake, leaving a closed sch in conns_
-                                        (timbre/debugf "[ws/on-open] Force close connection for %s" lid*)
-                                        (on-close server-ch websocket? nil)))))))
+                                (if recur?
+                                  (recur udt ms-timeout expecting-pong?)
+                                  (do
+                                    (timbre/debugf "[ws/on-open] Ending kalive loop for %s" lid*)
+                                    (when force-close?
+                                      ;; It's rare but possible for a conn's :on-close to fire
+                                      ;; *before* a handshake, leaving a closed sch in conns_
+                                      (timbre/debugf "[ws/on-open] Force close connection for %s" lid*)
+                                      (on-close server-ch websocket? nil)))))))
 
-                            (when (connect-uid!? :ws uid)
-                              (timbre/infof "[ws/on-open] uid port open for %s" lid*)
-                              (receive-event-msg! [:chsk/uidport-open uid])))))
+                          (when (connect-uid!? :ws uid)
+                            (timbre/infof "[ws/on-open] uid port open for %s" lid*)
+                            (receive-event-msg! [:chsk/uidport-open uid]))))
 
                       ;; Ajax handshake/poll
                       (let [send-handshake?
                             (or
-                              (:handshake? params)
+                              (get params :handshake?)
                               (nil? (get-in @conns_ [:ajax uid client-id])))]
 
                         (timbre/logf (if send-handshake? :info :trace)
@@ -883,7 +873,7 @@
                         (if send-handshake?
                           (do
                             (swap-in! conns_ [:ajax uid client-id] (fn [_] [nil (enc/now-udt) conn-id]))
-                            (send-handshake!? server-ch websocket?)
+                            (send-handshake! server-ch websocket?)
                             ;; `server-ch` will close, and client will immediately repoll
                             )
 
@@ -897,8 +887,8 @@
                                 (when-let [[_?sch _udt conn-id*] (get-in @conns_ [:ajax uid client-id])]
                                   (when (= conn-id conn-id*)
                                     (timbre/debugf "[ajax/on-open] Polling timeout for %s" lid*)
-                                    (i/sch-send! server-ch websocket?
-                                      (pack packer :chsk/timeout))))))
+                                    (on-packed packer websocket? :chsk/timeout nil
+                                      (fn [packed] (i/sch-send! server-ch websocket? packed)))))))
 
                             (when (connect-uid!? :ajax uid)
                               (timbre/infof "[ajax/on-open] uid port open for %s" lid*)
@@ -1328,15 +1318,18 @@
       nil))
 
   (-chsk-send! [chsk ev opts]
-    (let [{?timeout-ms :timeout-ms ?cb :cb :keys [flush?]} opts
-          _ (assert-send-args ev ?timeout-ms ?cb)
-          ?cb-fn (cb-chan-as-fn ?cb ev)]
-      (if-not (:open? @state_) ; Definitely closed
-        (chsk-send->closed! ?cb-fn)
+    (enc/cond
+      :let
+      [{?timeout-ms :timeout-ms ?cb :cb :keys [flush?]} opts
+       _ (assert-send-args ev ?timeout-ms ?cb)
+       ?cb-fn (cb-chan-as-fn ?cb ev)]
 
-        ;; TODO Buffer before sending (but honor `:flush?`)
-        (let [?cb-uuid (when ?cb-fn (enc/uuid-str 6))
-              packed (pack packer ev ?cb-uuid)]
+      (not (get @state_ :open?)) (chsk-send->closed! ?cb-fn)
+
+      :let [?cb-uuid (when ?cb-fn (enc/uuid-str 6))]
+      :do
+      (on-packed packer true ev ?cb-uuid
+        (fn [packed]
 
           (when-let [cb-uuid ?cb-uuid]
             (reset-in! cbs-waiting_ [cb-uuid] (truss/have ?cb-fn))
@@ -1348,25 +1341,24 @@
 
           (or
             (when-let [[s _sid] @socket_]
-              (try
+              (truss/try*
                 #?(:cljs (.send                  s packed)
                    :clj  (.send ^WebSocketClient s packed))
-
                 (reset! udt-last-comms_ (enc/now-udt))
-                :apparent-success
-                (catch #?(:clj Throwable :cljs :default) t
+                true
+                (catch :all t
                   (timbre/errorf t "Client chsk send error")
-                  nil)))
+                  false)))
 
             (do
               (when-let [cb-uuid ?cb-uuid]
-                (let [cb-fn* (or (pull-unused-cb-fn! cbs-waiting_ cb-uuid)
-                                 (truss/have ?cb-fn))]
+                (let    [cb-fn* (or (pull-unused-cb-fn! cbs-waiting_ cb-uuid)
+                                    (truss/have ?cb-fn))]
                   (cb-fn* :chsk/error)))
 
-              (-chsk-reconnect! chsk :ws-error)
+              (-chsk-reconnect! chsk :ws-error)))))
 
-              false))))))
+      :then true))
 
   (-chsk-connect! [chsk]
     (let [this-conn-id (reset! conn-id_ (enc/uuid-str))
@@ -1411,33 +1403,28 @@
                              #(assoc % :last-ws-error
                                 {:udt (enc/now-udt), :ex ex})))))
 
-                    on-message ; Nb receives both push & cb evs!
+                    on-message
                     (fn #?(:cljs [ws-ev] :clj [packed])
-                      (let [#?@(:cljs [packed (enc/oget ws-ev "data")])
-                            ;; `clj` may/not satisfy `event?` since we also receive cb replies here
-                            [clj ?cb-uuid] (unpack packer packed)]
+                      (reset! udt-last-comms_ (enc/now-udt))
+                      (on-unpacked packer true #?(:clj packed :cljs (enc/oget ws-ev "data"))
+                        (fn [[arb-msg-clj ?cb-uuid]] ; Receives both pushes (ev-clj) & cb replies (arb-reply-clj)
+                          (or
+                            (when (and (own-socket?) (handshake? arb-msg-clj))
+                              (receive-handshake! :ws chsk arb-msg-clj)
+                              (reset! retry-count_ 0)
+                              :done/did-handshake)
 
-                        (reset! udt-last-comms_ (enc/now-udt))
+                            (when (= arb-msg-clj :chsk/ws-ping)
+                              (-chsk-send! chsk           [:chsk/ws-pong] {:flush? true})
+                              #_(put! (get chs :internal) [:chsk/ws-ping]) ; Would be better, but breaking
+                              (put!   (get chs :<server)  [:chsk/ws-ping]) ; Odd choice for back compatibility
+                              :done/sent-pong)
 
-                        (or
-                          (when (and (own-socket?) (handshake? clj))
-                            (receive-handshake! :ws chsk clj)
-                            (reset! retry-count_ 0)
-                            :done/did-handshake)
-
-                          (when (= clj :chsk/ws-ping)
-                            (-chsk-send! chsk       [:chsk/ws-pong] {:flush? true})
-                            #_(put! (:internal chs) [:chsk/ws-ping]) ; Would be better, but breaking
-                            (put!   (:<server  chs) [:chsk/ws-ping]) ; Odd choice for back compatibility
-                            :done/sent-pong)
-
-                          (if-let [cb-uuid ?cb-uuid]
-                            (if-let [cb-fn (pull-unused-cb-fn! cbs-waiting_
-                                             cb-uuid)]
-                              (cb-fn clj)
-                              (timbre/warnf "Client :ws cb reply w/o local cb-fn: %s" clj))
-                            (let [buffered-evs clj]
-                              (receive-buffered-evs! chs buffered-evs))))))
+                            (if-let   [cb-uuid ?cb-uuid]
+                              (if-let [cb-fn (pull-unused-cb-fn! cbs-waiting_ cb-uuid)]
+                                (cb-fn arb-msg-clj)
+                                (timbre/warnf "Client :ws cb reply w/o local cb-fn: %s" arb-msg-clj))
+                              (receive-buffered-evs! chs arb-msg-clj))))))
 
                     on-close
                     ;; Fires repeatedly (on each connection attempt) while server down
@@ -1550,6 +1537,12 @@
   (enc/ms :secs 60))
 
 #?(:cljs
+   (defn- binary-val? [x]
+     (or
+       (when (exists? js/ArrayBuffer) (instance? js/ArrayBuffer x))
+       (when (exists? js/Blob)        (instance? js/Blob        x)))))
+
+#?(:cljs
    (defrecord ChAjaxSocket
      ;; Ajax-only IChSocket implementation
      ;; Handles (re)polling, etc.
@@ -1574,58 +1567,61 @@
        (when-let [x @curr-xhr_] (.abort x)) nil)
 
      (-chsk-send! [chsk ev opts]
-       (let [{?timeout-ms :timeout-ms ?cb :cb :keys [flush?]} opts
-             _ (assert-send-args ev ?timeout-ms ?cb)
-             ?cb-fn (cb-chan-as-fn ?cb ev)]
-         (if-not (:open? @state_) ; Definitely closed
-           (chsk-send->closed! ?cb-fn)
+       (enc/cond
+         :let
+         [{?timeout-ms :timeout-ms ?cb :cb :keys [flush?]} opts
+          _ (assert-send-args ev ?timeout-ms ?cb)
+          ?cb-fn (cb-chan-as-fn ?cb ev)]
 
-           ;; TODO Buffer before sending (but honor `:flush?`)
-           (let [csrf-token-str (get-client-csrf-token-str :dynamic (:csrf-token @state_))]
-             (ajax-call url
-               (merge ajax-opts
-                 {:method     :post
-                  :timeout-ms (or ?timeout-ms (:timeout-ms ajax-opts)
-                                  default-client-side-ajax-timeout-ms)
-                  :resp-type  :text ; TODO Support binary?
-                  :headers
-                  (merge
-                    (:headers ajax-opts) ; 1st (don't clobber impl.)
-                    {:X-CSRF-Token csrf-token-str})
+         (not (get @state_ :open?)) (chsk-send->closed! ?cb-fn)
 
-                  :params
-                  (let [packed (pack packer ev (when ?cb-fn :ajax-cb))]
-                    (merge params ; 1st (don't clobber impl.):
-                      {:udt        (enc/now-udt) ; Force uncached resp
+         :let
+         [?cb-uuid   (when ?cb-fn :ajax)
+          csrf-token (get-client-csrf-token-str :dynamic (get @state_ :csrf-token))]
 
-                       ;; A duplicate of X-CSRF-Token for user's convenience
-                       ;; and for back compatibility with earlier CSRF docs:
-                       :csrf-token csrf-token-str
+         :do
+         (on-packed packer false ev ?cb-uuid
+           (fn [packed]
+             (let [binary-packer? (binary-val? packed)]
+               (ajax-call url
+                 (enc/merge ajax-opts
+                   {:method     :post
+                    :timeout-ms (or ?timeout-ms (get ajax-opts :timeout-ms) default-client-side-ajax-timeout-ms)
+                    :resp-type  (if   binary-packer? :bin/array-buffer :text)
+                    :body       (when binary-packer? packed)
+                    :params
+                    (conj
+                      {:udt (enc/now-udt), :client-id client-id}
+                      (if binary-packer?
+                        {:binary? true}
+                        {:ppstr   packed}))
 
-                       ;; Just for user's convenience here. non-lp-POSTs
-                       ;; don't actually need a client-id for Sente's own
-                       ;; implementation:
-                       :client-id  client-id
+                    :headers
+                    (enc/assoc-some (get ajax-opts :headers)
+                      {"X-CSRF-Token" csrf-token
+                       "Content-Type"
+                       (when binary-packer?
+                         "application/octet-stream")})})
 
-                       :packed     packed}))})
-
-               (fn ajax-cb [{:keys [?error ?content]}]
-                 (if ?error
-                   (if (= ?error :timeout)
-                     (when ?cb-fn (?cb-fn :chsk/timeout))
+                 (fn ajax-cb [{:keys [?error ?content]}]
+                   (enc/cond
+                     (= ?error :timeout) (when ?cb-fn (?cb-fn :chsk/timeout))
+                     ?error
                      (do
                        (swap-chsk-state! chsk #(chsk-state->closed % :unexpected))
-                       (when ?cb-fn (?cb-fn :chsk/error))))
+                       (when ?cb-fn (?cb-fn :chsk/error)))
 
-                   (let [packed ?content
-                         [resp-clj _] (unpack packer packed)]
-                     (if ?cb-fn
-                       (?cb-fn resp-clj)
-                       (when (not= resp-clj :chsk/dummy-cb-200)
-                         (timbre/warnf "Client :ajax cb reply w/o local cb-fn: %s" resp-clj)))
-                     (swap-chsk-state! chsk #(assoc % :open? true))))))
+                     :do
+                     (on-unpacked packer false ?content
+                       (fn [[arb-reply-clj _]]
+                         (if-let [cb-fn ?cb-fn]
+                           (cb-fn      arb-reply-clj)
+                           (when (not= arb-reply-clj :chsk/dummy-cb-200)
+                             (timbre/warnf "Client :ajax cb reply w/o local cb-fn: %s" arb-reply-clj)))))
 
-             :apparent-success))))
+                     :do (swap-chsk-state! chsk #(assoc % :open? true))))))))
+
+         :then true))
 
      (-chsk-connect! [chsk]
        (let [this-conn-id (reset! conn-id_ (enc/uuid-str))
@@ -1643,63 +1639,43 @@
                                (fn connect-fn [] (poll-fn retry-count*))
                                (do                        retry-count*)))))]
 
-                   (reset! curr-xhr_
-                     (ajax-call url
-                       (merge ajax-opts
-                         {:method     :get ; :timeout-ms timeout-ms
-                          :timeout-ms (or (:timeout-ms ajax-opts)
-                                        default-client-side-ajax-timeout-ms)
-                          :resp-type  :text ; TODO Support binary?
-                          :xhr-cb-fn  (fn [xhr] (reset! curr-xhr_ xhr))
-                          :params
-                          (merge
-                            ;; Note that user params here are actually POST
-                            ;; params for convenience. Contrast: WebSocket
-                            ;; params sent as query params since there's no
-                            ;; other choice there.
-                            params ; 1st (don't clobber impl.):
+                   (on-packed packer false :chsk/dummy-packer-test nil
+                     (fn [packed]
+                       (reset! curr-xhr_
+                         (ajax-call url
+                           (enc/merge ajax-opts
+                             {:method     :get
+                              :xhr-cb-fn  (fn [xhr] (reset! curr-xhr_ xhr))
+                              :timeout-ms (or (get ajax-opts :timeout-ms) default-client-side-ajax-timeout-ms)
+                              :resp-type  (if (binary-val? packed) :bin/array-buffer :text)
+                              :headers
+                              (let [csrf-token (get-client-csrf-token-str :dynamic (get @state_ :csrf-token))]
+                                (assoc (get ajax-opts :headers) "X-CSRF-Token" csrf-token))
 
-                            {:udt       (enc/now-udt) ; Force uncached resp
-                             :client-id client-id}
+                              :params
+                              (enc/assoc-when params
+                                {:udt        (enc/now-udt)
+                                 :client-id  client-id
+                                 :handshake? (when-not (get @state_ :open?) 1)})})
 
-                            ;; A truthy :handshake? param will prompt server to
-                            ;; reply immediately with a handshake response,
-                            ;; letting us confirm that our client<->server comms
-                            ;; are working:
-                            (when-not (:open? @state_) {:handshake? true}))
+                           (fn ajax-cb [{:keys [?error ?content]}]
+                             (enc/cond
+                               (= ?error :timeout) (poll-fn 0)
+                               ?error
+                               (do
+                                 (swap-chsk-state! chsk #(chsk-state->closed % :unexpected))
+                                 (retry-fn))
 
-                          :headers
-                          (merge
-                            (:headers ajax-opts) ; 1st (don't clobber impl.)
-                            {:X-CSRF-Token (get-client-csrf-token-str :dynamic
-                                             (:csrf-token @state_))})})
+                               :do
+                               (on-unpacked packer false ?content
+                                 (fn [[ev-clj _]] ; Ajax long-poller only for events only, never cb replies
+                                   (let [handshake? (handshake? ev-clj)]
+                                     (when handshake? (receive-handshake! :ajax chsk ev-clj))
+                                     (swap-chsk-state! chsk #(assoc % :open? true))
+                                     (poll-fn 0) ; Repoll asap
 
-                       (fn ajax-cb [{:keys [?error ?content]}]
-                         (if ?error
-                           (cond
-                             (= ?error :timeout) (poll-fn 0)
-                             ;; (= ?error :abort) ; Abort => intentional, not an error
-                             :else
-                             (do
-                               (swap-chsk-state! chsk #(chsk-state->closed % :unexpected))
-                               (retry-fn)))
-
-                           ;; The Ajax long-poller is used only for events, never cbs:
-                           (let [packed ?content
-                                 [clj] (unpack packer packed)
-                                 handshake? (handshake? clj)]
-
-                             (when handshake?
-                               (receive-handshake! :ajax chsk clj))
-
-                             (swap-chsk-state! chsk #(assoc % :open? true))
-                             (poll-fn 0) ; Repoll asap
-
-                             (when-not handshake?
-                               (or
-                                 (when (= clj :chsk/timeout) :noop)
-                                 (let [buffered-evs clj] ; An application reply
-                                   (receive-buffered-evs! chs buffered-evs))))))))))))]
+                                     (when-not (or handshake? (= ev-clj :chsk/timeout))
+                                       (receive-buffered-evs! chs ev-clj))))))))))))))]
 
          (poll-fn 0)
          chsk))))
