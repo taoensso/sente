@@ -1,13 +1,12 @@
 (ns taoensso.sente.packers.transit
-  "Optional Transit-format[1] IPacker implementation for use with Sente.
-  [1] https://github.com/cognitect/transit-format."
+  "Optional Transit `IPacker2` implementation for use with Sente,
+  Ref. <https://github.com/cognitect/transit-format>."
   {:author "Peter Taoussanis, @ckarlsen84"}
   (:require
    [taoensso.encore   :as enc]
    [taoensso.truss    :as truss]
    [cognitect.transit :as transit]
-   [taoensso.sente.interfaces :as interfaces
-    :refer [pack unpack]])
+   [taoensso.sente.interfaces :as i])
 
   #?(:clj (:import [java.io ByteArrayInputStream ByteArrayOutputStream])))
 
@@ -22,18 +21,18 @@
      "reader-opts -> reader-opts with cached read handler map"
      (let [cache (enc/fmemoize (fn [m] (transit/read-handler-map m)))]
        (fn [reader-opts]
-         (if-let [m (:handlers reader-opts)]
-           (assoc reader-opts :handlers (cache m))
-           reader-opts)))))
+         (if-let [m (get reader-opts :handlers)]
+           (assoc        reader-opts :handlers (cache m))
+           (do           reader-opts))))))
 
 #?(:clj
    (def ^:private cache-write-handlers
      "writer-opts -> writer-opts with cached write handler map"
      (let [cache (enc/fmemoize (fn [m] (transit/write-handler-map m)))]
        (fn [writer-opts]
-         (if-let [m (:handlers writer-opts)]
-           (assoc writer-opts :handlers (cache m))
-           writer-opts)))))
+         (if-let [m (get writer-opts :handlers)]
+           (assoc        writer-opts :handlers (cache m))
+           (do           writer-opts))))))
 
 #?(:clj
    (def ^:private transit-writer-fn-proxy
@@ -49,7 +48,7 @@
                (.reset baos)
                result)))))))
 
-(def ^:private get-transit-writer-fn
+(def ^:private get-writer-fn
   "Returns thread-safe (fn [x-to-write])"
   #?(:cljs
      (enc/fmemoize
@@ -61,7 +60,7 @@
        (let [thread-local-transit-writer-fn (.get ^ThreadLocal transit-writer-fn-proxy)]
          (thread-local-transit-writer-fn fmt opts)))))
 
-(def ^:private get-transit-reader-fn
+(def ^:private get-reader-fn
   "Returns thread-safe (fn [str-to-read])"
   #?(:cljs
      (enc/fmemoize
@@ -79,13 +78,23 @@
              (transit/read reader)))))))
 
 (deftype TransitPacker [transit-fmt writer-opts reader-opts]
-  taoensso.sente.interfaces/IPacker
-  (pack   [_ x] ((get-transit-writer-fn transit-fmt writer-opts) x))
-  (unpack [_ s] ((get-transit-reader-fn transit-fmt reader-opts) s)))
+  taoensso.sente.interfaces/IPacker2
+  (pack [_ ws? clj cb-fn]
+    (cb-fn
+      (truss/try*
+        (do           {:value ((get-writer-fn transit-fmt writer-opts) clj)})
+        (catch :all t {:error t}))))
 
-(defn get-transit-packer "Returns a new TransitPacker"
-  ([           ] (get-transit-packer :json       {} {}))
-  ([transit-fmt] (get-transit-packer transit-fmt {} {}))
+  (unpack [_ ws? packed cb-fn]
+    (cb-fn
+      (truss/try*
+        (do           {:value ((get-reader-fn transit-fmt reader-opts) packed)})
+        (catch :all t {:error t})))))
+
+(defn get-packer
+  "Returns a new `TransitPacker`."
+  ([           ] (get-packer :json       {} {}))
+  ([transit-fmt] (get-packer transit-fmt {} {}))
   ([transit-fmt writer-opts reader-opts]
    ;; No transit-cljs support for msgpack atm
    (truss/have? [:el #{:json :json-verbose #_:msgpack}] transit-fmt)
@@ -93,7 +102,10 @@
    (TransitPacker. transit-fmt writer-opts reader-opts)))
 
 (comment
-  (def tp (get-transit-packer))
-  (enc/qb 1e4 ; [139.36 71.1]
-    (do   (unpack tp (pack tp [:chsk/ws-ping "foo"])))
-    (enc/read-edn (enc/pr-edn [:chsk/ws-ping "foo"]))))
+  (let [tp (get-packer)]
+    (i/pack tp :ws [:chsk/ws-ping "foo"]
+      (fn [{packed :value}]
+        (i/unpack tp :ws packed
+          (fn [{clj :value}] clj))))))
+
+(enc/deprecated (def ^:deprecated get-transit-packer "Prefer `get-packer`" get-packer))

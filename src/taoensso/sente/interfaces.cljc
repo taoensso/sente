@@ -49,8 +49,28 @@
 
 ;;;; Packers
 
-(defprotocol IPacker
-  "Extension pt. for client<->server comms data un/packers:
-  arbitrary Clojure data <-> serialized payloads."
-  (pack   [_ x])
-  (unpack [_ x]))
+(defprotocol IPacker2
+  "Sente uses \"packers\" to control how values are encoded during
+  client<->server transit.
+
+  Both text and binary encoding is supported, allowing for a wide
+  range of serialization and compression possibilities.
+
+  Packers must implement this protocol and call given `cb-fn` with
+  either `{:value _}` or `{:error _}`:
+
+    `pack`
+           Input: arbitrary Clojure/Script value
+      On success: call (cb-fn {:value ∈ #{<platform-string> <platform-bytes}})
+        On error: call (cb-fn {:value ∈ #{<platform-error>}})
+
+    `unpack`:
+            Input: packed value ∈ #{<platform-string> <platform-bytes>}
+       On success: (cb-fn {:value <arb-clojure-value>})
+         On error: (cb-fn {:error <platform-error>})
+
+  Clj  bytes: generally byte[]
+  Cljs bytes: generally `js/ArrayBuffer`"
+
+  (pack   [_ websocket?    clj-val cb-fn])
+  (unpack [_ websocket? packed-val cb-fn]))
