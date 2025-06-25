@@ -8,19 +8,18 @@
    :url  "https://www.eclipse.org/legal/epl-v10.html"}
 
   :dependencies
-  [[org.clojure/core.async   "1.7.701"]
-   [com.taoensso/encore      "3.133.0"]
-   [org.java-websocket/Java-WebSocket "1.6.0"]
-   [org.clojure/tools.reader "1.5.0"]
-   [com.taoensso/timbre      "6.6.1"]]
+  [[org.clojure/core.async "1.8.741"]
+   [com.taoensso/encore    "3.149.0"]
+   [com.taoensso/timbre    "6.7.1"]
+   [org.java-websocket/Java-WebSocket "1.6.0"]]
 
   :test-paths ["test" #_"src"]
 
   :profiles
   {;; :default [:base :system :user :provided :dev]
-   :provided {:dependencies [[org.clojure/clojurescript "1.11.132"]
-                             [org.clojure/clojure       "1.11.1"]]}
-   :c1.12    {:dependencies [[org.clojure/clojure       "1.12.0"]]}
+   :provided {:dependencies [[org.clojure/clojurescript "1.12.42"]
+                             [org.clojure/clojure       "1.12.1"]]}
+   :c1.12    {:dependencies [[org.clojure/clojure       "1.12.1"]]}
    :c1.11    {:dependencies [[org.clojure/clojure       "1.11.1"]]}
    :c1.10    {:dependencies [[org.clojure/clojure       "1.10.2"]]}
 
@@ -37,13 +36,13 @@
    {:dependencies
     [[org.immutant/web               "2.1.10"]
      [nginx-clojure                  "0.6.0"]
-     [aleph                          "0.8.2"]
+     [aleph                          "0.9.0"]
      [macchiato/core                 "0.2.23"] ; 0.2.24 seems to fail?
      [luminus/ring-undertow-adapter  "1.4.0"]
-     [info.sunng/ring-jetty9-adapter "0.36.1"]
-     [ring/ring-core                            "1.13.0"]
-     [ring/ring-jetty-adapter                   "1.13.0"]
-     [org.ring-clojure/ring-websocket-protocols "1.13.0"]]
+     [info.sunng/ring-jetty9-adapter "0.37.4"]
+     [ring/ring-core                            "1.14.2"]
+     [ring/ring-jetty-adapter                   "1.14.2"]
+     [org.ring-clojure/ring-websocket-protocols "1.14.2"]]
 
     ;; For nginx-clojure on Java 17+,
     ;; Ref. https://github.com/nginx-clojure/nginx-clojure/issues/273
