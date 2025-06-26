@@ -92,7 +92,9 @@
   #?(:clj  (:import [org.java_websocket.client WebSocketClient])))
 
 (enc/assert-min-encore-version [3 133 0])
-(def sente-version "Useful for identifying client/server mismatch" [1 20 0])
+(def sente-version
+  "Useful for identifying client/server mismatch"
+  [1 21 0])
 
 #?(:cljs (def ^:private node-target? (= *target* "nodejs")))
 
