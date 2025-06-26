@@ -1,18 +1,19 @@
 (ns example.server
   "Official Sente reference example: server"
-  {:author "Peter Taoussanis (@ptaoussanis)"}
-
   (:require
    [clojure.string     :as str]
-   [ring.middleware.defaults]
-   [ring.middleware.anti-forgery :as anti-forgery]
    [compojure.core     :as comp :refer [defroutes GET POST]]
    [compojure.route    :as route]
    [hiccup.core        :as hiccup]
-   [clojure.core.async :as async  :refer [<! <!! >! >!! put! chan go go-loop]]
-   [taoensso.encore    :as encore :refer [have have?]]
+   [clojure.core.async :as async]
+   [taoensso.encore    :as encore]
    [taoensso.timbre    :as timbre]
    [taoensso.sente     :as sente]
+
+   [ring.middleware.defaults]
+   [ring.middleware.anti-forgery :as anti-forgery]
+
+   [example.dynamic-packer]
 
    ;;; TODO Choose (uncomment) a supported web server + adapter -------------
    [org.httpkit.server :as http-kit]
@@ -29,14 +30,9 @@
 
    ;; [ring.adapter.jetty9.websocket :as jetty9.websocket]
    ;; [taoensso.sente.server-adapters.jetty9 :refer [get-sch-adapter]]
-   ;;
-   ;; See https://gist.github.com/wavejumper/40c4cbb21d67e4415e20685710b68ea0
+   ;; Ref. <https://gist.github.com/wavejumper/40c4cbb21d67e4415e20685710b68ea0>
    ;; for full example using Jetty 9
-
-   ;; -----------------------------------------------------------------------
-
-   ;; Optional, for Transit encoding:
-   [taoensso.sente.packers.transit :as sente-transit]))
+   ))
 
 ;;;; Logging config
 
@@ -50,14 +46,21 @@
 
 ;;;; Define our Sente channel socket (chsk) server
 
-(let [;; Serialization format, must use same val for client + server:
-      packer :edn ; Default packer, a good choice in most cases
-      ;; (sente-transit/get-transit-packer) ; Needs Transit dep
-      ]
+(def packer
+  "Sente uses \"packers\" to control how values are encoded during
+  client<->server transit.
 
-  (defonce chsk-server
-    (sente/make-channel-socket-server!
-      (get-sch-adapter) {:packer packer})))
+  Default is to use edn, but this reference example uses a dynamic
+  packer that can swap between edn/transit/binary for testing.
+
+  Client and server should use the same packer."
+
+  #_:edn ; Default
+  (example.dynamic-packer/get-packer))
+
+(defonce chsk-server
+  (sente/make-channel-socket-server!
+    (get-sch-adapter) {:packer packer}))
 
 (let [{:keys [ch-recv send-fn connected-uids_ private
               ajax-post-fn ajax-get-or-ws-handshake-fn]}
@@ -81,13 +84,13 @@
 
 (defn landing-pg-handler [ring-req]
   (hiccup/html
-    (let [csrf-token
-          ;; (:anti-forgery-token ring-req) ; Also an option
-          (force anti-forgery/*anti-forgery-token*)]
-      [:div#sente-csrf-token {:data-token csrf-token}])
 
-    ;; Convey server's min-log-level to client
-    [:div#sente-min-log-level {:data-level (name @min-log-level_)}]
+    [:div#init-config
+     {:data-edn
+      (encore/pr-edn
+        {:csrf-token    (or (get ring-req :anti-forgery-token) (force anti-forgery/*anti-forgery-token*))
+         :min-log-level @min-log-level_
+         :packer-mode   @example.dynamic-packer/mode_})}]
 
     [:h3 "Sente reference example"]
     [:p
@@ -125,11 +128,12 @@
     [:section
      [:h4 "Debug and Testing Controls"]
      [:p
-      [:button#btn-toggle-logging       {:type "button"} "Toggle minimum log level"] " "
-      [:button#btn-toggle-bad-conn-rate {:type "button"} "Toggle simulated bad conn rate"]]
+      [:button#btn-toggle-logging {:type "button"} "Toggle log level"] " "
+      [:button#btn-toggle-packer  {:type "button"} "Toggle packer"]]
      [:p
-      [:button#btn-break-with-close {:type "button"} "Simulate broken conn (with on-close)"] " "
-      [:button#btn-break-wo-close   {:type "button"} "Simulate broken conn (w/o on-close)"]]
+      [:button#btn-break-with-close     {:type "button"} "Break conn (with on-close)"] " "
+      [:button#btn-break-wo-close       {:type "button"} "Break conn (w/o on-close)"] " "
+      [:button#btn-toggle-bad-conn-rate {:type "button"} "Toggle simulated bad conn rate"]]
      [:p
       [:button#btn-repeated-logins  {:type "button"} "Test repeated logins"] " "
       [:button#btn-connected-uids   {:type "button"} "Print connected uids"]]]
@@ -189,8 +193,8 @@
 (defonce broadcast-loop?_ (atom true))
 (defonce ^:private auto-loop_
   (delay
-    (go-loop [i 0]
-      (<! (async/timeout 10000)) ; 10 secs
+    (async/go-loop [i 0]
+      (async/<! (async/timeout 10000)) ; 10 secs
 
       (timbre/debugf "Connected uids: %s" @connected-uids_)
       (timbre/tracef "Conns state: %s"    @conns_)
@@ -250,9 +254,9 @@
   (let [loop-enabled? (swap! broadcast-loop?_ not)]
     (?reply-fn loop-enabled?)))
 
-(defmethod -event-msg-handler :example/toggle-min-log-level
+(defmethod -event-msg-handler :example/toggle-log-level
   [{:as ev-msg :keys [?reply-fn]}]
-  (let [new-val
+  (let [new-level
         (case @min-log-level_
           :trace :debug
           :debug :info
@@ -261,12 +265,23 @@
           :error :trace
           :trace)]
 
-    (set-min-log-level! new-val)
-    (?reply-fn          new-val)))
+    (set-min-log-level! new-level)
+    (?reply-fn          new-level)))
+
+(defmethod -event-msg-handler :example/toggle-packer
+  [{:as ev-msg :keys [?reply-fn]}]
+  (let [new-mode
+        (case @example.dynamic-packer/mode_
+          :edn     :transit
+          :transit :bin
+          :bin     :edn)]
+
+    (?reply-fn new-mode)
+    (reset! example.dynamic-packer/mode_ new-mode)))
 
 (defmethod -event-msg-handler :example/toggle-bad-conn-rate
   [{:as ev-msg :keys [?reply-fn]}]
-  (let [new-val
+  (let [new-rate
         (case sente/*simulated-bad-conn-rate*
           nil  0.25
           0.25 0.5
@@ -274,8 +289,8 @@
           0.75 1.0
           1.0  nil)]
 
-    (alter-var-root #'sente/*simulated-bad-conn-rate* (constantly new-val))
-    (?reply-fn new-val)))
+    (alter-var-root #'sente/*simulated-bad-conn-rate* (constantly new-rate))
+    (?reply-fn new-rate)))
 
 (defmethod -event-msg-handler :example/connected-uids
   [{:as ev-msg :keys [?reply-fn]}]
