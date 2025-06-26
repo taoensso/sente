@@ -1,35 +1,33 @@
 (ns example.client
   "Official Sente reference example: client"
-  {:author "Peter Taoussanis (@ptaoussanis)"}
-
   (:require
    [clojure.string  :as str]
-   [cljs.core.async :as async  :refer [<! >! put! chan]]
-   [taoensso.encore :as encore :refer-macros [have have?]]
-   [taoensso.timbre :as timbre :refer-macros []]
-   [taoensso.sente  :as sente  :refer [cb-success?]]
+   [cljs.core.async :as async]
+   [taoensso.encore :as encore]
+   [taoensso.timbre :as timbre]
+   [taoensso.sente  :as sente]
+   [example.dynamic-packer]))
 
-   ;; Optional, for Transit encoding:
-   [taoensso.sente.packers.transit :as sente-transit])
+;;;; Logging
 
-  (:require-macros
-   [cljs.core.async.macros :as asyncm :refer [go go-loop]]))
-
-;;;; Logging config
-
-(defonce   min-log-level_ (atom nil))
-(defn- set-min-log-level! [level]
+(defonce   min-log-level_  (atom nil))
+(defn- set-min-log-level!  [level]
   (sente/set-min-log-level! level) ; Min log level for internal Sente namespaces
   (timbre/set-ns-min-level! level) ; Min log level for this           namespace
   (reset! min-log-level_    level))
 
-(when-let [el (.getElementById js/document "sente-min-log-level")]
-  (let [level (if-let [attr (.getAttribute el "data-level")]
-                (keyword attr)
-                :warn)]
-    (set-min-log-level! level)))
+;;;; Init config
 
-;;;; Util for logging output to on-screen console
+(def init-config
+  "{:keys [csrf-token min-log-level packer-mode]}"
+  (when-let   [el  (.getElementById js/document "init-config")]
+    (when-let [edn (.getAttribute el "data-edn")]
+      (encore/read-edn edn))))
+
+(set-min-log-level!                  (get init-config :min-log-level))
+(reset! example.dynamic-packer/mode_ (get init-config :packer-mode))
+
+;;;; On-screen console
 
 (let [output-el (.getElementById js/document "output")]
   (defn- ->output!! [x]
@@ -44,18 +42,15 @@
 
 (->output! "ClojureScript has successfully loaded")
 (->output! "Sente version: %s" sente/sente-version)
-(->output! "Min log level: %s (use toggle button to change)" @min-log-level_)
+(->output! "Init config: %s" init-config)
 (->output!)
 
 ;;;; Define our Sente channel socket (chsk) client
 
-(def ?csrf-token
-  (when-let [el (.getElementById js/document "sente-csrf-token")]
-    (.getAttribute el "data-token")))
-
-(if ?csrf-token
-  (->output! "CSRF token detected in HTML, great!")
-  (->output! "**IMPORTANT** CSRF token NOT detected in HTML, default Sente config will reject requests!"))
+(def ?csrf-token (get init-config :csrf-token))
+(if  ?csrf-token
+  (->output! "CSRF token in init config, great!")
+  (->output! "**IMPORTANT** no CSRF token in init config, default Sente config will reject requests!"))
 
 (def chsk-type
   "We'll select a random protocol for this example"
@@ -64,17 +59,26 @@
 (->output! "Randomly selected chsk type: %s" chsk-type)
 (->output!)
 
-(let [;; Serializtion format, must use same val for client + server:
-      packer :edn ; Default packer, a good choice in most cases
-      ;; (sente-transit/get-transit-packer) ; Needs Transit dep
+(def packer
+  "Sente uses \"packers\" to control how values are encoded during
+  client<->server transit.
 
-      {:keys [chsk ch-recv send-fn state]}
-      (sente/make-channel-socket-client!
-        "/chsk" ; Must match server Ring routing URL
-        ?csrf-token
-        {:type   chsk-type
-         :packer packer})]
+  Default is to use edn, but this reference example uses a dynamic
+  packer that can swap between edn/transit/binary for testing.
 
+  Client and server should use the same packer."
+
+  #_:edn ; Default
+  (example.dynamic-packer/get-packer))
+
+(def chsk-client
+  (sente/make-channel-socket-client!
+    "/chsk" ; Must match server Ring routing URL
+    ?csrf-token
+    {:type   chsk-type
+     :packer packer}))
+
+(let [{:keys [chsk ch-recv send-fn state]} chsk-client]
   (def chsk       chsk)
   (def ch-chsk    ch-recv) ; ChannelSocket's receive channel
   (def chsk-send! send-fn) ; ChannelSocket's send API fn
@@ -100,7 +104,7 @@
 
 (defmethod -event-msg-handler :chsk/state
   [{:as ev-msg :keys [?data]}]
-  (let [[old-state-map new-state-map] (have vector? ?data)]
+  (let [[old-state-map new-state-map] (encore/have vector? ?data)]
     (cond
       ;; Tip: look for {:keys [opened? closed? first-open?]} in `new-state-map` to
       ;; easily identify these commonly useful state transitions
@@ -155,8 +159,8 @@
     (fn [ev]
       (chsk-send! [:example/toggle-broadcast-loop] 5000
         (fn [cb-reply]
-          (when (cb-success? cb-reply)
-            (let [enabled? cb-reply]
+          (when (sente/cb-success? cb-reply)
+            (let [enabled?         cb-reply]
               (if enabled?
                 (->output! "Server broadcast loop now ENABLED")
                 (->output! "Server broadcast loop now DISABLED")))))))))
@@ -188,29 +192,37 @@
 (when-let [target-el (.getElementById js/document "btn-toggle-logging")]
   (.addEventListener target-el "click"
     (fn [ev]
-      (chsk-send! [:example/toggle-min-log-level] 5000
+      (chsk-send! [:example/toggle-log-level] 5000
         (fn [cb-reply]
-          (if (cb-success? cb-reply)
-            (let [level cb-reply]
-              (set-min-log-level! level)
-              (->output! "New minimum log level (client+server): %s" level))
-            (->output! "Request failed: %s" cb-reply)))))))
+          (when (sente/cb-success? cb-reply)
+            (let [new-level        cb-reply]
+              (set-min-log-level!            new-level)
+              (->output! "New log level: %s" new-level))))))))
+
+(when-let [target-el (.getElementById js/document "btn-toggle-packer")]
+  (.addEventListener target-el "click"
+    (fn [ev]
+      (chsk-send! [:example/toggle-packer] 5000
+        (fn [cb-reply]
+          (when (sente/cb-success? cb-reply)
+            (let [new-mode         cb-reply]
+              (reset! example.dynamic-packer/mode_ new-mode)
+              (->output! "New packer mode: %s"     new-mode))))))))
 
 (when-let [target-el (.getElementById js/document "btn-toggle-bad-conn-rate")]
   (.addEventListener target-el "click"
     (fn [ev]
       (chsk-send! [:example/toggle-bad-conn-rate] 5000
         (fn [cb-reply]
-          (if (cb-success? cb-reply)
-            (->output! "New rate: %s"       cb-reply)
-            (->output! "Request failed: %s" cb-reply)))))))
+          (when (sente/cb-success?    cb-reply)
+            (->output! "New rate: %s" cb-reply)))))))
 
 (when-let [target-el (.getElementById js/document "btn-connected-uids")]
   (.addEventListener target-el "click"
     (fn [ev]
       (chsk-send! [:example/connected-uids] 5000
         (fn [cb-reply]
-          (when (cb-success? cb-reply)
+          (when (sente/cb-success?          cb-reply)
             (->output! "Connected uids: %s" cb-reply)))))))
 
 (when-let [target-el (.getElementById js/document "btn-login")]
@@ -249,7 +261,7 @@
       (->output!)
       (->output! "Will rapidly change user-id from \"1\" to \"10\"...")
       (let [c (async/chan)]
-        (go-loop [uids (range 11)]
+        (async/go-loop [uids (range 11)]
           (when-let [[next-uid] uids]
             (sente/ajax-call "/login"
               {:method :post
@@ -257,9 +269,9 @@
                :params  {:user-id (str next-uid)}}
               (fn [ajax-resp]
                 (when (:success? ajax-resp) (sente/chsk-reconnect! chsk))
-                (put! c :continue)))
-            (<! c)
-            (<! (async/timeout 100))
+                (async/put! c :continue)))
+            (async/<! c)
+            (async/<! (async/timeout 100))
             (recur (next uids))))))))
 
 ;;;; Init stuff
