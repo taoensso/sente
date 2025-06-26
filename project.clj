@@ -1,4 +1,4 @@
-(defproject com.taoensso/sente "1.20.0"
+(defproject com.taoensso/sente "1.21.0-SNAPSHOT"
   :author "Peter Taoussanis <https://www.taoensso.com>"
   :description "Realtime web comms library for Clojure/Script"
   :url "https://github.com/taoensso/sente"
@@ -9,7 +9,7 @@
 
   :dependencies
   [[org.clojure/core.async "1.8.741"]
-   [com.taoensso/encore    "3.148.0"]
+   [com.taoensso/encore    "3.149.0-SNAPSHOT"]
    [com.taoensso/timbre    "6.7.1"]
    [org.java-websocket/Java-WebSocket "1.6.0"]]
 

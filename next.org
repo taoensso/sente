@@ -1,0 +1,22 @@
+SENTE.NEXT
+---------------------------------------------------------------------
+- Remove undocumented `cb-chan-as-fn` stuff
+- Prefer simple JS timeouts to async timeouts
+
+- Update `try`     forms to use truss
+- Update `have`    forms to use truss
+- Update `ex-info` forms to use truss
+- Fewer `refer`s
+
+- Review fake internal events: "pong", :chsk/timeout, :chsk/ws-ping
+- Inconsistent param names: ws-ping-timeout-ms, send-buf-ms-ajax, ws-ping-timeout-ms, more?
+
+- Make the Java WebSocket client optional?
+
+- Update all logging, switch to Trove, drop Timbre (also check adapters, example project)
+- [#462] Log > throw on bad ajax read in 2 adapters
+
+- Possible to exclude specific client from broadcast?
+- Other GitHub issues (several nb)
+
+- General top-down code review + modernization
