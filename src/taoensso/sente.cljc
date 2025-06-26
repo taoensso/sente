@@ -1207,7 +1207,9 @@
 
 #?(:cljs
    (defn- make-client-ws-js
-     [{:as opts :keys [uri-str headers on-error on-message on-close binary-type]}]
+     [{:keys [uri-str headers on-error on-message on-close binary-type]
+       :or   {binary-type "arraybuffer"}}]
+
      (when-let [WebSocket
                 (or
                   (enc/oget goog/global           "WebSocket")
@@ -1217,13 +1219,11 @@
        (delay
          (let [socket (WebSocket. uri-str)]
            (doto socket
-             (aset "onerror"   on-error)
-             (aset "onmessage" on-message) ; Nb receives both push & cb evs!
+             (aset "binaryType" binary-type)
+             (aset "onerror"    on-error)
+             (aset "onmessage"  on-message) ; Nb receives both push & cb evs!
              ;; Fires repeatedly (on each connection attempt) while server is down:
-             (aset "onclose"   on-close))
-
-           (when-let [bt binary-type] ; "arraybuffer" or "blob" (js default)
-             (aset socket "binaryType" bt))
+             (aset "onclose"    on-close))
            socket)))))
 
 (defn- default-client-ws-constructor
