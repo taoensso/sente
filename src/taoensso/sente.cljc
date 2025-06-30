@@ -325,15 +325,13 @@
 
     :user-id-fn         ; (fn [ring-req]) -> unique user-id for server>user push.
     :handshake-data-fn  ; (fn [ring-req]) -> arb user data to append to handshake evs.
-    :ws-kalive-ms       ; Ping to keep a WebSocket conn alive if no activity
-                        ; w/in given msecs. Should be different to client's :ws-kalive-ms.
     :lp-timeout-ms      ; Timeout (repoll) long-polling Ajax conns after given msecs.
     :send-buf-ms-ajax   ; [2]
     :send-buf-ms-ws     ; [2]
     :packer             ; :edn (default), or an IPacker implementation.
 
-    :ws-ping-timeout-ms ; When pinging to test WebSocket connections, msecs to
-                        ; await reply before regarding the connection as broken
+    :ws-kalive-ms       ; Max msecs to allow WebSocket inactivity before server sends ping to client.
+    :ws-ping-timeout-ms ; Max msecs to wait for ws-kalive ping response before concluding conn is broken.
 
     ;; When a connection is closed, Sente waits a little for possible reconnection before
     ;; actually marking the connection as closed. This facilitates Ajax long-polling,
@@ -401,6 +399,7 @@
            :default-client-side-ajax-timeout-ms max-ms}))))
 
   (let [allowed-origins (truss/have [:or set? #{:all}] allowed-origins)
+        ws-kalive-ms    (when ws-kalive-ms (quot ws-kalive-ms 2)) ; Ref. #455
         packer  (coerce-packer packer)
         ch-recv (chan recv-buf-or-n)
 
@@ -1770,10 +1769,8 @@
                        ; relevant docstring for more info.
        :wrap-recv-evs? ; Should events from server be wrapped in [:chsk/recv _]?
 
-       :ws-kalive-ms       ; Ping to keep a WebSocket conn alive if no activity
-                           ; w/in given msecs. Should be different to server's :ws-kalive-ms.
-       :ws-ping-timeout-ms ; When pinging to test WebSocket connections, msecs to
-                           ; await reply before regarding the connection as broken
+       :ws-kalive-ms       ; Max msecs to allow WebSocket inactivity before client sends ping to server.
+       :ws-ping-timeout-ms ; Max msecs to wait for ws-kalive ping response before concluding conn is broken.
 
        :ws-constructor ; Advanced, (fn [{:keys [uri-str headers on-message on-error on-close]}]
                        ; => nil, or delay that can be dereffed to get a connected WebSocket.
@@ -1803,7 +1800,8 @@
      ;; Check once now to trigger possible warning
      (get-client-csrf-token-str true ?csrf-token-or-fn)
 
-     (let [packer (coerce-packer packer)
+     (let [ws-kalive-ms (when ws-kalive-ms (quot ws-kalive-ms 2)) ; Ref. #455
+           packer (coerce-packer packer)
 
            [ws-url ajax-url]
            (let [;; Not available with React Native, etc.
