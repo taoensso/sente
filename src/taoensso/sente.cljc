@@ -85,8 +85,9 @@
    [taoensso.timbre        :as timbre]
    [taoensso.sente.interfaces :as i])
 
-  #?(:cljs (:require-macros [taoensso.sente :as sente-macros :refer [elide-require]]))
-  #?(:clj  (:import [org.java_websocket.client WebSocketClient])))
+  #?(:cljs
+     (:require-macros
+      [taoensso.sente :as sente-macros :refer [elide-require]])))
 
 (enc/assert-min-encore-version [3 149 0])
 (def sente-version
@@ -1159,35 +1160,10 @@
                  ;; (timbre/errorf e "Client unable to load npm websocket lib")
                  nil))))))))
 
-#?(:clj
-   (defn- make-client-ws-java
-     [{:as opts :keys [uri-str headers on-error on-message on-close]}]
-     (when-let [ws-client
-                (try
-                  (let [uri (java.net.URI. uri-str)
-                        #_headers
-                        #_
-                        (ImmutableMap/of
-                          "Origin"                   "http://localhost:3200"
-                          "Referer"                  "http://localhost:3200"
-                          "Sec-WebSocket-Extensions" "permessage-deflate; client_max_window_bits")]
-
-                    (proxy [WebSocketClient] [^java.net.URI uri ^java.util.Map headers]
-                      (onOpen    [^org.java_websocket.handshake.ServerHandshake handshakedata] nil)
-                      (onError   [ex]                 (on-error   ex))
-                      (onMessage [^String message]    (on-message message))
-                      (onClose   [code reason remote] (on-close   code reason remote))))
-
-                  (catch Throwable t
-                    (timbre/errorf t "Error creating Java WebSocket client")
-                    nil))]
-
-       (delay
-         (.connect ws-client)
-         (do       ws-client)))))
-
 #?(:cljs
-   (defn- make-client-ws-js
+   (defn- make-client-ws
+     "Returns nil or a delay that can be dereffed to get a connected JS
+     `ClientWebSocket`."
      [{:keys [uri-str headers on-error on-message on-close binary-type]
        :or   {binary-type "arraybuffer"}}]
 
@@ -1196,7 +1172,6 @@
                   (enc/oget goog/global           "WebSocket")
                   (enc/oget goog/global           "MozWebSocket")
                   (enc/oget @?node-npm-websocket_ "w3cwebsocket"))]
-
        (delay
          (let [socket (WebSocket. uri-str)]
            (doto socket
@@ -1205,14 +1180,12 @@
              (aset "onmessage"  on-message) ; Nb receives both push & cb evs!
              ;; Fires repeatedly (on each connection attempt) while server is down:
              (aset "onclose"    on-close))
-           socket)))))
 
-(defn- default-client-ws-constructor
-  "Returns nil if WebSocket client cannot be created, or a delay
-  that can be derefed to get a connected client."
-  [{:as opts :keys [on-error on-message on-close uri-str headers]}]
-  #?(:cljs (make-client-ws-js   opts)
-     :clj  (make-client-ws-java opts)))
+           (reify
+             i/IClientWebSocket
+             (cws-raw   [_]                            socket)
+             (cws-send  [_ data]               (.send  socket data))
+             (cws-close [_ code reason clean?] (.close socket reason clean?))))))))
 
 (defn- get-client-csrf-token-str
   "Returns non-blank client CSRF token ?string from given token string
@@ -1273,9 +1246,7 @@
   (-chsk-disconnect! [chsk reason]
     (reset! conn-id_ nil) ; Disable auto retry
     (let [closed? (swap-chsk-state! chsk #(chsk-state->closed % reason))]
-      (when-let [[s _sid] @socket_]
-        #?(:clj  (.close ^WebSocketClient s 1000 "CLOSE_NORMAL")
-           :cljs (.close                  s 1000 "CLOSE_NORMAL")))
+      (when-let [[s _sid] @socket_] (i/cws-close s 1000 "CLOSE_NORMAL" true))
       closed?))
 
   (-chsk-reconnect! [chsk reason]
@@ -1292,9 +1263,7 @@
                    ;; (own-socket?) socket ownership test
                    (reset-in! socket_ nil)
                    (do       @socket_))]
-
-        #?(:clj  (.close ^WebSocketClient s ws-code "CLOSE_ABNORMAL")
-           :cljs (.close                  s ws-code "CLOSE_ABNORMAL")))
+        (i/cws-close s ws-code "CLOSE_ABNORMAL" false))
       nil))
 
   (-chsk-send! [chsk ev opts]
@@ -1322,8 +1291,7 @@
           (or
             (when-let [[s _sid] @socket_]
               (truss/try*
-                #?(:cljs (.send                  s packed)
-                   :clj  (.send ^WebSocketClient s packed))
+                (i/cws-send s packed)
                 (reset! udt-last-comms_ (enc/now-udt))
                 true
                 (catch :all t
@@ -1434,23 +1402,24 @@
                           (retry-fn))))
 
                     ?new-socket_
-                    (try
-                      (ws-constructor
-                        (merge ws-opts
-                          {:on-error   on-error
-                           :on-message on-message
-                           :on-close   on-close
-                           :headers    headers
-                           :uri-str
-                           (enc/merge-url-with-query-string url
-                             (merge params ; 1st (don't clobber impl.):
-                               {:client-id  client-id
-                                :csrf-token (get-client-csrf-token-str :dynamic
-                                              (:csrf-token @state_))}))}))
+                    (when ws-constructor
+                      (try
+                        (ws-constructor
+                          (merge ws-opts
+                            {:on-error   on-error
+                             :on-message on-message
+                             :on-close   on-close
+                             :headers    headers
+                             :uri-str
+                             (enc/merge-url-with-query-string url
+                               (merge params ; 1st (don't clobber impl.):
+                                 {:client-id  client-id
+                                  :csrf-token (get-client-csrf-token-str :dynamic
+                                                (:csrf-token @state_))}))}))
 
-                      (catch #?(:clj Throwable :cljs :default) t
-                        (timbre/errorf t "Error creating WebSocket client")
-                        nil))]
+                        (catch #?(:clj Throwable :cljs :default) t
+                          (timbre/errorf t "Error creating WebSocket client")
+                          nil)))]
 
                 (when-let [new-socket_ ?new-socket_]
                   (if-let [new-socket
@@ -1463,8 +1432,7 @@
                       (when-let [[old-s _old-sid] (reset-in! socket_ [new-socket this-socket-id])]
                         ;; Close old socket if one exists
                         (timbre/tracef "Old client WebSocket will be closed")
-                        #?(:clj  (.close ^WebSocketClient old-s 1000 "CLOSE_NORMAL")
-                           :cljs (.close                  old-s 1000 "CLOSE_NORMAL")))
+                        (i/cws-close old-s 1000 "CLOSE_NORMAL" true))
                       new-socket)
                     (retry-fn))))))]
 
@@ -1773,8 +1741,7 @@
        :ws-ping-timeout-ms ; Max msecs to wait for ws-kalive ping response before concluding conn is broken.
 
        :ws-constructor ; Advanced, (fn [{:keys [uri-str headers on-message on-error on-close]}]
-                       ; => nil, or delay that can be dereffed to get a connected WebSocket.
-                       ; See `default-client-ws-constructor` code for details."
+                       ; => nil or delay that can be dereffed to get a connected `ClientWebSocket`."
 
      [path ?csrf-token-or-fn &
       [{:as   opts
@@ -1792,7 +1759,7 @@
 
                ws-kalive-ms       20000
                ws-ping-timeout-ms 5000
-               ws-constructor     default-client-ws-constructor}}]]
+               ws-constructor     #?(:cljs make-client-ws :clj nil)}}]]
 
      (truss/have? [:in #{:ajax :ws :auto}] type)
      (truss/have? enc/nblank-str? client-id)

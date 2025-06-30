@@ -10,8 +10,7 @@
   :dependencies
   [[org.clojure/core.async "1.8.741"]
    [com.taoensso/encore    "3.149.0"]
-   [com.taoensso/timbre    "6.7.1"]
-   [org.java-websocket/Java-WebSocket "1.6.0"]]
+   [com.taoensso/timbre    "6.7.1"]]
 
   :test-paths ["test" #_"src"]
 
@@ -42,7 +41,8 @@
      [info.sunng/ring-jetty9-adapter "0.37.4"]
      [ring/ring-core                            "1.14.2"]
      [ring/ring-jetty-adapter                   "1.14.2"]
-     [org.ring-clojure/ring-websocket-protocols "1.14.2"]]
+     [org.ring-clojure/ring-websocket-protocols "1.14.2"]
+     [org.java-websocket/Java-WebSocket         "1.6.0"]]
 
     ;; For nginx-clojure on Java 17+,
     ;; Ref. https://github.com/nginx-clojure/nginx-clojure/issues/273

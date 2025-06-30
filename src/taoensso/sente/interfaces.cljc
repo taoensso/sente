@@ -47,6 +47,15 @@
     "If the channel is open when called: sends a message over channel and
     returns true. Otherwise noops and returns falsey."))
 
+;;;; Clients
+
+(defprotocol IClientWebSocket
+  "Experimental/private, don't use this yet.
+  Protocol for client WebSockets."
+  (cws-raw   [_]          "Returns the underlying WebSocket object")
+  (cws-send  [_ data]      "Sends given data over client WebSocket")
+  (cws-close [_ code reason clean?] "Closes given client WebSocket"))
+
 ;;;; Packers
 
 (defprotocol IPacker2
