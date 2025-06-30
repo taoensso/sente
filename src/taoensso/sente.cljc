@@ -77,11 +77,12 @@
 
   {:author "Peter Taoussanis (@ptaoussanis)"}
   (:require
-   [clojure.string     :as str]
-   [clojure.core.async :as async :refer [<! >! put! chan go go-loop]]
-   [taoensso.encore    :as enc   :refer [swap-in! reset-in! swapped]]
-   [taoensso.truss     :as truss]
-   [taoensso.timbre    :as timbre]
+   [clojure.string         :as str]
+   [clojure.core.async     :as async :refer [<! >! put! chan go go-loop]]
+   [taoensso.encore        :as enc   :refer [swap-in! reset-in! swapped]]
+   [taoensso.encore.timers :as timers]
+   [taoensso.truss         :as truss]
+   [taoensso.timbre        :as timbre]
    [taoensso.sente.interfaces :as i])
 
   #?(:cljs (:require-macros [taoensso.sente :as sente-macros :refer [elide-require]]))
@@ -527,14 +528,9 @@
                   (do
                     (flush-buffer! :ws)
                     (flush-buffer! :ajax))
-                  (let [ws-timeout   (async/timeout send-buf-ms-ws)
-                        ajax-timeout (async/timeout send-buf-ms-ajax)]
-                    (go
-                      (<! ws-timeout)
-                      (flush-buffer! :ws))
-                    (go
-                      (<! ajax-timeout)
-                      (flush-buffer! :ajax)))))))
+                  (do
+                    (timers/call-after send-buf-ms-ws   (fn [] (flush-buffer! :ws)))
+                    (timers/call-after send-buf-ms-ajax (fn [] (flush-buffer! :ajax))))))))
 
           ;; Server-side send is async so nothing useful to return (currently
           ;; undefined):
@@ -651,10 +647,8 @@
 
                        (if has-cb?
                          (when-let [ms lp-timeout-ms]
-                           (go
-                             (<! (async/timeout ms))
-                             (reply-fn :chsk/timeout)))
-                         (reply-fn :chsk/dummy-cb-200)))))
+                           (timers/call-after ms (fn [] (reply-fn :chsk/timeout))))
+                         (do                            (reply-fn :chsk/dummy-cb-200))))))
 
                  :then nil))}))))
 
@@ -758,39 +752,39 @@
                         ;; Allow some time for possible reconnects (repoll,
                         ;; sole window refresh, etc.) before regarding close
                         ;; as non-transient "disconnect"
-                        (go
-                          (let [ms-timeout
-                                (if websocket?
-                                  ms-allow-reconnect-before-close-ws
-                                  ms-allow-reconnect-before-close-ajax)]
-                            (<! (async/timeout ms-timeout)))
+                        (let [ms-timeout
+                              (if websocket?
+                                ms-allow-reconnect-before-close-ws
+                                ms-allow-reconnect-before-close-ajax)]
 
-                          (let [[active-conn-disconnected? ?conn-entry]
-                                (swap-in! conns_ [conn-type uid client-id]
-                                  (fn [[_?sch _udt conn-id* :as ?conn-entry]]
-                                    (if (= conn-id conn-id*)
-                                      (swapped :swap/dissoc [true  ?conn-entry])
-                                      (swapped :swap/abort  [false ?conn-entry]))))]
+                          (timers/call-after ms-timeout
+                            (fn []
+                              (let [[active-conn-disconnected? ?conn-entry]
+                                    (swap-in! conns_ [conn-type uid client-id]
+                                      (fn [[_?sch _udt conn-id* :as ?conn-entry]]
+                                        (if (= conn-id conn-id*)
+                                          (swapped :swap/dissoc [true  ?conn-entry])
+                                          (swapped :swap/abort  [false ?conn-entry]))))]
 
-                            (let [level (if active-conn-disconnected? :info (if websocket? :debug :trace))]
-                              (timbre/logf level "%s Server sch on-close timeout for %s: %s"
-                                log-prefix lid*
-                                (if active-conn-disconnected?
-                                  {:disconnected? true}
-                                  {:disconnected? false, :?conn-entry ?conn-entry})))
+                                (let [level (if active-conn-disconnected? :info (if websocket? :debug :trace))]
+                                  (timbre/logf level "%s Server sch on-close timeout for %s: %s"
+                                    log-prefix lid*
+                                    (if active-conn-disconnected?
+                                      {:disconnected? true}
+                                      {:disconnected? false, :?conn-entry ?conn-entry})))
 
-                            (when active-conn-disconnected?
+                                (when active-conn-disconnected?
 
-                              ;; Potentially remove uid's entire entry
-                              (swap-in! conns_ [conn-type uid]
-                                (fn [m-clients]
-                                  (if (empty? m-clients)
-                                    :swap/dissoc
-                                    :swap/abort)))
+                                  ;; Potentially remove uid's entire entry
+                                  (swap-in! conns_ [conn-type uid]
+                                    (fn [m-clients]
+                                      (if (empty? m-clients)
+                                        :swap/dissoc
+                                        :swap/abort)))
 
-                              (when (maybe-disconnect-uid!? uid)
-                                (timbre/infof "%s uid port close for %s" log-prefix lid*)
-                                (receive-event-msg! [:chsk/uidport-close uid]))))))))
+                                  (when (maybe-disconnect-uid!? uid)
+                                    (timbre/infof "%s uid port close for %s" log-prefix lid*)
+                                    (receive-event-msg! [:chsk/uidport-close uid]))))))))))
 
                   on-open
                   (fn [server-ch websocket?]
@@ -806,55 +800,55 @@
 
                           ;; Server-side loop to detect broken conns, Ref. #230
                           (when ws-kalive-ms
-                            (go-loop [udt-t0          udt-open
-                                      ms-timeout      ws-kalive-ms
-                                      expecting-pong? false]
+                            (let [loop-fn
+                                  (fn loop-fn  [udt-t0 ms-timeout expecting-pong?]
+                                    (timers/call-after ms-timeout
+                                      (fn []
+                                        (let [?conn-entry (get-in @conns_ [:ws uid client-id])
+                                              [?sch udt-t1 conn-id*] ?conn-entry
 
-                              (<! (async/timeout ms-timeout))
+                                              {:keys [recur? udt ms-timeout expecting-pong? force-close?]}
+                                              (enc/cond
+                                                (nil? ?conn-entry)                            {:recur? false}
+                                                (not= conn-id conn-id*)                       {:recur? false}
+                                                (when-let [sch ?sch] (not (i/sch-open? sch))) {:recur? false, :force-close? true}
 
-                              (let [?conn-entry (get-in @conns_ [:ws uid client-id])
-                                    [?sch udt-t1 conn-id*] ?conn-entry
+                                                (not= udt-t0 udt-t1) ; Activity in last kalive window
+                                                {:recur? true, :udt udt-t1, :ms-timeout ws-kalive-ms, :expecting-pong? false}
 
-                                    {:keys [recur? udt ms-timeout expecting-pong? force-close?]}
-                                    (enc/cond
-                                      (nil? ?conn-entry)                            {:recur? false}
-                                      (not= conn-id conn-id*)                       {:recur? false}
-                                      (when-let [sch ?sch] (not (i/sch-open? sch))) {:recur? false, :force-close? true}
+                                                :do (timbre/debugf "[ws/on-open] kalive loop inactivity for %s" lid*)
 
-                                      (not= udt-t0 udt-t1) ; Activity in last kalive window
-                                      {:recur? true, :udt udt-t1, :ms-timeout ws-kalive-ms, :expecting-pong? false}
+                                                expecting-pong?
+                                                (do
+                                                  ;; Was expecting pong (=> activity) in last kalive window
+                                                  (i/sch-close! server-ch)
+                                                  {:recur? false})
 
-                                      :do (timbre/debugf "[ws/on-open] kalive loop inactivity for %s" lid*)
+                                                (i/sch-open? server-ch)
+                                                (do
+                                                  ;; If conn has gone bad, attempting to send a ping will usu.
+                                                  ;; immediately trigger the conn's `:on-close`, i.e. shouldn't
+                                                  ;; usually need to wait for a missed pong
+                                                  (on-packed packer websocket? :chsk/ws-ping nil
+                                                    (fn [packed] (i/sch-send! server-ch websocket? packed)))
 
-                                      expecting-pong?
-                                      (do
-                                        ;; Was expecting pong (=> activity) in last kalive window
-                                        (i/sch-close! server-ch)
-                                        {:recur? false})
+                                                  (if ws-ping-timeout-ms
+                                                    {:recur? true, :udt udt-t1, :ms-timeout ws-ping-timeout-ms, :expecting-pong? true}
+                                                    {:recur? true, :udt udt-t1, :ms-timeout ws-kalive-ms,       :expecting-pong? false}))
 
-                                      (i/sch-open? server-ch)
-                                      (do
-                                        ;; If conn has gone bad, attempting to send a ping will usu.
-                                        ;; immediately trigger the conn's `:on-close`, i.e. shouldn't
-                                        ;; usually need to wait for a missed pong
-                                        (on-packed packer websocket? :chsk/ws-ping nil
-                                          (fn [packed] (i/sch-send! server-ch websocket? packed)))
+                                                :else {:recur? false, :force-close? true})]
 
-                                        (if ws-ping-timeout-ms
-                                          {:recur? true, :udt udt-t1, :ms-timeout ws-ping-timeout-ms, :expecting-pong? true}
-                                          {:recur? true, :udt udt-t1, :ms-timeout ws-kalive-ms,       :expecting-pong? false}))
+                                          (if recur?
+                                            (loop-fn udt ms-timeout expecting-pong?)
+                                            (do
+                                              (timbre/debugf "[ws/on-open] Ending kalive loop for %s" lid*)
+                                              (when force-close?
+                                                ;; It's rare but possible for a conn's :on-close to fire
+                                                ;; *before* a handshake, leaving a closed sch in conns_
+                                                (timbre/debugf "[ws/on-open] Force close connection for %s" lid*)
+                                                (on-close server-ch websocket? nil))))))))]
 
-                                      :else {:recur? false, :force-close? true})]
-
-                                (if recur?
-                                  (recur udt ms-timeout expecting-pong?)
-                                  (do
-                                    (timbre/debugf "[ws/on-open] Ending kalive loop for %s" lid*)
-                                    (when force-close?
-                                      ;; It's rare but possible for a conn's :on-close to fire
-                                      ;; *before* a handshake, leaving a closed sch in conns_
-                                      (timbre/debugf "[ws/on-open] Force close connection for %s" lid*)
-                                      (on-close server-ch websocket? nil)))))))
+                              (loop-fn udt-open ws-kalive-ms false)))
 
                           (when (connect-uid!? :ws uid)
                             (timbre/infof "[ws/on-open] uid port open for %s" lid*)
@@ -882,13 +876,13 @@
                                   (fn [_] [server-ch (enc/now-udt) conn-id]))]
 
                             (when-let [ms lp-timeout-ms]
-                              (go
-                                (<! (async/timeout ms))
-                                (when-let [[_?sch _udt conn-id*] (get-in @conns_ [:ajax uid client-id])]
-                                  (when (= conn-id conn-id*)
-                                    (timbre/debugf "[ajax/on-open] Polling timeout for %s" lid*)
-                                    (on-packed packer websocket? :chsk/timeout nil
-                                      (fn [packed] (i/sch-send! server-ch websocket? packed)))))))
+                              (timers/call-after ms
+                                (fn []
+                                  (when-let [[_?sch _udt conn-id*] (get-in @conns_ [:ajax uid client-id])]
+                                    (when (= conn-id conn-id*)
+                                      (timbre/debugf "[ajax/on-open] Polling timeout for %s" lid*)
+                                      (on-packed packer websocket? :chsk/timeout nil
+                                        (fn [packed] (i/sch-send! server-ch websocket? packed))))))))
 
                             (when (connect-uid!? :ajax uid)
                               (timbre/infof "[ajax/on-open] uid port open for %s" lid*)
@@ -917,14 +911,19 @@
   Allows some time for possible reconnects."
   [conn-type conns_ uid packed-buffered-evs n-buffered-evs]
   (truss/have? [:el #{:ajax :ws}] conn-type)
-  (let [;; Mean max wait time: sum*1.5 = 2790*1.5 = 4.2s
-        ms-backoffs [90 180 360 720 720 720] ; => max 1+6 attempts
-        websocket?  (= conn-type :ws)
-        udt-t0      (enc/now-udt)]
 
-    (when-let [client-ids (keys (get-in @conns_ [conn-type uid]))]
-      (go-loop [pending (set client-ids), idx 0]
-        (let [pending
+  (enc/cond
+    :let
+    [;; Mean max wait time: sum*1.5 = 2790*1.5 = 4.2s
+     ms-backoffs [90 180 360 720 720 720] ; => max 1+6 attempts
+     websocket?  (= conn-type :ws)
+     udt-t0      (enc/now-udt)]
+
+    :when-let [client-ids (keys (get-in @conns_ [conn-type uid]))]
+    :let
+    [loop-fn
+     (fn loop-fn [idx pending]
+       (let  [pending
               (reduce
                 (fn [pending client-id]
                   (if-let [sent?
@@ -942,7 +941,6 @@
                                      [?sch (enc/now-udt) conn-id]
                                      [nil  udt           conn-id])
                                    :swap/abort)))
-
                              true)]
 
                     (disj pending client-id)
@@ -950,19 +948,21 @@
                 pending
                 pending)]
 
-          (if-let [done? (or (empty? pending) (> idx 4))]
-            (let [n-desired (count client-ids)
-                  n-success (- n-desired (count pending))]
-              (timbre/debugf "Sent %s buffered evs to %s/%s %s clients for %s in %s attempt/s (%s msecs)"
-                n-buffered-evs n-success n-desired conn-type (lid uid) (inc idx) (- (enc/now-udt) udt-t0)))
+         (if-let [done? (or (empty? pending) (> idx 4))]
+           (let [n-desired (count client-ids)
+                 n-success (- n-desired (count pending))]
+             (timbre/debugf "Sent %s buffered evs to %s/%s %s clients for %s in %s attempt/s (%s msecs)"
+               n-buffered-evs n-success n-desired conn-type (lid uid) (inc idx) (- (enc/now-udt) udt-t0)))
 
-            (let [ms-timeout
-                  (let [ms-backoff (nth ms-backoffs idx)]
-                    (+ ms-backoff (rand-int ms-backoff)))]
+           (let [ms-timeout
+                 (let [ms-backoff (nth ms-backoffs idx)]
+                   (+  ms-backoff (rand-int ms-backoff)))]
 
-              ;; Allow some time for possible poller reconnects:
-              (<! (async/timeout ms-timeout))
-              (recur pending (inc idx)))))))))
+             ;; Allow some time for possible poller reconnects:
+             (timers/call-after ms-timeout
+               (fn [] (loop-fn (inc idx) pending)))))))]
+
+    :then (loop-fn 0 (set client-ids))))
 
 ;;;; Client API
 
@@ -1266,11 +1266,10 @@
       (timbre/infof "Client will try reconnect chsk (attempt %s) after %s msecs"
         retry-count backoff-ms)
 
-      #?(:cljs (.setTimeout goog/global connect-fn backoff-ms)
-         :clj  (go
-                 (<! (async/timeout backoff-ms))
-                 (timbre/infof "Client will try reconnect chsk (attempt %s) now" retry-count)
-                 (connect-fn)))
+      (timers/call-after backoff-ms
+        (fn []
+          (timbre/infof "Client will try reconnect chsk (attempt %s) now" retry-count)
+          (connect-fn)))
 
       (swap-chsk-state! chsk
         #(assoc % :udt-next-reconnect udt-next-reconnect)))))
@@ -1333,11 +1332,11 @@
 
           (when-let [cb-uuid ?cb-uuid]
             (reset-in! cbs-waiting_ [cb-uuid] (truss/have ?cb-fn))
-            (when-let [timeout-ms ?timeout-ms]
-              (go
-                (<! (async/timeout timeout-ms))
-                (when-let [cb-fn* (pull-unused-cb-fn! cbs-waiting_ ?cb-uuid)]
-                  (cb-fn* :chsk/timeout)))))
+            (when-let [ms ?timeout-ms]
+              (timers/call-after ms
+                (fn []
+                  (when-let [cb-fn* (pull-unused-cb-fn! cbs-waiting_ ?cb-uuid)]
+                    (cb-fn* :chsk/timeout))))))
 
           (or
             (when-let [[s _sid] @socket_]
@@ -1494,27 +1493,29 @@
 
         ;; Client-side loop to detect broken conns, Ref. #259
         (when-let [ms ws-kalive-ms]
-          (go-loop []
-            (let [udt-t0 @udt-last-comms_]
-              (<! (async/timeout ms))
-              (when (own-conn?)
-                (let [udt-t1 @udt-last-comms_]
-                  (when-let [;; No conn send/recv activity w/in kalive window?
-                             no-activity? (= udt-t0 udt-t1)]
+          (let [loop-fn
+                (fn loop-fn [udt-t0]
+                  (timers/call-after ms
+                    (fn []
+                      (when (own-conn?)
+                        (let [udt-t1 @udt-last-comms_]
+                          (when-let [;; No conn send/recv activity w/in kalive window?
+                                     no-activity? (= udt-t0 udt-t1)]
 
-                    (timbre/tracef "Client will send ws-ping to server: %s"
-                      {:ms-since-last-activity (- (enc/now-udt) udt-t1)
-                       :timeout-ms ws-ping-timeout-ms})
+                            (timbre/tracef "Client will send ws-ping to server: %s"
+                              {:ms-since-last-activity (- (enc/now-udt) udt-t1)
+                               :timeout-ms ws-ping-timeout-ms})
 
-                    (-chsk-send! chsk [:chsk/ws-ping]
-                      {:flush? true
-                       :timeout-ms ws-ping-timeout-ms
-                       :cb ; Server will auto reply
-                       (fn [reply]
-                         (when (and (own-conn?) (not= reply "pong") #_(= reply :chsk/timeout))
-                           (timbre/debugf "Client ws-ping to server timed-out, will cycle WebSocket now")
-                           (-chsk-reconnect! chsk :ws-ping-timeout)))})))
-                (recur)))))
+                            (-chsk-send! chsk [:chsk/ws-ping]
+                              {:flush? true
+                               :timeout-ms ws-ping-timeout-ms
+                               :cb ; Server will auto reply
+                               (fn [reply]
+                                 (when (and (own-conn?) (not= reply "pong") #_(= reply :chsk/timeout))
+                                   (timbre/debugf "Client ws-ping to server timed-out, will cycle WebSocket now")
+                                   (-chsk-reconnect! chsk :ws-ping-timeout)))})))
+                        (loop-fn @udt-last-comms_)))))]
+            (loop-fn @udt-last-comms_)))
 
         chsk))))
 
