@@ -78,7 +78,7 @@
   {:author "Peter Taoussanis (@ptaoussanis)"}
   (:require
    [clojure.string         :as str]
-   [clojure.core.async     :as async :refer [<! >! put! chan go go-loop]]
+   [clojure.core.async     :as async]
    [taoensso.encore        :as enc   :refer [swap-in! reset-in! swapped]]
    [taoensso.encore.timers :as timers]
    [taoensso.truss         :as truss]
@@ -194,7 +194,7 @@
                                :id        ev-id
                                :?data     ev-?data})]
     (if (server-event-msg? ev-msg*)
-      (put! ch-recv        ev-msg*)
+      (async/put! ch-recv  ev-msg*)
       (timbre/warnf "Bad `event-msg` from server: %s" ev-msg) ; Log and drop
       )))
 
@@ -402,7 +402,7 @@
   (let [allowed-origins (truss/have [:or set? #{:all}] allowed-origins)
         ws-kalive-ms    (when ws-kalive-ms (quot ws-kalive-ms 2)) ; Ref. #455
         packer  (coerce-packer packer)
-        ch-recv (chan recv-buf-or-n)
+        ch-recv (async/chan recv-buf-or-n)
 
         user-id-fn
         (fn [ring-req client-id]
@@ -1057,7 +1057,7 @@
                        (get-in new-state [:last-close :reason] "unknown")))
 
            (let [output [old-state new-state open-changed?]]
-             (put! (get-in chsk [:chs :state]) [:chsk/state output])
+             (async/put! (get-in chsk [:chs :state]) [:chsk/state output])
              open-changed?)))))
 
    (defn- chsk-state->closed [state reason]
@@ -1090,7 +1090,7 @@
          (assert-event ev)
          ;; Should never receive :chsk/* events from server here:
          (let [[id] ev] (assert (not= (namespace id) "chsk")))
-         (put! (:<server chs) ev))))
+         (async/put! (:<server chs) ev))))
 
    (defn- handshake? [x]
      (and (vector? x) ; Nb support arb input (e.g. cb replies)
@@ -1126,7 +1126,7 @@
              (dissoc :udt-next-reconnect)
              (merge new-state))))
 
-       (put! (:internal chs) handshake-ev)
+       (async/put! (:internal chs) handshake-ev)
        :handled))
 
 #?(:clj
@@ -1363,9 +1363,9 @@
                               :done/did-handshake)
 
                             (when (= arb-msg-clj :chsk/ws-ping)
-                              (-chsk-send! chsk           [:chsk/ws-pong] {:flush? true})
-                              #_(put! (get chs :internal) [:chsk/ws-ping]) ; Would be better, but breaking
-                              (put!   (get chs :<server)  [:chsk/ws-ping]) ; Odd choice for back compatibility
+                              (-chsk-send! chsk                 [:chsk/ws-pong] {:flush? true})
+                              #_(async/put! (get chs :internal) [:chsk/ws-ping]) ; Would be better, but breaking
+                              (async/put!   (get chs :<server)  [:chsk/ws-ping]) ; Odd choice for back compatibility
                               :done/sent-pong)
 
                             (if-let   [cb-uuid ?cb-uuid]
@@ -1792,14 +1792,14 @@
                   (get-chsk-url protocol host path :ajax)])))
 
            private-chs
-           {:internal (chan (async/sliding-buffer 128))
-            :state    (chan (async/sliding-buffer 10))
+           {:internal (async/chan (async/sliding-buffer 128))
+            :state    (async/chan (async/sliding-buffer 10))
             :<server
             (let [;; Nb must be >= max expected buffered-evs size:
                   buf (async/sliding-buffer 512)]
               (if wrap-recv-evs?
-                (chan buf (map (fn [ev] [:chsk/recv ev])))
-                (chan buf)))}
+                (async/chan buf (map (fn [ev] [:chsk/recv ev])))
+                (async/chan buf)))}
 
            ws-ping-timeout-ms
            (cond
@@ -1890,7 +1890,7 @@
 (defn- -start-chsk-router!
   [server? ch-recv event-msg-handler opts]
   (let [{:keys [trace-evs? error-handler simple-auto-threading?]} opts
-        ch-ctrl (chan)
+        ch-ctrl (async/chan)
 
         execute1
         #?(:cljs (fn [f] (f))
@@ -1899,7 +1899,7 @@
              (fn [f] (future-call f))
              (fn [f] (f))))]
 
-    (go-loop []
+    (async/go-loop []
       (let [[v p] (async/alts! [ch-recv ch-ctrl])
             stop? (or (= p ch-ctrl) (nil? v))]
 
