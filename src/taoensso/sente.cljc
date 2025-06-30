@@ -1017,8 +1017,7 @@
      (assert (or (and (nil? ?timeout-ms) (nil? ?cb))
                  (and (enc/nat-int? ?timeout-ms)))
        (str "cb requires a timeout; timeout-ms should be a +ive integer: " ?timeout-ms))
-     (assert (or (nil? ?cb) (ifn? ?cb) (enc/chan? ?cb))
-       (str "cb should be nil, an ifn, or a channel: " (type ?cb))))
+     (assert (or (nil? ?cb) (ifn? ?cb)) (str "cb should be an ?ifn" (type ?cb))))
 
    (defn- pull-unused-cb-fn! [cbs-waiting_ ?cb-uuid]
      (when-let [cb-uuid ?cb-uuid]
@@ -1079,23 +1078,6 @@
        (if closing?
          (assoc m :last-close {:udt (enc/now-udt) :reason reason})
          (do    m))))
-
-   (defn- cb-chan-as-fn
-     "Experimental, undocumented. Allows a core.async channel to be provided
-     instead of a cb-fn. The channel will receive values of form
-     [<event-id>.cb <reply>]."
-     [?cb ev]
-     (if (or (nil? ?cb) (ifn? ?cb))
-       ?cb
-       (do
-         (truss/have? enc/chan? ?cb)
-         (assert-event ev)
-         (let [[ev-id _] ev
-               cb-ch ?cb]
-           (fn [reply]
-             (put! cb-ch
-               [(keyword (str (enc/as-qname ev-id) ".cb"))
-                reply]))))))
 
    (defn- receive-buffered-evs! [chs clj]
      (let [buffered-evs (truss/have vector? clj)]
@@ -1318,14 +1300,14 @@
 
   (-chsk-send! [chsk ev opts]
     (enc/cond
-      :let
-      [{?timeout-ms :timeout-ms ?cb :cb :keys [flush?]} opts
-       _ (assert-send-args ev ?timeout-ms ?cb)
-       ?cb-fn (cb-chan-as-fn ?cb ev)]
-
+      :let [{?cb-fn :cb} opts]
       (not (get @state_ :open?)) (chsk-send->closed! ?cb-fn)
 
-      :let [?cb-uuid (when ?cb-fn (enc/uuid-str 6))]
+      :let
+      [{?timeout-ms :timeout-ms :keys [flush?]} opts
+       ?cb-uuid (when ?cb-fn (enc/uuid-str 6))]
+
+      :do (assert-send-args ev ?timeout-ms ?cb-fn)
       :do
       (on-packed packer true ev ?cb-uuid
         (fn [packed]
@@ -1569,17 +1551,15 @@
 
      (-chsk-send! [chsk ev opts]
        (enc/cond
-         :let
-         [{?timeout-ms :timeout-ms ?cb :cb :keys [flush?]} opts
-          _ (assert-send-args ev ?timeout-ms ?cb)
-          ?cb-fn (cb-chan-as-fn ?cb ev)]
-
+         :let [{?cb-fn :cb} opts]
          (not (get @state_ :open?)) (chsk-send->closed! ?cb-fn)
 
          :let
-         [?cb-uuid   (when ?cb-fn :ajax)
+         [{?timeout-ms :timeout-ms :keys [flush?]} opts
+          ?cb-uuid   (when ?cb-fn :ajax)
           csrf-token (get-client-csrf-token-str :dynamic (get @state_ :csrf-token))]
 
+         :do (assert-send-args ev ?timeout-ms ?cb-fn)
          :do
          (on-packed packer false ev ?cb-uuid
            (fn [packed]
@@ -1710,8 +1690,7 @@
      (-chsk-send! [chsk ev opts]
        (if-let [impl @impl_]
          (-chsk-send! impl ev opts)
-         (let [{?cb :cb} opts
-               ?cb-fn (cb-chan-as-fn ?cb ev)]
+         (let [{?cb-fn :cb} opts]
            (chsk-send->closed! ?cb-fn))))
 
      (-chsk-connect! [chsk]
