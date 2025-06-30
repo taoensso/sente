@@ -82,7 +82,7 @@
    [taoensso.encore        :as enc   :refer [swap-in! reset-in! swapped]]
    [taoensso.encore.timers :as timers]
    [taoensso.truss         :as truss]
-   [taoensso.timbre        :as timbre]
+   [taoensso.trove         :as trove]
    [taoensso.sente.interfaces :as i])
 
   #?(:cljs
@@ -95,31 +95,6 @@
   [1 21 0])
 
 #?(:cljs (def ^:private node-target? (= *target* "nodejs")))
-
-;;;; Logging config
-
-(defn set-min-log-level!
-  "Sets Timbre's minimum log level for internal Sente namespaces.
-  Possible levels: #{:trace :debug :info :warn :error :fatal :report}.
-  Default level: `:warn`."
-  [level]
-  (timbre/set-ns-min-level! "taoensso.sente.*" level)
-  (timbre/set-ns-min-level! "taoensso.sente"   level)
-  nil)
-
-(defonce ^:private __set-default-log-level (set-min-log-level! :warn))
-
-(defn- strim [^long max-len s]
-  (if (> (count s) max-len)
-    (str (enc/substr s 0 max-len) #_"+")
-    (do              s)))
-
-(defn- lid "Log id"
-  ([uid                  ] (if (= uid :sente/nil-uid) "u_nil" (str "u_" (strim 6 (str uid)))))
-  ([uid client-id        ] (str (lid uid)                         "/c_" (strim 6 (str client-id))))
-  ([uid client-id conn-id] (str (lid uid client-id)               "/n_" (strim 6 conn-id))))
-
-(comment (lid (enc/uuid-str) (enc/uuid-str) (enc/uuid-str)))
 
 ;;;; Events
 ;; Clients & server both send `event`s and receive (i.e. route) `event-msg`s:
@@ -195,7 +170,7 @@
                                :?data     ev-?data})]
     (if (server-event-msg? ev-msg*)
       (async/put! ch-recv  ev-msg*)
-      (timbre/warnf "Bad `event-msg` from server: %s" ev-msg) ; Log and drop
+      (trove/log! {:level :warn, :id :sente.server/bad-event-msg, :data {:ev-msg ev-msg}}) ; Log and drop
       )))
 
 ;; Note that cb replies need _not_ be `event` form!
@@ -225,14 +200,18 @@
   (i/pack         packer ws? [clj ?cb-uuid] ; Note wrapping to add ?cb-uuid
     (fn [{error :error, packed :value}]
       (if error
-        (timbre/errorf error "Failed to pack: %s" clj)
+        (trove/log!
+          {:level :error, :id :sente.packer/pack-failure, :error error,
+           :data {:ws? ws?, :given {:value clj, :type (type clj)}}})
         (cb-fn packed)))))
 
 (defn- on-unpacked [packer ws? packed cb-fn]
   (i/unpack         packer ws? packed
     (fn [{error :error, clj :value}]
       (if error
-        (timbre/errorf error "Failed to unpack: %s" packed)
+        (trove/log!
+          {:level :error, :id :sente.packer/unpack-failure, :error error,
+           :data {:ws? ws?, :given {:value packed, :type (type packed)}}})
         (cb-fn clj)))))
 
 ;;;; Server API
@@ -458,7 +437,7 @@
         send-fn ; server>user (by uid) push
         (fn [user-id ev & [{:as opts :keys [flush?]}]]
           (let [uid (if (= user-id :sente/all-users-without-uid) :sente/nil-uid user-id)
-                _   (timbre/tracef "Server asked to send event to %s: %s" (lid uid) ev)
+                _   (trove/log! {:level :trace, :id :sente.server/send-to-uid, :data {:uid uid, :ev ev}})
                 _   (assert uid
                       (str "Support for sending to `nil` user-ids has been REMOVED. "
                            "Please send to `:sente/all-users-without-uid` instead."))
@@ -496,7 +475,7 @@
 
             (if (= ev [:chsk/close]) ; Currently undocumented
               (do
-                (timbre/infof "Server asked to close chsk for %s" (lid uid))
+                (trove/log! {:level :debug, :id :sente.server/close-chsk-ev, :data {:uid uid}})
                 (when flush?
                   (flush-buffer! :ws)
                   (flush-buffer! :ajax))
@@ -628,9 +607,13 @@
                            reply-fn
                            (fn [arb-reply-clj]
                              (when (compare-and-set! replied?_ false true)
-                               (timbre/debugf "[ajax/on-open] Server will reply to message from %s: %s"
-                                 (lid (user-id-fn ring-req client-id) client-id)
-                                 arb-reply-clj)
+                               (trove/log!
+                                 {:level :debug,
+                                  :id    :sente.server/send-reply
+                                  :data  {:uid (user-id-fn ring-req client-id)
+                                          :cid                      client-id
+                                          :ws?   websocket?
+                                          :reply arb-reply-clj}})
 
                                (when (i/sch-open? server-ch)
                                  (on-packed packer websocket? arb-reply-clj nil
@@ -661,14 +644,20 @@
               conn-id     (enc/uuid-str 6) ; 1 per ws/ajax rreq, equiv to server-ch identity
               params      (get ring-req :params)
               client-id   (get params   :client-id)
-              uid         (user-id-fn ring-req client-id)
-              lid*        (lid uid client-id conn-id)]
+              uid         (user-id-fn ring-req client-id)]
 
           (enc/cond
             (str/blank? client-id)
-            (let [err-msg "Client's Ring request doesn't have a client id. Does your server have the necessary keyword Ring middleware (`wrap-params` & `wrap-keyword-params`)?"]
-              (timbre/error (str err-msg ": " lid*))
-              (truss/ex-info!    err-msg {:ring-req ring-req, :lid lid*}))
+            (let [error
+                  (truss/ex-info
+                    "Client's Ring request doesn't have a client id. Does your server have the necessary keyword Ring middleware (`wrap-params` & `wrap-keyword-params`)?"
+                    {:ring-req ring-req, :uid uid, :cid client-id})]
+
+              (trove/log!
+                {:level :error, :id :sente.server/no-client-id, :error error,
+                 :data {:uid uid, :client-id client-id}})
+
+              (throw error))
 
             :if-let [resp (possible-rejection-resp ring-req)] resp
 
@@ -687,16 +676,19 @@
 
                   send-handshake!
                   (fn [server-ch websocket?]
-                    (timbre/infof "Server will send %s handshake to %s" (if websocket? :ws :ajax) lid*)
+                    (trove/log!
+                      {:level :debug, :id :sente.server/send-handshake,
+                       :data {:uid uid, :cid client-id, :ws? websocket?}})
+
                     (on-packed packer websocket?
                       [:chsk/handshake [uid nil (handshake-data-fn ring-req)]] nil
                       (fn [packed] (i/sch-send! server-ch websocket? packed))))
 
                   on-error
                   (fn [server-ch websocket? error]
-                    (timbre/errorf "%s Server sch error for %s: %s"
-                      (if websocket? "[ws/on-error]" "[ajax/on-error]")
-                      lid* error))
+                    (trove/log!
+                      {:level :error, :id :sente.server/error, :error error,
+                       :data {:uid uid, :cid client-id, :ws? websocket?}}))
 
                   on-msg
                   (fn [server-ch websocket? packed]
@@ -713,7 +705,10 @@
                           (do
                             ;; Auto reply to ping
                             (when-let [cb-uuid ?cb-uuid]
-                              (timbre/debugf "[ws/on-msg] Server will auto-reply to ping from %s" lid*)
+                              (trove/log!
+                                {:level :debug, :id :sente.server/send-ws-pong,
+                                 :data {:uid uid, :cid client-id}})
+
                               (on-packed packer websocket? "pong" cb-uuid
                                 (fn [packed] (i/sch-send! server-ch websocket? packed))))
 
@@ -724,7 +719,10 @@
                             (when-let [cb-uuid ?cb-uuid]
                               (fn reply-fn [arb-reply-clj]
                                 (when (i/sch-open? server-ch)
-                                  (timbre/debugf "[ws/on-msg] Server will reply to message from %s: %s" lid* arb-reply-clj)
+                                  (trove/log!
+                                    {:level :debug, :id :sente.server/send-reply,
+                                     :data {:uid uid, :cid client-id, :ws? websocket?, :reply arb-reply-clj}})
+
                                   (on-packed packer websocket? arb-reply-clj cb-uuid
                                     (fn [packed] (i/sch-send! server-ch websocket? packed)))
                                   true))))))))
@@ -734,8 +732,7 @@
                     ;; - We rely on `on-close` to trigger for *every* sch.
                     ;; - May be called *more* than once for a given sch.
                     ;; - `status` type varies with underlying web server.
-                    (let [conn-type  (if websocket? :ws :ajax)
-                          log-prefix (if websocket? "[ws/on-close]" "[ajax/on-close]")
+                    (let [conn-type (if websocket? :ws :ajax)
                           active-conn-closed?
                           (swap-in! conns_ [conn-type uid client-id]
                             (fn [[?sch _udt conn-id*]]
@@ -745,8 +742,9 @@
 
                       ;; Inactive => a connection closed that's not currently in conns_
 
-                      (timbre/debugf "%s %s server sch closed for %s"
-                        log-prefix (if active-conn-closed? "Active" "Inactive") lid*)
+                      (trove/log!
+                        {:level :debug, :id :sente.server/close,
+                         :data {:uid uid, :cid client-id, :ws? websocket?, :was-active? active-conn-closed?}})
 
                       (when active-conn-closed?
                         ;; Allow some time for possible reconnects (repoll,
@@ -766,12 +764,15 @@
                                           (swapped :swap/dissoc [true  ?conn-entry])
                                           (swapped :swap/abort  [false ?conn-entry]))))]
 
-                                (let [level (if active-conn-disconnected? :info (if websocket? :debug :trace))]
-                                  (timbre/logf level "%s Server sch on-close timeout for %s: %s"
-                                    log-prefix lid*
-                                    (if active-conn-disconnected?
-                                      {:disconnected? true}
-                                      {:disconnected? false, :?conn-entry ?conn-entry})))
+                                (trove/log!
+                                  {:level (if websocket? :debug :trace),
+                                   :id :sente.server/close-timeout,
+                                   :data
+                                   (conj
+                                     {:uid uid, :cid client-id, :ws? websocket?}
+                                     (if active-conn-disconnected?
+                                       {:disconnected? true}
+                                       {:disconnected? false, :?conn-entry ?conn-entry}))})
 
                                 (when active-conn-disconnected?
 
@@ -783,7 +784,10 @@
                                         :swap/abort)))
 
                                   (when (maybe-disconnect-uid!? uid)
-                                    (timbre/infof "%s uid port close for %s" log-prefix lid*)
+                                    (trove/log!
+                                      {:level :debug,
+                                       :id :sente.server/uidport-close,
+                                       :data {:uid uid, :cid client-id, :ws? websocket?}})
                                     (receive-event-msg! [:chsk/uidport-close uid]))))))))))
 
                   on-open
@@ -792,7 +796,7 @@
 
                       ;; WebSocket handshake
                       (do
-                        (timbre/infof "[ws/on-open] New server WebSocket sch for %s" lid*)
+                        (trove/log! {:level :debug, :id :sente.server/ws-open, :data {:uid uid, :cid client-id}})
                         (send-handshake! server-ch websocket?)
                         (let [[_ udt-open]
                               (swap-in! conns_ [:ws uid client-id]
@@ -816,7 +820,7 @@
                                                 (not= udt-t0 udt-t1) ; Activity in last kalive window
                                                 {:recur? true, :udt udt-t1, :ms-timeout ws-kalive-ms, :expecting-pong? false}
 
-                                                :do (timbre/debugf "[ws/on-open] kalive loop inactivity for %s" lid*)
+                                                :do (trove/log! {:level :debug, :id :sente.server/ws-inactive, :data {:uid uid, :cid client-id}})
 
                                                 expecting-pong?
                                                 (do
@@ -841,17 +845,19 @@
                                           (if recur?
                                             (loop-fn udt ms-timeout expecting-pong?)
                                             (do
-                                              (timbre/debugf "[ws/on-open] Ending kalive loop for %s" lid*)
+                                              (trove/log! {:level :debug, :id :sente.server/stop-ws-kalive, :data {:uid uid, :cid client-id}})
                                               (when force-close?
                                                 ;; It's rare but possible for a conn's :on-close to fire
                                                 ;; *before* a handshake, leaving a closed sch in conns_
-                                                (timbre/debugf "[ws/on-open] Force close connection for %s" lid*)
+                                                (trove/log!
+                                                  {:level :debug, :id :sente.server/force-close-ws,
+                                                   :data {:uid uid, :cid client-id}})
                                                 (on-close server-ch websocket? nil))))))))]
 
                               (loop-fn udt-open ws-kalive-ms false)))
 
                           (when (connect-uid!? :ws uid)
-                            (timbre/infof "[ws/on-open] uid port open for %s" lid*)
+                            (trove/log! {:level :debug, :id :sente.server/uidport-open, :data {:uid uid, :cid client-id}})
                             (receive-event-msg! [:chsk/uidport-open uid]))))
 
                       ;; Ajax handshake/poll
@@ -860,9 +866,10 @@
                               (get params :handshake?)
                               (nil? (get-in @conns_ [:ajax uid client-id])))]
 
-                        (timbre/logf (if send-handshake? :info :trace)
-                          "[ajax/on-open] New server Ajax sch (poll/handshake) for %s: %s"
-                          lid* {:send-handshake? send-handshake?})
+                        (trove/log!
+                          {:level (if send-handshake? :debug :trace),
+                           :id    (if send-handshake? :sente.server/send-handshake :sente.server/ajax-poll)
+                           :data  {:uid uid, :cid client-id}})
 
                         (if send-handshake?
                           (do
@@ -880,12 +887,12 @@
                                 (fn []
                                   (when-let [[_?sch _udt conn-id*] (get-in @conns_ [:ajax uid client-id])]
                                     (when (= conn-id conn-id*)
-                                      (timbre/debugf "[ajax/on-open] Polling timeout for %s" lid*)
+                                      (trove/log! {:level :trace, :id :sente.server/ajax-poll-timeout, :data {:uid uid, :cid client-id}})
                                       (on-packed packer websocket? :chsk/timeout nil
                                         (fn [packed] (i/sch-send! server-ch websocket? packed))))))))
 
                             (when (connect-uid!? :ajax uid)
-                              (timbre/infof "[ajax/on-open] uid port open for %s" lid*)
+                              (trove/log! {:level :debug, :id :sente.server/uidport-open, :data {:uid uid, :cid client-id, :ws? websocket?}})
                               (receive-event-msg! [:chsk/uidport-open uid])))))))]
 
               (i/ring-req->server-ch-resp web-server-ch-adapter ring-req
@@ -951,8 +958,14 @@
          (if-let [done? (or (empty? pending) (> idx 4))]
            (let [n-desired (count client-ids)
                  n-success (- n-desired (count pending))]
-             (timbre/debugf "Sent %s buffered evs to %s/%s %s clients for %s in %s attempt/s (%s msecs)"
-               n-buffered-evs n-success n-desired conn-type (lid uid) (inc idx) (- (enc/now-udt) udt-t0)))
+
+             (trove/log!
+               {:level :debug,
+                :id :sente.server/send-buffered-evs-to-clients,
+                :data
+                {:uid uid, :ws? (= conn-type :ws), :num-evs n-buffered-evs
+                 :clients [n-success n-desired], :attempts (inc idx),
+                 :msecs (- (enc/now-udt) udt-t0)}}))
 
            (let [ms-timeout
                  (let [ms-backoff (nth ms-backoffs idx)]
@@ -1004,11 +1017,11 @@
      ([chsk ev ?timeout-ms ?cb] (chsk-send! chsk ev {:timeout-ms ?timeout-ms
                                                      :cb         ?cb}))
      ([chsk ev opts]
-      (timbre/tracef "Client chsk send: %s" {:opts (assoc opts :cb (boolean (:cb opts))), :ev ev})
+      (trove/log! {:level :trace, :id :sente.client/send-to-server, :data {:opts (assoc opts :cb (boolean (:cb opts))), :ev ev}})
       (-chsk-send! chsk ev opts)))
 
-   (defn- chsk-send->closed! [?cb-fn]
-     (timbre/warnf "Client chsk send against closed chsk: %s" {:cb? (boolean ?cb-fn)})
+(defn- chsk-send->closed! [?cb-fn]
+     (trove/log! {:level :warn, :id :sente.client/send-with-closed-chsk, :data {:cb? (boolean ?cb-fn)}})
      (when ?cb-fn (?cb-fn :chsk/closed))
      false)
 
@@ -1052,9 +1065,8 @@
                    :first-open?   first-open?))]
 
            (cond
-             opened? (timbre/infof "Client chsk now open")
-             closed? (timbre/warnf "Client chsk now closed, reason: %s"
-                       (get-in new-state [:last-close :reason] "unknown")))
+             opened? (trove/log! {:level :info, :id :sente.client/chsk-opened})
+             closed? (trove/log! {:level :warn, :id :sente.client/chsk-closed, :data {:reason (get-in new-state [:last-close :reason] "unknown")}}))
 
            (let [output [old-state new-state open-changed?]]
              (async/put! (get-in chsk [:chs :state]) [:chsk/state output])
@@ -1082,9 +1094,9 @@
    (defn- receive-buffered-evs! [chs clj]
      (let [buffered-evs (truss/have vector? clj)]
 
-       (timbre/tracef "Client received %s buffered evs from server: %s"
-         (count buffered-evs)
-         clj)
+       (trove/log!
+         {:level :trace, :id :sente.client/receive-buffered-evs,
+          :data {:num-evs (count buffered-evs), :clj clj}})
 
        (doseq [ev buffered-evs]
          (assert-event ev)
@@ -1114,10 +1126,9 @@
            [:chsk/handshake
             [?uid nil ?handshake-data first-handshake?]]]
 
-       (timbre/infof "Client received %s %s handshake from server: %s"
-         (if first-handshake? "first" "new")
-         chsk-type
-         clj)
+       (trove/log!
+         {:level :debug, :id :sente.client/receive-handshake,
+          :data {:ws? (= chsk-type :ws), :first? first-handshake?, :ev clj}})
 
        (assert-event handshake-ev)
        (swap-chsk-state! chsk
@@ -1157,8 +1168,7 @@
                (require-fn (make-package-name "web"))
                ;; In particular, catch 'UnableToResolveError'
                (catch :default e
-                 ;; (timbre/errorf e "Client unable to load npm websocket lib")
-                 nil))))))))
+                 (trove/log! {:level :error, :id :sente.client/no-npm-websockets, :error e})))))))))
 
 #?(:cljs
    (defn- make-client-ws
@@ -1196,8 +1206,9 @@
       (if-let [token (enc/as-?nblank (if dynamic? (token-or-fn) token-or-fn))]
         token
         (when-let [warn? (if (= warn? :dynamic) dynamic? warn?)]
-          (timbre/warnf "WARNING: no client CSRF token provided. Connections will FAIL if server-side CSRF check is enabled (as it is by default).")
-          nil)))))
+          (trove/log!
+            {:level :warn, :id :sente.client/no-csrf-token, :msg
+             "WARNING: no client CSRF token provided. Connections will FAIL if server-side CSRF check is enabled (as it is by default)."}))))))
 
 (comment (get-client-csrf-token-str false "token"))
 
@@ -1211,18 +1222,17 @@
   [chsk backoff-ms-fn connect-fn retry-count]
   (if (= retry-count 1)
     (do
-      (timbre/infof "Client will try reconnect chsk now")
+      (trove/log! {:id :sente.client/try-reconnect})
       (connect-fn))
 
     (let [backoff-ms         (backoff-ms-fn retry-count)
           udt-next-reconnect (+ (enc/now-udt) backoff-ms)]
 
-      (timbre/infof "Client will try reconnect chsk (attempt %s) after %s msecs"
-        retry-count backoff-ms)
+      (trove/log! {:id :sente.client/try-reconnect, :data {:attempt retry-count, :wait-msecs backoff-ms}})
 
       (timers/call-after backoff-ms
         (fn []
-          (timbre/infof "Client will try reconnect chsk (attempt %s) now" retry-count)
+          (trove/log! {:id :sente.client/try-reconnect})
           (connect-fn)))
 
       (swap-chsk-state! chsk
@@ -1295,8 +1305,7 @@
                 (reset! udt-last-comms_ (enc/now-udt))
                 true
                 (catch :all t
-                  (timbre/errorf t "Client chsk send error")
-                  false)))
+                  (trove/log! {:level :error, :id :sente.client/send-error, :error t}))))
 
             (do
               (when-let [cb-uuid ?cb-uuid]
@@ -1333,12 +1342,7 @@
                     #?(:cljs
                        (fn [ws-ev]
                          (when (own-socket?)
-                           (timbre/errorf ; ^:meta {:raw-console? true}
-                             "Client WebSocket error: %s"
-                             (try
-                               (js->clj          ws-ev)
-                               (catch :default _ ws-ev)))
-
+                           (trove/log! {:level :error, :id :sente.client/ws-error, :data {:ev ws-ev}})
                            (swap-chsk-state! chsk
                              #(assoc % :last-ws-error
                                 {:udt (enc/now-udt), :ev ws-ev}))))
@@ -1346,7 +1350,7 @@
                        :clj
                        (fn [ex]
                          (when (own-socket?)
-                           (timbre/errorf ex "Client WebSocket error")
+                           (trove/log! {:level :error, :id :sente.client/ws-error, :error ex})
                            (swap-chsk-state! chsk
                              #(assoc % :last-ws-error
                                 {:udt (enc/now-udt), :ex ex})))))
@@ -1371,7 +1375,7 @@
                             (if-let   [cb-uuid ?cb-uuid]
                               (if-let [cb-fn (pull-unused-cb-fn! cbs-waiting_ cb-uuid)]
                                 (cb-fn arb-msg-clj)
-                                (timbre/warnf "Client :ws cb reply w/o local cb-fn: %s" arb-msg-clj))
+                                (trove/log! {:level :warn, :id :sente.client/reply-without-cb, :data {:reply arb-msg-clj}}))
                               (receive-buffered-evs! chs arb-msg-clj))))))
 
                     on-close
@@ -1418,20 +1422,18 @@
                                                 (:csrf-token @state_))}))}))
 
                         (catch :any t
-                          (timbre/errorf t "Error creating WebSocket client")
-                          nil)))]
+                          (trove/log! {:level :error, :id :sente.client/ws-constructor-error, :error t}))))]
 
                 (when-let [new-socket_ ?new-socket_]
                   (if-let [new-socket
                            (truss/try*
                              (force new-socket_)
                              (catch :default  t
-                               (timbre/errorf t "Error realizing WebSocket client")
-                               nil))]
+                               (trove/log! {:level :error, :id :sente.client/ws-constructor-error, :error t})))]
                     (do
                       (when-let [[old-s _old-sid] (reset-in! socket_ [new-socket this-socket-id])]
                         ;; Close old socket if one exists
-                        (timbre/tracef "Old client WebSocket will be closed")
+                        (trove/log! {:level :trace, :id :sente.client/close-old-websocket})
                         (i/cws-close old-s 1000 "CLOSE_NORMAL" true))
                       new-socket)
                     (retry-fn))))))]
@@ -1451,9 +1453,11 @@
                           (when-let [;; No conn send/recv activity w/in kalive window?
                                      no-activity? (= udt-t0 udt-t1)]
 
-                            (timbre/tracef "Client will send ws-ping to server: %s"
-                              {:ms-since-last-activity (- (enc/now-udt) udt-t1)
-                               :timeout-ms ws-ping-timeout-ms})
+                            (trove/log!
+                              {:level :trace, :id :sente.client/send-ping,
+                               :data
+                               {:ms-since-last-activity (- (enc/now-udt) udt-t1)
+                                :timeout-ms ws-ping-timeout-ms}})
 
                             (-chsk-send! chsk [:chsk/ws-ping]
                               {:flush? true
@@ -1461,7 +1465,7 @@
                                :cb ; Server will auto reply
                                (fn [reply]
                                  (when (and (own-conn?) (not= reply "pong") #_(= reply :chsk/timeout))
-                                   (timbre/debugf "Client ws-ping to server timed-out, will cycle WebSocket now")
+                                   (trove/log! {:level :debug, :id :sente.client/ping-timeout})
                                    (-chsk-reconnect! chsk :ws-ping-timeout)))})))
                         (loop-fn @udt-last-comms_)))))]
             (loop-fn @udt-last-comms_)))
@@ -1565,7 +1569,7 @@
                          (if-let [cb-fn ?cb-fn]
                            (cb-fn      arb-reply-clj)
                            (when (not= arb-reply-clj :chsk/dummy-cb-200)
-                             (timbre/warnf "Client :ajax cb reply w/o local cb-fn: %s" arb-reply-clj)))))
+                             (trove/log! {:level :warn, :id :sente.client/reply-without-cb, :data {:reply arb-reply-clj}})))))
 
                      :do (swap-chsk-state! chsk #(assoc % :open? true))))))))
 
@@ -1577,7 +1581,6 @@
 
              poll-fn ; async-poll-for-update-fn
              (fn poll-fn [retry-count]
-               (timbre/tracef "Client :ajax async-poll-for-update!")
                (when (own-conn?)
                  (let [retry-fn
                        (fn []
@@ -1589,6 +1592,7 @@
 
                    (on-packed packer false :chsk/dummy-packer-test nil
                      (fn [packed]
+                       (trove/log! {:level :trace, :id :sente.client/ajax-poll})
                        (reset! curr-xhr_
                          (ajax-call url
                            (enc/merge ajax-opts
@@ -1685,7 +1689,7 @@
                                     ws-error       (:last-ws-error new-state)]
 
                        (when (compare-and-set! downgraded?_ false true)
-                         (timbre/warnf "Client permanently downgrading chsk mode: :auto -> :ajax")
+                         (trove/log! {:level :warn, :id :sente.client/downgrade-to-ajax})
                          (-chsk-disconnect! impl :downgrading-ws-to-ajax)
                          (reset! impl_ (ajax-chsk!))))))
 
@@ -1881,9 +1885,7 @@
             :send-fn send-fn
             :state   (:state_ chsk)})
 
-         (do
-           (timbre/warnf "Client failed to create channel socket")
-           nil))))
+         (trove/log! {:level :warn, :id :sente.client/error-creating-chsk}))))
 
 ;;;; Event-msg routers (handler loops)
 
@@ -1909,7 +1911,7 @@
             (execute1
               (fn []
                 (truss/try*
-                  (when trace-evs? (timbre/tracef "Chsk router pre-handler event: %s" event))
+                  (when trace-evs? (trove/log! {:level :trace, :id :sente.router/event, :data {:event event}}))
                   (event-msg-handler
                     (if server?
                       (truss/have! server-event-msg? event-msg)
@@ -1918,10 +1920,10 @@
                   (catch :all t1
                     (truss/try*
                       (if-let [eh error-handler]
-                        (error-handler  t1 event-msg)
-                        (timbre/errorf  t1 "Chsk router `event-msg-handler` error: %s" event))
+                        (eh t1 event-msg)
+                        (trove/log! {:level :error, :id :sente.router/ev-msg-handler-error, :error t1, :data {:event event}}))
                       (catch :all t2
-                        (timbre/errorf  t2 "Chsk router `error-handler` error: %s"     event)))))))
+                        (trove/log! {:level :error, :id :sente.router/error-handler-error,  :error t2, :data {:event event}})))))))
 
             (recur)))))
 

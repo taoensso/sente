@@ -10,7 +10,7 @@
   :dependencies
   [[org.clojure/core.async "1.8.741"]
    [com.taoensso/encore    "3.149.0"]
-   [com.taoensso/timbre    "6.7.1"]]
+   [com.taoensso/trove     "1.0.0-RC1"]]
 
   :test-paths ["test" #_"src"]
 

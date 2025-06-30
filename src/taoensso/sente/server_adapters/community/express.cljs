@@ -17,8 +17,8 @@
   implementation (it's a bit different than something built on Ring)."
   {:author "Andrew Phillips <@theasp>"}
   (:require
-   [taoensso.timbre :as timbre]
-   [taoensso.sente  :as sente]
+   [taoensso.trove :as trove]
+   [taoensso.sente :as sente]
    [taoensso.sente.server-adapters.community.generic-node :as generic-node]))
 
 (defn- obj->map
@@ -45,7 +45,7 @@
            :form-params  form-params
            :params       params})]
 
-    (timbre/tracef "Emulated Ring request: %s" ring-req)
+    (trove/log! {:level :trace, :id :sente.server.express/exp-req->ring-req, :data {:ring-req ring-req}})
     ring-req))
 
 (defn- default-csrf-token-fn
@@ -57,7 +57,6 @@
   "A customized `make-channel-socket-server!` that uses Node.js with
   Express as the web server."
   [& [opts]]
-  (timbre/trace "Making Express chsk server")
   (let [default-opts {:csrf-token-fn default-csrf-token-fn}
         chsk (sente/make-channel-socket-server!
               (generic-node/get-sch-adapter)

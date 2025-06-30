@@ -4,7 +4,6 @@
   {:author "Andrew Phillips <@theasp>"}
   (:require
    [taoensso.encore :as enc]
-   [taoensso.timbre :as timbre]
    [taoensso.sente  :as sente]
    [taoensso.sente.server-adapters.community.generic-node :as generic-node]
    [macchiato.middleware.anti-forgery :as csrf]))
@@ -28,7 +27,6 @@
   "A customized `make-channel-socket-server!` that uses Node.js with
   Macchiato as the web server."
   [& [opts]]
-  (timbre/trace "Making Macchiato chsk server")
   (-> (generic-node/get-sch-adapter)
       (sente/make-channel-socket-server! opts)
       (update :ajax-get-or-ws-handshake-fn wrap-macchiato)

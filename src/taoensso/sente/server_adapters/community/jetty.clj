@@ -7,7 +7,7 @@
     [ring.websocket.protocols  :as ws.protocols]
     [taoensso.encore           :as enc]
     [taoensso.sente.interfaces :as i]
-    [taoensso.timbre :as timbre])
+    [taoensso.trove :as trove])
 
   (:import
    [ring.websocket.protocols Socket]))
@@ -97,7 +97,7 @@
         (.write output-stream (.getBytes ^String (ajax-read! body) java.nio.charset.StandardCharsets/UTF_8))
         (.flush output-stream)
         (catch Throwable t
-          (timbre/error  t))
+          (trove/log! {:level :error, :id :sente.server.jetty/write-body-to-stream-error, :error t}))
         (finally
           (.close output-stream))))))
 

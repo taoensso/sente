@@ -7,7 +7,6 @@
   {:author "Andrew Phillips <@theasp>, Matthew Molloy <@whamtet>"}
   (:require
    [taoensso.encore :as enc]
-   [taoensso.timbre :as timbre]
    [taoensso.sente.interfaces :as i]))
 
 (defn- ws-open? [ws] (= (.-readyState ws) (.-OPEN ws)))
@@ -28,7 +27,6 @@
         sent?))))
 
 (defn- make-ws-chan [callbacks-map ws]
-  (timbre/trace "Making WebSocket adapter")
   (let [chan (GenericNodeWsAdapter. callbacks-map ws) ; sch
         {:keys [on-open on-close on-msg _on-error]} callbacks-map
         ws? true]
@@ -63,7 +61,6 @@
 (defn- make-ajax-chan [callbacks-map req resp]
   ;; req  - IncomingMessage
   ;; resp - ServerResponse
-  (timbre/trace "Making Ajax adapter")
   (let [resp-open?_ (atom true)
         chan (GenericNodeAjaxAdapter. resp-open?_ resp) ; sch
         {:keys [on-open on-close on-msg _on-error]} callbacks-map

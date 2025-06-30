@@ -1,6 +1,6 @@
 (ns taoensso.sente.java-ws-client
   (:require
-   [taoensso.timbre :as timbre]
+   [taoensso.trove :as trove]
    [taoensso.sente.interfaces :as i])
 
   (:import [org.java_websocket.client WebSocketClient]))
@@ -26,8 +26,7 @@
                    (onClose   [code reason remote] (on-close   code reason remote))))
 
                (catch Throwable t
-                 (timbre/errorf t "Error creating Java WebSocket client")
-                 nil))]
+                 (trove/log! {:level :error, :id :sente.client/create-java-ws-error, :error t, :data {:uri uri-str}})))]
 
     (delay
       (.connect ws-client)
