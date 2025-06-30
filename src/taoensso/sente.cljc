@@ -146,7 +146,7 @@
   throws a validation exception."
   [x]
   (when-let [errs (validate-event x)]
-    (throw (ex-info "Invalid event" {:given x :errors errs}))))
+    (truss/ex-info! "Invalid event" {:given x :errors errs})))
 
 (defn event? "Valid [ev-id ?ev-data] form?" [x] (nil? (validate-event x)))
 (defn as-event [x]
@@ -394,10 +394,10 @@
 
   (let [max-ms default-client-side-ajax-timeout-ms]
     (when (>= lp-timeout-ms max-ms)
-      (throw
-        (ex-info (str ":lp-timeout-ms must be < " max-ms)
-          {:lp-timeout-ms lp-timeout-ms
-           :default-client-side-ajax-timeout-ms max-ms}))))
+      (truss/ex-info!
+        (str ":lp-timeout-ms must be < " max-ms)
+        {:lp-timeout-ms lp-timeout-ms
+         :default-client-side-ajax-timeout-ms max-ms})))
 
   (let [allowed-origins (truss/have [:or set? #{:all}] allowed-origins)
         ws-kalive-ms    (when ws-kalive-ms (quot ws-kalive-ms 2)) ; Ref. #455
@@ -668,7 +668,7 @@
             (str/blank? client-id)
             (let [err-msg "Client's Ring request doesn't have a client id. Does your server have the necessary keyword Ring middleware (`wrap-params` & `wrap-keyword-params`)?"]
               (timbre/error (str err-msg ": " lid*))
-              (throw    (ex-info err-msg {:ring-req ring-req, :lid lid*})))
+              (truss/ex-info!    err-msg {:ring-req ring-req, :lid lid*}))
 
             :if-let [resp (possible-rejection-resp ring-req)] resp
 
@@ -1403,7 +1403,7 @@
 
                     ?new-socket_
                     (when ws-constructor
-                      (try
+                      (truss/try*
                         (ws-constructor
                           (merge ws-opts
                             {:on-error   on-error
@@ -1417,15 +1417,15 @@
                                   :csrf-token (get-client-csrf-token-str :dynamic
                                                 (:csrf-token @state_))}))}))
 
-                        (catch #?(:clj Throwable :cljs :default) t
+                        (catch :any t
                           (timbre/errorf t "Error creating WebSocket client")
                           nil)))]
 
                 (when-let [new-socket_ ?new-socket_]
                   (if-let [new-socket
-                           (try
+                           (truss/try*
                              (force new-socket_)
-                             (catch #?(:clj Throwable :cljs :default) t
+                             (catch :default  t
                                (timbre/errorf t "Error realizing WebSocket client")
                                nil))]
                     (do
