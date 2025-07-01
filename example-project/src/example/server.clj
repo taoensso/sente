@@ -7,8 +7,11 @@
    [hiccup.core        :as hiccup]
    [clojure.core.async :as async]
    [taoensso.encore    :as encore]
-   [taoensso.timbre    :as timbre]
    [taoensso.sente     :as sente]
+
+   [taoensso.telemere  :as tel]
+   [taoensso.trove]
+   [taoensso.trove.telemere]
 
    [ring.middleware.defaults]
    [ring.middleware.anti-forgery :as anti-forgery]
@@ -34,13 +37,14 @@
    ;; for full example using Jetty 9
    ))
 
-;;;; Logging config
+;;;; Logging
+
+(taoensso.trove/set-log-fn! (taoensso.trove.telemere/get-log-fn))
 
 (defonce   min-log-level_ (atom nil))
 (defn- set-min-log-level! [level]
-  (sente/set-min-log-level! level) ; Min log level for internal Sente namespaces
-  (timbre/set-ns-min-level! level) ; Min log level for this           namespace
-  (reset! min-log-level_    level))
+  (tel/set-min-level!      level)
+  (reset!  min-log-level_  level))
 
 (set-min-log-level! #_:trace :debug #_:info #_:warn)
 
@@ -78,7 +82,7 @@
 (add-watch connected-uids_ :connected-uids
   (fn [_ _ old new]
     (when (not= old new)
-      (timbre/infof "Connected uids change: %s" new))))
+      (tel/log! (str "Connected uids changed to:" new)))))
 
 ;;;; Ring handlers
 
@@ -148,7 +152,7 @@
   [ring-req]
   (let [{:keys [session params]} ring-req
         {:keys [user-id]} params]
-    (timbre/debugf "Login request: %s" params)
+    (tel/log! {:level :debug, :msg "Login request", :data {:params params}})
     {:status 200 :session (assoc session :uid user-id)}))
 
 (defroutes ring-routes
@@ -177,7 +181,7 @@
   [event]
   (let [all-uids (:any @connected-uids_)]
     (doseq [uid all-uids]
-      (timbre/debugf "Broadcasting server>user to %s uids" (count all-uids))
+      (tel/log! {:level :debug, :msg (format "Broadcasting server>user to %s uids" (count all-uids))})
       (chsk-send! uid event))))
 
 (defn test-broadcast!
@@ -196,8 +200,8 @@
     (async/go-loop [i 0]
       (async/<! (async/timeout 10000)) ; 10 secs
 
-      (timbre/debugf "Connected uids: %s" @connected-uids_)
-      (timbre/tracef "Conns state: %s"    @conns_)
+      (tel/log! :debug (str "Connected uids: " @connected-uids_))
+      (tel/log! :trace (str "Conns state: "    @conns_))
 
       (when @broadcast-loop?_
         (broadcast!
@@ -226,7 +230,7 @@
   [{:as ev-msg :keys [event id ?data ring-req ?reply-fn send-fn]}]
   (let [session (:session ring-req)
         uid     (:uid     session)]
-    (timbre/debugf "Unhandled event: %s" event)
+    (tel/log! :debug (str "Unhandled event: " event))
     (when ?reply-fn
       (?reply-fn {:unmatched-event-as-echoed-from-server event}))))
 
@@ -235,16 +239,16 @@
   (let [session (:session ring-req)
         uid     (:uid     session)]
     (if uid
-      (timbre/infof "User connected: user-id `%s`" uid)
-      (timbre/infof "User connected: no user-id (user didn't have login session)"))))
+      (tel/log! (str "User connected: user-id " uid))
+      (tel/log!      "User connected: no user-id (user didn't have login session)"))))
 
 (defmethod -event-msg-handler :chsk/uidport-close
   [{:as ev-msg :keys [ring-req]}]
   (let [session (:session ring-req)
         uid     (:uid     session)]
     (if uid
-      (timbre/infof "User disconnected: user-id `%s`" uid)
-      (timbre/infof "User disconnected: no user-id (user didn't have login session)"))))
+      (tel/log! (str "User disconnected: user-id " uid))
+      (tel/log!      "User disconnected: no user-id (user didn't have login session)"))))
 
 (defmethod -event-msg-handler :example/test-broadcast
   [ev-msg] (test-broadcast!))
@@ -295,8 +299,8 @@
 (defmethod -event-msg-handler :example/connected-uids
   [{:as ev-msg :keys [?reply-fn]}]
   (let [uids @connected-uids_]
-    (timbre/infof "Connected uids: %s" uids)
-    (?reply-fn                         uids)))
+    (tel/log! (str "Connected uids: " uids))
+    (?reply-fn                        uids)))
 
 ;; TODO Add your (defmethod -event-msg-handler <event-id> [ev-msg] <body>)s here...
 
@@ -340,7 +344,7 @@
 
         uri (format "http://localhost:%s/" port)]
 
-    (timbre/infof "HTTP server is running at `%s`" uri)
+    (tel/log! (str "HTTP server is running at: " uri))
     (try
       (.browse (java.awt.Desktop/getDesktop) (java.net.URI. uri))
       (catch Exception _))
@@ -349,8 +353,8 @@
 
 (defn stop!  [] (stop-router!) (stop-web-server!))
 (defn start! []
-  (timbre/reportf "Sente version: %s" sente/sente-version)
-  (timbre/reportf "Min log level: %s" @min-log-level_)
+  (tel/log! (str "Sente version: " sente/sente-version))
+  (tel/log! (str "Min log level: " @min-log-level_))
   (start-router!)
   (let [stop-fn (start-web-server!)]
     @auto-loop_

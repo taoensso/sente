@@ -4,17 +4,22 @@
    [clojure.string  :as str]
    [cljs.core.async :as async]
    [taoensso.encore :as encore]
-   [taoensso.timbre :as timbre]
    [taoensso.sente  :as sente]
+
+   [taoensso.telemere :as tel]
+   [taoensso.trove]
+   [taoensso.trove.telemere]
+
    [example.dynamic-packer]))
 
 ;;;; Logging
 
+(taoensso.trove/set-log-fn! (taoensso.trove.telemere/get-log-fn))
+
 (defonce   min-log-level_  (atom nil))
-(defn- set-min-log-level!  [level]
-  (sente/set-min-log-level! level) ; Min log level for internal Sente namespaces
-  (timbre/set-ns-min-level! level) ; Min log level for this           namespace
-  (reset! min-log-level_    level))
+(defn- set-min-log-level! [level]
+  (tel/set-min-level!      level)
+  (reset!  min-log-level_  level))
 
 ;;;; Init config
 

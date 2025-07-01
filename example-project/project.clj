@@ -15,8 +15,8 @@
    [org.clojure/core.async    "1.8.741"]
    [nrepl                       "1.3.1"] ; Optional, for Cider
 
-   [com.taoensso/sente  "1.21.0-SNAPSHOT"] ; <--- Sente
-   [com.taoensso/timbre           "6.7.1"]
+   [com.taoensso/sente "1.21.0-SNAPSHOT"] ; <--- Sente
+   [com.taoensso/telemere        "1.0.1"] ; Optional, for logging
 
    ;; Choose (uncomment) a supported web server --------------
    [http-kit "2.8.0"] ; Default
