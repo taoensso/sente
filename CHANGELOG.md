@@ -2,6 +2,59 @@ This project uses [**Break Versioning**](https://www.taoensso.com/break-versioni
 
 ---
 
+# `v1.21.0-beta1` (2025-07-01)
+
+- **Dependency**: [on Clojars](https://clojars.org/com.taoensso/sente/versions/1.21.0-beta1)
+- **Versioning**: [Break Versioning](https://www.taoensso.com/break-versioning)
+
+This is a **major release** with many improvements! It includes **breaking changes** for some users. It's intended for early testing, and may not yet be suitable for production.
+
+Please report any unexpected problems to the [Slack channel](http://taoensso.com/sente/slack) or [GitHub](https://github.com/taoensso/sente/issues) 🙏 - [Peter Taoussanis](https://www.taoensso.com)
+
+Quick highlights:
+
+- Adds support for future **high-speed binary serialization** \[f8a3fad]
+- Adds support for **compression** \[f8a3fad]
+- **Smaller dependency** \[4864926] \[6a7a609]
+- **Improved reliability** under load \[173652d] \[49000db] \[71e7bb0]
+- Pluggable logging via [Trove](https://www.taoensso.com/trove) \[4864926]
+- Many small fixes and improvements
+
+As always thank you to any contributors! 🙏
+
+## Since `v1.20.0` (2024-12-31)
+
+> See linked commit messages for more info
+
+### Changes
+
+- **➤ \[mod] [BREAKING]** [#472] Switch logging: Timbre -> Trove \[4864926]
+- **➤ \[mod] [BREAKING]** Make packers more flexible \[f8a3fad]
+- \[mod] [#455] Halve given `ws-kalive-ms` \[49000db]
+- \[mod] Make Java WS client optional \[6a7a609]
+- \[mod] [#462] Don't throw by default on Ajax read timeouts \[fb30404]
+- \[mod] Enable WebSocket ping timeout by default \[71e7bb0]
+- \[mod] Change default WebSocket binary type (blob->arraybuffer) \[02da98e]
+* \[mod] Remove experimental, undocumented `cb-chan-as-fn` \[71db112]
+* \[mod] Remove long-vestigial legacy pack code \[cf2a149]
+
+### Fixes
+
+- \[fix] [#471] Switch to custom lightweight timer implementation \[173652d]
+- \[fix] [#466] Fix support for Jetty 12 community adapter (@aiba) \[d16bb6c]
+* \[fix] \[#464] \[#325] Fix option to use custom WebSocket constructor (@iarenaza) \[07a9bd9]
+
+### New
+
+- \[new] [#467] Allow `:csrf-token-fn` to return `:sente/skip-CSRF-check` \[8aae3d0]
+- \[new] [#467] Make `cb-error?`, `cb-success?` available to Clj code \[08e8b3e]
+- \[new] [#462] Keep Ring request in Ajax channel \[01a41a3]
+- \[new] Update ref example to add dynamic packer \[cd98db7]
+- \[new] Update ref example logging \[85b3e8a]
+- \[doc] Document limitations on event ordering \[532064d]
+
+---
+
 # `v1.20.0` (2024-12-31)
 
 - **Dependency**: [on Clojars](https://clojars.org/com.taoensso/sente/versions/1.20.0)
