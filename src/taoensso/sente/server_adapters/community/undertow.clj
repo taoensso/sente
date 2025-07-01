@@ -3,7 +3,8 @@
   (:require
     [ring.adapter.undertow.websocket :as websocket]
     [ring.adapter.undertow.response  :as response]
-    [taoensso.sente.interfaces :as i])
+    [taoensso.sente.interfaces :as i]
+    [taoensso.trove :as trove])
   (:import
     [io.undertow.websockets.core WebSocketChannel]
     [io.undertow.server HttpServerExchange]
@@ -52,14 +53,14 @@
 
   ISenteUndertowAjaxChannel
   (ajax-read! [sch]
-    (let [{:keys [ajax-resp-timeout-ms]} adapter-opts
+    (let [{:keys [ajax-resp-timeout-ms on-ajax-resp-timeout]} adapter-opts
           resp
           (if ajax-resp-timeout-ms
             (deref resp-promise_ ajax-resp-timeout-ms ::timeout)
             (deref resp-promise_))]
 
       (if (= resp ::timeout)
-        (throw (ex-info "Ajax read timeout" {:timeout-msecs ajax-resp-timeout-ms}))
+        (when-let [f on-ajax-resp-timeout] (f sch ring-req))
         resp))))
 
 (defn- ajax-ch
@@ -91,15 +92,22 @@
   "Returns a Sente `ServerChan` adapter for `ring-undertow-adapter` [1].
 
   Options:
-     `:ajax-resp-timeout-ms` - Max msecs to wait for Ajax responses (default 60 secs),
-                               exception thrown on timeout.
+        `:ajax-resp-timeout-ms` - Max msecs to wait for Ajax responses (default 60 secs)
+     `:on-ajax-resp-timeout`    - (fn [ServerChan ring-req]) to trigger after above timeout (logs by default)
 
   [1] Ref. <https://github.com/luminus-framework/ring-undertow-adapter>."
   ([] (get-sch-adapter nil))
   ([{:as   opts
-     :keys [ajax-resp-timeout-ms]
-     :or   {ajax-resp-timeout-ms (* 60 1000)}}]
+     :keys [ajax-resp-timeout-ms on-ajax-resp-timeout]
+     :or
+     {   ajax-resp-timeout-ms (* 60 1000)
+      on-ajax-resp-timeout
+      (fn [sch ring-req]
+        (trove/log!
+          {:level :warn, :id :sente.server.undertow/ajax-read-timeout,
+           :data ring-req}))}}]
 
    (UndertowServerChanAdapter.
      (assoc opts
-       :ajax-resp-timeout-ms ajax-resp-timeout-ms))))
+          :ajax-resp-timeout-ms ajax-resp-timeout-ms
+       :on-ajax-resp-timeout on-ajax-resp-timeout))))

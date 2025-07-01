@@ -69,15 +69,15 @@
       true))
 
   ISenteJettyAjaxChannel
-  (ajax-read! [_sch]
-    (let [{:keys [ajax-resp-timeout-ms]} adapter-opts
+  (ajax-read! [sch]
+    (let [{:keys [ajax-resp-timeout-ms on-ajax-resp-timeout]} adapter-opts
           resp
           (if ajax-resp-timeout-ms
             (deref resp-promise_ ajax-resp-timeout-ms ::timeout)
             (deref resp-promise_))]
 
       (if (= resp ::timeout)
-        (throw (ex-info "Ajax read timeout" {:timeout-msecs ajax-resp-timeout-ms}))
+        (when-let [f on-ajax-resp-timeout] (f sch ring-req))
         resp))))
 
 (defn- ajax-ch
@@ -115,15 +115,22 @@
   Supports Jetty 11, 12.
 
   Options:
-     `:ajax-resp-timeout-ms` - Max msecs to wait for Ajax responses (default 60 secs),
-                               exception thrown on timeout.
+       `:ajax-resp-timeout-ms` - Max msecs to wait for Ajax responses (default 60 secs)
+    `:on-ajax-resp-timeout`    - (fn [ServerChan ring-req]) to trigger after above timeout (logs by default)
 
   [1] Ref. <https://github.com/ring-clojure/ring/tree/master/ring-jetty-adapter>."
   ([] (get-sch-adapter nil))
   ([{:as   opts
-     :keys [ajax-resp-timeout-ms]
-     :or   {ajax-resp-timeout-ms (* 60 1000)}}]
+     :keys [ajax-resp-timeout-ms on-ajax-resp-timeout]
+     :or
+     {   ajax-resp-timeout-ms (* 60 1000)
+      on-ajax-resp-timeout
+      (fn [sch ring-req]
+        (trove/log!
+          {:level :warn, :id :sente.server.jetty/ajax-read-timeout,
+           :data ring-req}))}}]
 
    (JettyServerChanAdapter.
      (assoc opts
-       :ajax-resp-timeout-ms ajax-resp-timeout-ms))))
+          :ajax-resp-timeout-ms ajax-resp-timeout-ms
+       :on-ajax-resp-timeout on-ajax-resp-timeout))))
