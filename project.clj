@@ -1,4 +1,4 @@
-(defproject com.taoensso/sente "1.21.0-beta1"
+(defproject com.taoensso/sente "1.21.0-beta2"
   :author "Peter Taoussanis <https://www.taoensso.com>"
   :description "Realtime web comms library for Clojure/Script"
   :url "https://github.com/taoensso/sente"
@@ -10,7 +10,7 @@
   :dependencies
   [[org.clojure/core.async "1.8.741"]
    [com.taoensso/encore    "3.149.0"]
-   [com.taoensso/trove     "1.0.0-RC1"]]
+   [com.taoensso/trove     "1.0.0-RC2"]]
 
   :test-paths ["test" #_"src"]
 

@@ -2,19 +2,21 @@ This project uses [**Break Versioning**](https://www.taoensso.com/break-versioni
 
 ---
 
-# `v1.21.0-beta1` (2025-07-01)
+# `v1.21.0-beta2` (2025-07-04)
 
-- **Dependency**: [on Clojars](https://clojars.org/com.taoensso/sente/versions/1.21.0-beta1)
+- **Dependency**: [on Clojars](https://clojars.org/com.taoensso/sente/versions/1.21.0-beta2)
 - **Versioning**: [Break Versioning](https://www.taoensso.com/break-versioning)
 
 This is a **major release** with many improvements! It includes **breaking changes** for some users. It's intended for early testing, and may not yet be suitable for production.
 
-Please report any unexpected problems to the [Slack channel](http://taoensso.com/sente/slack) or [GitHub](https://github.com/taoensso/sente/issues) 🙏 - [Peter Taoussanis](https://www.taoensso.com)
+Please report any unexpected problems to the [Slack channel](http://taoensso.com/sente/slack) or [GitHub](https://github.com/taoensso/sente/issues) 🙏
+
+\- [Peter Taoussanis](https://www.taoensso.com)
 
 Quick highlights:
 
-- Adds support for future **high-speed binary serialization** \[f8a3fad]
-- Adds support for **compression** \[f8a3fad]
+- Adds support for [upcoming](https://github.com/taoensso/sente/issues/470) **high-speed binary serialization** (WebSockets + Ajax) \[f8a3fad]
+- Adds support for **compression** (WebSockets + Ajax) \[f8a3fad]
 - **Smaller dependency** \[4864926] \[6a7a609]
 - **Improved reliability** under load \[173652d] \[49000db] \[71e7bb0]
 - Pluggable logging via [Trove](https://www.taoensso.com/trove) \[4864926]
@@ -35,14 +37,14 @@ As always thank you to any contributors! 🙏
 - \[mod] [#462] Don't throw by default on Ajax read timeouts \[fb30404]
 - \[mod] Enable WebSocket ping timeout by default \[71e7bb0]
 - \[mod] Change default WebSocket binary type (blob->arraybuffer) \[02da98e]
-* \[mod] Remove experimental, undocumented `cb-chan-as-fn` \[71db112]
-* \[mod] Remove long-vestigial legacy pack code \[cf2a149]
+- \[mod] Remove experimental, undocumented `cb-chan-as-fn` \[71db112]
+- \[mod] Remove long-vestigial legacy pack code \[cf2a149]
 
 ### Fixes
 
 - \[fix] [#471] Switch to custom lightweight timer implementation \[173652d]
 - \[fix] [#466] Fix support for Jetty 12 community adapter (@aiba) \[d16bb6c]
-* \[fix] \[#464] \[#325] Fix option to use custom WebSocket constructor (@iarenaza) \[07a9bd9]
+- \[fix] \[#464] \[#325] Fix option to use custom WebSocket constructor (@iarenaza) \[07a9bd9]
 
 ### New
 
