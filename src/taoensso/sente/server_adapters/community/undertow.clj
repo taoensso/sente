@@ -28,7 +28,7 @@
       (.handleRequest handler exchange))))
 
 (defn- ws-ch
-  [{:keys [on-open on-close on-msg on-error]} _adapter-opts]
+  [ring-req {:keys [on-open on-close on-msg on-error]} _adapter-opts]
   (websocket/ws-callback
     {:on-open          (when on-open  (fn [{:keys [channel]}]         (on-open  channel true)))
      :on-error         (when on-error (fn [{:keys [channel error]}]   (on-error channel true error)))
@@ -40,7 +40,7 @@
 (defprotocol ISenteUndertowAjaxChannel
   (ajax-read! [sch]))
 
-(deftype SenteUndertowAjaxChannel [resp-promise_ open?_ on-close adapter-opts]
+(deftype SenteUndertowAjaxChannel [ring-req resp-promise_ open?_ on-close adapter-opts]
   i/IServerChan
   (sch-send!  [sch websocket? msg] (deliver resp-promise_ msg) (i/sch-close! sch))
   (sch-open?  [sch] @open?_)
@@ -62,11 +62,12 @@
         (throw (ex-info "Ajax read timeout" {:timeout-msecs ajax-resp-timeout-ms}))
         resp))))
 
-(defn- ajax-ch [{:keys [on-open on-close]} adapter-opts]
+(defn- ajax-ch
+  [ring-req {:keys [on-open on-close]} adapter-opts]
   (let [open?_ (atom true)
         sch
-        (SenteUndertowAjaxChannel. (promise) open?_ on-close
-          adapter-opts)]
+        (SenteUndertowAjaxChannel. ring-req (promise) open?_
+          on-close adapter-opts)]
 
     (when on-open (on-open sch false))
     sch))
@@ -83,8 +84,8 @@
   (ring-req->server-ch-resp [sch-adapter ring-req callbacks-map]
     {:body
      (if (:websocket? ring-req)
-       (ws-ch   callbacks-map adapter-opts)
-       (ajax-ch callbacks-map adapter-opts))}))
+       (ws-ch   ring-req callbacks-map adapter-opts)
+       (ajax-ch ring-req callbacks-map adapter-opts))}))
 
 (defn get-sch-adapter
   "Returns a Sente `ServerChan` adapter for `ring-undertow-adapter` [1].

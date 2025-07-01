@@ -58,7 +58,7 @@
 (defprotocol ISenteJettyAjaxChannel
   (ajax-read! [sch]))
 
-(deftype SenteJettyAjaxChannel [resp-promise_ open?_ on-close adapter-opts]
+(deftype SenteJettyAjaxChannel [ring-req resp-promise_ open?_ on-close adapter-opts]
   i/IServerChan
   (sch-send!  [sch _websocket? msg] (deliver resp-promise_ msg) (i/sch-close! sch))
   (sch-open?  [sch] @open?_)
@@ -81,9 +81,9 @@
         resp))))
 
 (defn- ajax-ch
-  [{:keys [on-open on-close]} adapter-opts]
+  [ring-req {:keys [on-open on-close]} adapter-opts]
   (let [open?_ (atom true)
-        sch    (SenteJettyAjaxChannel. (promise) open?_ on-close adapter-opts)]
+        sch    (SenteJettyAjaxChannel. ring-req (promise) open?_ on-close adapter-opts)]
     (when on-open (on-open sch false))
     sch))
 
@@ -105,10 +105,10 @@
 
 (deftype JettyServerChanAdapter [adapter-opts]
   i/IServerChanAdapter
-  (ring-req->server-ch-resp [_ request callbacks-map]
-    (if (ws/upgrade-request? request)
-      (respond-ws request callbacks-map)
-      (ring-response/response (ajax-ch callbacks-map adapter-opts)))))
+  (ring-req->server-ch-resp [_ ring-req callbacks-map]
+    (if (ws/upgrade-request? ring-req)
+      (do                     (respond-ws ring-req callbacks-map))
+      (ring-response/response (ajax-ch    ring-req callbacks-map adapter-opts)))))
 
 (defn get-sch-adapter
   "Returns a Sente `ServerChan` adapter for `ring-jetty-adapter` [1].
