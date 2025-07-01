@@ -118,6 +118,8 @@ After setup, the client will automatically initiate a WebSocket or repeating lon
 
 **Last step**: you'll want to **hook your own event handlers up to this channel**. Please see one of the [example projects](./3-Example-projects) and/or [API docs](http://taoensso.github.io/sente/) for details.
 
+Make sure to also see the [limitations](#limitations) section!
+
 ## Client-side API
 
  * `ch-recv` is a **core.async channel** that'll receive `event-msg`s
@@ -199,6 +201,12 @@ Key             | Value
 :last-close     | `?{:udt _ :reason _}`, with reason e/o `#{nil :requested-disconnect :requested-reconnect :downgrading-ws-to-ajax :unexpected}`
 
 # Limitations
+
+## Event ordering
+
+For several reasons (including possible event buffering for performance, and variation in async de/serialization times), Sente does **NOT guarantee** that events (messages) sent in a particular order will arrive or be handled in the same order.
+
+Even though ordering might be incidentally preserved in some cases, this isn't something that you should depend on!
 
 ## Large transfers
 
