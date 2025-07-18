@@ -342,7 +342,7 @@
        :or   {recv-buf-or-n      (async/sliding-buffer 1000)
               ws-kalive-ms       (enc/ms :secs 25) ; < Heroku 55s timeout
               lp-timeout-ms      (enc/ms :secs 20) ; < Heroku 30s timeout
-              ws-ping-timeout-ms (enc/ms :secs 5)
+              ws-ping-timeout-ms (enc/ms :secs 10)
 
               send-buf-ms-ajax 100
               send-buf-ms-ws   30
