@@ -123,7 +123,7 @@ Make sure to also see the [limitations](#limitations) section!
 ## Client-side API
 
  * `ch-recv` is a **core.async channel** that'll receive `event-msg`s
- * `chsk-send!` is a `(fn [event & [?timeout-ms ?cb-fn]])` for standard **client>server req>resp calls**
+ * `chsk-send!` is a `(fn [event])` or `(fn [event timeout-ms cb-fn])` for standard **client>server req>resp calls**
 
 Let's compare some Ajax and Sente code for sending an event from the client to the server:
 
@@ -138,8 +138,8 @@ Let's compare some Ajax and Sente code for sending an event from the client to t
 
 (chsk-send! ; Using Sente
   [:some/request-id {:name "Rich Hickey" :type "Awesome"}] ; Event
-  8000 ; Timeout
-  ;; Optional callback:
+  ;; Optional timeout+callback below
+  8000
   (fn [reply] ; Reply is arbitrary Clojure data
     (if (sente/cb-success? reply) ; Checks for :chsk/closed, :chsk/timeout, :chsk/error
       (do-something! reply)
