@@ -69,12 +69,15 @@
   client<->server transit.
 
   Default is to use edn, but this reference example uses a dynamic
-  packer that can swap between edn/transit/binary for testing.
+  packer that can swap between several packers for testing.
 
   Client and server should use the same packer."
 
   #_:edn ; Default
-  (example.dynamic-packer/get-packer))
+  #_(taoensso.sente.packers.transit/get-packer)
+  #_(taoensso.sente.packers.msgpack/get-packer) ; Experimental
+  (example.dynamic-packer/get-packer) ; For testing
+  )
 
 (def chsk-client
   (sente/make-channel-socket-client!
@@ -209,10 +212,10 @@
     (fn [ev]
       (chsk-send! [:example/toggle-packer] 5000
         (fn [cb-reply]
-          (when (sente/cb-success? cb-reply)
-            (let [new-mode         cb-reply]
-              (reset! example.dynamic-packer/mode_ new-mode)
-              (->output! "New packer mode: %s"     new-mode))))))))
+          (when         (sente/cb-success? cb-reply)
+            (when-let [[old-mode new-mode] cb-reply]
+              (->output! "Changing packer mode: %s -> %s" old-mode new-mode)
+              (reset! example.dynamic-packer/mode_                 new-mode))))))))
 
 (when-let [target-el (.getElementById js/document "btn-toggle-bad-conn-rate")]
   (.addEventListener target-el "click"
