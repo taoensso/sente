@@ -1,6 +1,4 @@
 (ns taoensso.sente.packers.transit
-  "Optional Transit `IPacker2` implementation for use with Sente,
-  Ref. <https://github.com/cognitect/transit-format>."
   {:author "Peter Taoussanis, @ckarlsen84"}
   (:require
    [taoensso.encore   :as enc]
@@ -78,7 +76,7 @@
              (transit/read reader)))))))
 
 (deftype TransitPacker [transit-fmt writer-opts reader-opts]
-  taoensso.sente.interfaces/IPacker2
+  i/IPacker2
   (pack [_ ws? clj cb-fn]
     (cb-fn
       (truss/try*
@@ -92,7 +90,8 @@
         (catch :all t {:error t})))))
 
 (defn get-packer
-  "Returns a new `TransitPacker`."
+  "Returns Sente packer that uses the Transit format,
+  Ref. <https://github.com/cognitect/transit-format>."
   ([           ] (get-packer :json       {} {}))
   ([transit-fmt] (get-packer transit-fmt {} {}))
   ([transit-fmt writer-opts reader-opts]
@@ -102,10 +101,10 @@
    (TransitPacker. transit-fmt writer-opts reader-opts)))
 
 (comment
-  (let [tp (get-packer)]
-    (i/pack tp :ws [:chsk/ws-ping "foo"]
+  (let [p (get-packer)]
+    (i/pack p :ws [:chsk/ws-ping "foo"]
       (fn [{packed :value}]
-        (i/unpack tp :ws packed
+        (i/unpack p :ws packed
           (fn [{clj :value}] clj))))))
 
 (enc/deprecated (def ^:deprecated get-transit-packer "Prefer `get-packer`" get-packer))

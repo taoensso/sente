@@ -180,7 +180,8 @@
 ;;;; Packing (see `i/IPacker2`)
 
 (def ^:no-doc edn-packer
-  "Basic EDN-based packer implementation."
+  "Sente packer that uses the EDN text format.
+  A reasonable default choice."
   (reify i/IPacker2
     (pack [_ ws? clj cb-fn]
       (cb-fn
