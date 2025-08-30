@@ -9,16 +9,16 @@
 
   :dependencies
   [[org.clojure/core.async "1.8.741"]
-   [com.taoensso/encore    "3.149.0"]
-   [com.taoensso/trove     "1.0.0-RC2"]]
+   [com.taoensso/encore    "3.154.0"]
+   [com.taoensso/trove     "1.0.0"]]
 
   :test-paths ["test" #_"src"]
 
   :profiles
   {;; :default [:base :system :user :provided :dev]
    :provided {:dependencies [[org.clojure/clojurescript "1.12.42"]
-                             [org.clojure/clojure       "1.12.1"]]}
-   :c1.12    {:dependencies [[org.clojure/clojure       "1.12.1"]]}
+                             [org.clojure/clojure       "1.12.2"]]}
+   :c1.12    {:dependencies [[org.clojure/clojure       "1.12.2"]]}
    :c1.11    {:dependencies [[org.clojure/clojure       "1.11.1"]]}
    :c1.10    {:dependencies [[org.clojure/clojure       "1.10.2"]]}
 
@@ -35,10 +35,10 @@
    {:dependencies
     [[org.immutant/web               "2.1.10"]
      [nginx-clojure                  "0.6.0"]
-     [aleph                          "0.9.0"]
+     [aleph                          "0.9.1"]
      [macchiato/core                 "0.2.23"] ; 0.2.24 seems to fail?
-     [luminus/ring-undertow-adapter  "1.4.0"]
-     [info.sunng/ring-jetty9-adapter "0.37.4"]
+     [luminus/ring-undertow-adapter  "1.4.1"]
+     [info.sunng/ring-jetty9-adapter "0.37.6"]
      [ring/ring-core                            "1.14.2"]
      [ring/ring-jetty-adapter                   "1.14.2"]
      [org.ring-clojure/ring-websocket-protocols "1.14.2"]
@@ -63,7 +63,7 @@
     [[com.cognitect/transit-clj  "1.0.333"]
      [com.cognitect/transit-cljs "0.8.280"]
      [org.clojure/test.check     "1.1.1"]
-     [http-kit                   "2.8.0"]]
+     [http-kit                   "2.8.1"]]
 
     :plugins
     [[lein-pprint    "1.3.2"]

@@ -10,16 +10,16 @@
                 *assert* true}
 
   :dependencies
-  [[org.clojure/clojure        "1.12.1"]
+  [[org.clojure/clojure        "1.12.2"]
    [org.clojure/clojurescript "1.12.42"]
    [org.clojure/core.async    "1.8.741"]
    [nrepl                       "1.3.1"] ; Optional, for Cider
 
    [com.taoensso/sente   "1.21.0-beta2"] ; <--- Sente
-   [com.taoensso/telemere       "1.0.1"] ; Optional, for logging
+   [com.taoensso/telemere       "1.1.0"] ; Optional, for logging
 
    ;; Choose (uncomment) a supported web server --------------
-   [http-kit "2.8.0"] ; Default
+   [http-kit "2.8.1"] ; Default
    ;; [org.immutant/web "x.y.z" :exclusions [ring/ring-core]]
    ;; [nginx-clojure/nginx-clojure-embed "x.y.z"]
    ;; [aleph "x.y.z"]
@@ -41,7 +41,7 @@
   [[lein-pprint       "1.3.2"]
    [lein-ancient      "0.7.0"]
    [lein-cljsbuild    "1.1.8"]
-   [cider/cider-nrepl "0.56.0"]] ; Optional, for use with Emacs
+   [cider/cider-nrepl "0.57.0"]] ; Optional, for use with Emacs
 
   :cljsbuild
   {:builds
