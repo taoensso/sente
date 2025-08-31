@@ -15,8 +15,8 @@ Loosely inspired by [Socket.IO](https://socket.io/), it uses **core.async**, **W
 
 ## Latest release/s
 
+- `2025-09-02` `v1.21.0-RC1` (dev): [release info](../../releases/tag/v1.21.0-RC1)
 - `2024-12-31` `v1.20.0` (stable): [release info](../../releases/tag/v1.20.0)
-- `2025-07-04` `v1.21.0-beta2` (dev): [release info](../../releases/tag/v1.21.0-beta2)
 
 [![Clj tests][Clj tests SVG]][Clj tests URL]
 [![Cljs tests][Cljs tests SVG]][Cljs tests URL]
@@ -29,7 +29,7 @@ See [here][GitHub releases] for earlier releases.
 - **Bidirectional a/sync comms** over **WebSockets** with **auto Ajax fallback**
 - **It just works**: auto keep-alive, buffering, protocol selection, reconnects
 - **Efficient design** with auto event batching for low-bandwidth use, even over Ajax
-- Send **arbitrary Clojure vals** over [edn](https://github.com/edn-format/edn) or [Transit](https://github.com/cognitect/transit-clj) (JSON, MessagePack, etc.)
+- Send **arbitrary Clojure vals** with **high-speed binary serialization** (v1.21+) or [edn](https://github.com/edn-format/edn)
 - Tiny, easy-to-use [API](../../wiki/1-Getting-started#usage)
 - Support for users simultaneously connected with **multiple clients** and/or devices
 - Realtime info on **which users are connected**, and over which protocols
@@ -38,10 +38,10 @@ See [here][GitHub releases] for earlier releases.
 
 ### Capabilities
 
-Protocol   | client>server  | client>server + ack/reply | server>user push
----------- | -------------- | ------------------------- | ----------------
-WebSockets | ✓ (native)    | ✓ (emulated)              | ✓ (native)
-Ajax       | ✓ (emulated)  | ✓ (native)                | ✓ (emulated)
+| Protocol   | client>server | client>server + ack/reply | server>user push |
+| ---------- | ------------- | ------------------------- | ---------------- |
+| WebSockets | ✓ (native)    | ✓ (emulated)              | ✓ (native)       |
+| Ajax       | ✓ (emulated)  | ✓ (native)                | ✓ (emulated)     |
 
 So you can ignore the underlying protocol and deal directly with Sente's unified API that exposes the best of both WebSockets (bidirectionality + performance) and Ajax (optional ack/reply).
 
