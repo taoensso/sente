@@ -1492,10 +1492,13 @@
   (enc/ms :secs 60))
 
 #?(:cljs
-   (defn- binary-val? [x]
+   (defn- binary-val
+     "Returns value ∈ #{nil ArrayBuffer Blob}."
+     [x]
      (or
-       (when (exists? js/ArrayBuffer) (instance? js/ArrayBuffer x))
-       (when (exists? js/Blob)        (instance? js/Blob        x)))))
+       (when (instance? js/ArrayBuffer x)           x)
+       (when (instance? js/Uint8Array  x) (.-buffer x))
+       (when (instance? js/Blob        x)           x))))
 
 #?(:cljs
    (defrecord ChAjaxSocket
@@ -1535,26 +1538,24 @@
          :do
          (on-packed packer false ev ?cb-uuid
            (fn [packed]
-             (let [binary-packer? (binary-val? packed)]
+             (let [packed-bin (binary-val packed)]
                (ajax-call url
                  (enc/merge ajax-opts
                    {:method     :post
                     :timeout-ms (or ?timeout-ms (get ajax-opts :timeout-ms) default-client-side-ajax-timeout-ms)
-                    :resp-type  (if   binary-packer? :bin/array-buffer :text)
-                    :body       (when binary-packer? packed)
+                    :resp-type  (if   packed-bin :bin/array-buffer :text)
+                    :body             packed-bin
                     :params
                     (conj
                       {:udt (enc/now-udt), :client-id client-id}
-                      (if binary-packer?
+                      (if packed-bin
                         {:binary? true}
                         {:ppstr   packed}))
 
                     :headers
                     (enc/assoc-some (get ajax-opts :headers)
                       {"X-CSRF-Token" csrf-token
-                       "Content-Type"
-                       (when binary-packer?
-                         "application/octet-stream")})})
+                       "Content-Type" (when packed-bin "application/octet-stream")})})
 
                  (fn ajax-cb [{:keys [?error ?content]}]
                    (enc/cond
@@ -1600,7 +1601,7 @@
                              {:method     :get
                               :xhr-cb-fn  (fn [xhr] (reset! curr-xhr_ xhr))
                               :timeout-ms (or (get ajax-opts :timeout-ms) default-client-side-ajax-timeout-ms)
-                              :resp-type  (if (binary-val? packed) :bin/array-buffer :text)
+                              :resp-type  (if (binary-val packed) :bin/array-buffer :text)
                               :headers
                               (let [csrf-token (get-client-csrf-token-str :dynamic (get @state_ :csrf-token))]
                                 (assoc (get ajax-opts :headers) "X-CSRF-Token" csrf-token))
