@@ -183,37 +183,36 @@
   "Sente packer that uses the EDN text format.
   A reasonable default choice."
   (reify i/IPacker2
-    (pack [_ ws? clj cb-fn]
-      (cb-fn
-        (truss/try*
-          (do           {:value (enc/pr-edn clj)})
-          (catch :all t {:error t}))))
-
-    (unpack [_ ws? packed cb-fn]
-      (cb-fn
-        (truss/try*
-          (do           {:value (enc/read-edn packed)})
-          (catch :all t {:error t}))))))
+    (pack   [_ ws? clj    cb-fn] (cb-fn {:value (enc/pr-edn      clj)}))
+    (unpack [_ ws? packed cb-fn] (cb-fn {:value (enc/read-edn packed)}))))
 
 (defn- coerce-packer [x] (if (= x :edn) edn-packer (truss/have [:satisfies? i/IPacker2] x)))
 
-(defn- on-packed [packer ws?  clj ?cb-uuid cb-fn]
-  (i/pack         packer ws? [clj ?cb-uuid] ; Note wrapping to add ?cb-uuid
-    (fn [{error :error, packed :value}]
-      (if error
-        (trove/log!
-          {:level :error, :id :sente.packer/pack-failure, :error error,
-           :data {:ws? ws?, :given {:value clj, :type (type clj)}}})
-        (cb-fn packed)))))
+(defn- on-packed [packer ws? clj ?cb-uuid error-fn value-fn]
+  (truss/try*
+    (i/pack packer ws? [clj ?cb-uuid] ; Note wrapping to add ?cb-uuid
+      (fn cb-fn [{:keys [error value]}]
+        (if error (throw error) (value-fn value))))
 
-(defn- on-unpacked [packer ws? packed cb-fn]
-  (i/unpack         packer ws? packed
-    (fn [{error :error, clj :value}]
-      (if error
-        (trove/log!
-          {:level :error, :id :sente.packer/unpack-failure, :error error,
-           :data {:ws? ws?, :given {:value packed, :type (type packed)}}})
-        (cb-fn clj)))))
+    (catch :all error
+      (trove/log!
+        {:level :error, :id :sente.packer/pack-failure, :error error,
+         :data {:ws? ws?, :given {:value clj, :type (type clj)}}})
+
+      (when error-fn (error-fn error)))))
+
+(defn- on-unpacked [packer ws? packed error-fn value-fn]
+  (truss/try*
+    (i/unpack packer ws? packed
+      (fn [{:keys [error value]}]
+        (if error (throw error) (value-fn value))))
+
+    (catch :all error
+      (trove/log!
+        {:level :error, :id :sente.packer/unpack-failure, :error error,
+         :data {:ws? ws?, :given {:value packed, :type (type packed)}}})
+
+      (when error-fn (error-fn error)))))
 
 ;;;; Server API
 
@@ -470,6 +469,7 @@
                       (truss/have? set?    ev-uuids)
 
                       (on-packed packer (= conn-type :ws) buffered-evs nil
+                        (fn [error] (throw error))
                         (fn [packed]
                           (send-buffered-server-evs>clients! conn-type
                             conns_ uid packed (count buffered-evs)))))))]
@@ -603,6 +603,7 @@
 
                  :do
                  (on-unpacked packer websocket? packed
+                   (fn [error] (throw error))
                    (fn [[ev-clj has-cb?]]
                      (let [replied?_ (atom false)
                            reply-fn
@@ -618,6 +619,7 @@
 
                                (when (i/sch-open? server-ch)
                                  (on-packed packer websocket? arb-reply-clj nil
+                                   (fn [error] (throw error))
                                    (fn [packed] (i/sch-send! server-ch websocket? packed)))
                                  true)))]
 
@@ -683,6 +685,7 @@
 
                     (on-packed packer websocket?
                       [:chsk/handshake [uid nil (handshake-data-fn ring-req)]] nil
+                      (fn [error] (throw error))
                       (fn [packed] (i/sch-send! server-ch websocket? packed))))
 
                   on-error
@@ -699,6 +702,7 @@
                         (when conn-id [?sch (enc/now-udt) conn-id])))
 
                     (on-unpacked packer websocket? packed
+                      (fn [error] (throw error))
                       (fn   [[ev-clj ?cb-uuid]]
                         (case ev-clj
                           [:chsk/ws-pong] (receive-event-msg! ev-clj nil)
@@ -711,6 +715,7 @@
                                  :data {:uid uid, :cid client-id}})
 
                               (on-packed packer websocket? "pong" cb-uuid
+                                (fn [error] (throw error))
                                 (fn [packed] (i/sch-send! server-ch websocket? packed))))
 
                             (receive-event-msg! ev-clj nil))
@@ -725,6 +730,7 @@
                                      :data {:uid uid, :cid client-id, :ws? websocket?, :reply arb-reply-clj}})
 
                                   (on-packed packer websocket? arb-reply-clj cb-uuid
+                                    (fn [error] (throw error))
                                     (fn [packed] (i/sch-send! server-ch websocket? packed)))
                                   true))))))))
 
@@ -835,6 +841,7 @@
                                                   ;; immediately trigger the conn's `:on-close`, i.e. shouldn't
                                                   ;; usually need to wait for a missed pong
                                                   (on-packed packer websocket? :chsk/ws-ping nil
+                                                    (fn [error] (throw error))
                                                     (fn [packed] (i/sch-send! server-ch websocket? packed)))
 
                                                   (if ws-ping-timeout-ms
@@ -890,6 +897,7 @@
                                     (when (= conn-id conn-id*)
                                       (trove/log! {:level :trace, :id :sente.server/ajax-poll-timeout, :data {:uid uid, :cid client-id}})
                                       (on-packed packer websocket? :chsk/timeout nil
+                                        (fn [error] (throw error))
                                         (fn [packed] (i/sch-send! server-ch websocket? packed))))))))
 
                             (when (connect-uid!? :ajax uid)
@@ -1289,6 +1297,7 @@
       :do (assert-send-args ev ?timeout-ms ?cb-fn)
       :do
       (on-packed packer true ev ?cb-uuid
+        (fn [error] (throw error))
         (fn [packed]
 
           (when-let [cb-uuid ?cb-uuid]
@@ -1360,6 +1369,7 @@
                     (fn #?(:cljs [ws-ev] :clj [packed])
                       (reset! udt-last-comms_ (enc/now-udt))
                       (on-unpacked packer true #?(:clj packed :cljs (enc/oget ws-ev "data"))
+                        (fn [error] (throw error))
                         (fn [[arb-msg-clj ?cb-uuid]] ; Receives both pushes (ev-clj) & cb replies (arb-reply-clj)
                           (or
                             (when (and (own-socket?) (handshake? arb-msg-clj))
@@ -1537,6 +1547,7 @@
          :do (assert-send-args ev ?timeout-ms ?cb-fn)
          :do
          (on-packed packer false ev ?cb-uuid
+           (fn [error] (throw error))
            (fn [packed]
              (let [packed-bin (binary-val packed)]
                (ajax-call url
@@ -1565,8 +1576,12 @@
                        (swap-chsk-state! chsk #(chsk-state->closed % :unexpected))
                        (when ?cb-fn (?cb-fn :chsk/error)))
 
+                     :if-let [bad-resp-type? (if packed-bin (not (binary-val ?content)) (= "" ?content))]
+                     (when ?cb-fn (?cb-fn :chsk/error))
+
                      :do
                      (on-unpacked packer false ?content
+                       (fn [error] (throw error))
                        (fn [[arb-reply-clj _]]
                          (if-let [cb-fn ?cb-fn]
                            (cb-fn      arb-reply-clj)
@@ -1587,12 +1602,14 @@
                  (let [retry-fn
                        (fn []
                          (when (and (own-conn?) (not @client-unloading?_))
+                           (swap-chsk-state! chsk #(chsk-state->closed % :unexpected))
                            (let [retry-count* (inc retry-count)]
                              (retry-connect-chsk! chsk backoff-ms-fn
                                (fn connect-fn [] (poll-fn retry-count*))
                                (do                        retry-count*)))))]
 
                    (on-packed packer false :chsk/dummy-packer-test nil
+                     (fn [error]  (retry-fn))
                      (fn [packed]
                        (trove/log! {:level :trace, :id :sente.client/ajax-poll})
                        (reset! curr-xhr_
@@ -1615,13 +1632,10 @@
                            (fn ajax-cb [{:keys [?error ?content]}]
                              (enc/cond
                                (= ?error :timeout) (poll-fn 0)
-                               ?error
-                               (do
-                                 (swap-chsk-state! chsk #(chsk-state->closed % :unexpected))
-                                 (retry-fn))
-
+                               ?error              (retry-fn)
                                :do
                                (on-unpacked packer false ?content
+                                 (fn [error] (retry-fn))
                                  (fn [[ev-clj _]] ; Ajax long-poller only for events only, never cb replies
                                    (let [handshake? (handshake? ev-clj)]
                                      (when handshake? (receive-handshake! :ajax chsk ev-clj))

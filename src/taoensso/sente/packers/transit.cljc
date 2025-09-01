@@ -77,17 +77,8 @@
 
 (deftype TransitPacker [transit-fmt writer-opts reader-opts]
   i/IPacker2
-  (pack [_ ws? clj cb-fn]
-    (cb-fn
-      (truss/try*
-        (do           {:value ((get-writer-fn transit-fmt writer-opts) clj)})
-        (catch :all t {:error t}))))
-
-  (unpack [_ ws? packed cb-fn]
-    (cb-fn
-      (truss/try*
-        (do           {:value ((get-reader-fn transit-fmt reader-opts) packed)})
-        (catch :all t {:error t})))))
+  (pack   [_ ws? clj    cb-fn] (cb-fn {:value ((get-writer-fn transit-fmt writer-opts) clj)}))
+  (unpack [_ ws? packed cb-fn] (cb-fn {:value ((get-reader-fn transit-fmt reader-opts) packed)})))
 
 (defn get-packer
   "Returns Sente packer that uses the Transit format,
