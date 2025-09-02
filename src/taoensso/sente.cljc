@@ -83,7 +83,8 @@
    [taoensso.encore.timers :as timers]
    [taoensso.truss         :as truss]
    [taoensso.trove         :as trove]
-   [taoensso.sente.interfaces :as i])
+   [taoensso.sente.interfaces :as i]
+   [taoensso.sente.packers.edn :as edn-packer])
 
   #?(:cljs
      (:require-macros
@@ -179,14 +180,8 @@
 
 ;;;; Packing (see `i/IPacker2`)
 
-(def ^:no-doc edn-packer
-  "Sente packer that uses the EDN text format.
-  A reasonable default choice."
-  (reify i/IPacker2
-    (pack   [_ ws? clj    cb-fn] (cb-fn {:value (enc/pr-edn      clj)}))
-    (unpack [_ ws? packed cb-fn] (cb-fn {:value (enc/read-edn packed)}))))
-
-(defn- coerce-packer [x] (if (= x :edn) edn-packer (truss/have [:satisfies? i/IPacker2] x)))
+(def ^:no-doc edn-packer (edn-packer/get-packer))
+(defn-     coerce-packer [x] (if (= x :edn) edn-packer (truss/have [:satisfies? i/IPacker2] x)))
 
 (defn- on-packed [packer ws? clj ?cb-uuid error-fn value-fn]
   (let [error-fn*
