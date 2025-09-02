@@ -116,7 +116,18 @@
       (is (let [ub (ubytes 65536)] (eq ub (:ba-content (rt (c/->PackableExt 106 ub))))))])
 
    #?(:clj  (is (rt? "Timestamps" (java.time.Instant/now) (java.util.Date.) (java.util.Date. -1))))
-   #?(:cljs (is (rt? "Timestamps" (js/Date.))))])
+   #?(:cljs (is (rt? "Timestamps" (js/Date.))))
+
+   (testing "Key caching"
+     [(rt? "Basic" [{:a :A} {:a :A}] {:foo {1 {:x :X} 2 {:y :Y}}})
+      (rt? ">256    keys" (let [m (into {} (map (fn [n] [(str "key" n) n])) (range 512))] [m m {:a :A :b :B} m]))
+      (rt? "Complex keys"
+        {:this-is-a-cachable-key  0
+         :this/is-a-cachable-key  1
+         "this-is-a-cachable-key" 2
+         {:this-is-a-cachable-key 3
+          :this/is-a-cachable-key 4} 5
+         ["complex key" #{:a :b :c}] 6})])])
 
 #?(:cljs
    (defmethod test/report [:cljs.test/default :end-run-tests] [m]

@@ -1,7 +1,7 @@
 (ns taoensso.msgpack.impl
   (:require [taoensso.msgpack.common :as c :refer [Packable pack-bytes]])
   (:import
-   [taoensso.msgpack.common PackableExt]
+   [taoensso.msgpack.common PackableExt CachedKey]
    [java.nio ByteBuffer ByteOrder]
    [java.nio.charset StandardCharsets]
    [java.io
@@ -56,14 +56,27 @@
       :else             (do (.writeByte out 0xcf) (.writeLong  out (unchecked-long n))) ; uint64
       )))
 
-(defn- pack-coll [c ^DataOutput out] (reduce    (fn [_ el]  (pack-bytes el out))                    nil c))
-(defn- pack-kvs  [m ^DataOutput out] (reduce-kv (fn [_ k v] (pack-bytes k  out) (pack-bytes v out)) nil m))
+(defn- pack-coll [c ^DataOutput out] (reduce (fn [_ el] (pack-bytes el out)) nil c))
 (defn- pack-seq  [s ^DataOutput out]
   (let [len (count s)]
     (cond
       (<= len 0xf)        (do (.writeByte out     (bit-or 2r10010000 len)) (pack-coll s out))
       (<= len 0xffff)     (do (.writeByte out 0xdc) (.writeShort out len)  (pack-coll s out))
       (<= len 0xffffffff) (do (.writeByte out 0xdd) (.writeInt   out len)  (pack-coll s out)))))
+
+#_(defn- pack-kvs [m ^DataOutput out] (reduce-kv (fn [_ k v] (pack-bytes k  out) (pack-bytes v out)) nil m))
+(defn-   pack-kvs [m ^DataOutput out]
+  (let [key-cache_ c/*key-cache_*]
+    (reduce-kv
+      (fn [_ k v]
+        (if-let [cache-idx (c/key-cache-pack! key-cache_ k)]
+          (do
+            (.writeByte out 0xd4) ; 1-byte PackableExt
+            (.writeByte out 8)    ; PackableExt byte-id
+            (.writeByte out cache-idx))
+          (pack-bytes k out))
+        (pack-bytes   v out))
+      nil m)))
 
 (defn- pack-map [m ^DataOutput out]
   (let [len (count m)]
@@ -137,8 +150,21 @@
 
 (declare unpack-1)
 (defn-   unpack-n   [init n ^DataInput in] (persistent! (reduce (fn [acc _] (conj!  acc (unpack-1 in)))               (transient init) (range n))))
-(defn-   unpack-map [     n ^DataInput in] (persistent! (reduce (fn [acc _] (assoc! acc (unpack-1 in) (unpack-1 in))) (transient {})   (range n))))
-(defn-   unpack-1   [       ^DataInput in]
+#_(defn- unpack-map [     n ^DataInput in] (persistent! (reduce (fn [acc _] (assoc! acc (unpack-1 in) (unpack-1 in))) (transient {})   (range n))))
+(defn-   unpack-map [     n ^DataInput in]
+  (let [key-cache_ c/*key-cache_*]
+    (persistent!
+      (reduce
+        (fn [acc _]
+          (let [k (unpack-1 in)
+                k
+                (if (instance? CachedKey k)
+                  (.-val      ^CachedKey k)
+                  (do (c/key-cache-unpack! key-cache_ k) k))]
+            (assoc! acc k (unpack-1 in))))
+        (transient {}) (range n)))))
+
+(defn-   unpack-1        [^DataInput in]
   (let   [byte-id (.readUnsignedByte in)]
     (case byte-id
       0xc0 nil
@@ -198,20 +224,23 @@
 
 (defn pack
   (^bytes [clj] (let [baos (ByteArrayOutputStream.)] (pack clj baos) (.toByteArray baos)))
-  ([clj out]
-   (cond
-     (instance? DataOutput   out) (pack-bytes clj                               out)
-     (instance? OutputStream out) (pack-bytes clj (DataOutputStream. ^OutStream out))
-     :else
-     (throw
-       (ex-info "Pack failed: unexpected `out` type"
-         {:given {:value out, :type (type out)}
-          :expected '#{DataOutput OutputStream}})))))
+  ([clj  out]
+   (let [out
+         (cond
+           (instance? DataOutput   out)                               out
+           (instance? OutputStream out) (DataOutputStream. ^OutStream out)
+           :else
+           (throw
+             (ex-info "Pack failed: unexpected `out` type"
+               {:given {:value out, :type (type out)}
+                :expected '#{DataOutput OutputStream}})))]
+
+     (c/with-key-cache (pack-bytes clj out)))))
 
 (defn unpack [packed]
   (cond
     (bytes?                packed) (unpack-1 (DataInputStream. (ByteArrayInputStream.             packed)))
-    (instance? DataInput   packed) (unpack-1                                                      packed)
+    (instance? DataInput   packed) (unpack-1                                                     packed)
     (instance? InputStream packed) (unpack-1 (DataInputStream.                                    packed))
     (seq?                  packed) (unpack-1 (DataInputStream. (ByteArrayInputStream. (byte-array packed))))
     :else
@@ -308,9 +337,13 @@
            secs  (.getLong bb)]
       (java.time.Instant/ofEpochSecond secs nanos))))
 
+(c/extend-packable 8 nil nil ; Cached key
+  (unpack [ba]
+    (CachedKey. (get @c/*key-cache_* (bit-and 0xff (aget ^bytes ba 0))))))
+
 (comment
   (require '[taoensso.encore :as enc])
   (let [x [nil {:a :A :b :B :c "foo", :v (vec (range 128)), :s (set (range 128))}]]
-    (enc/qb 1e4 ; [984.51 162.51]
+    (enc/qb 1e4 ; [971.64 187.62]
       (enc/read-edn (enc/pr-edn x))
       (unpack       (pack       x)))))

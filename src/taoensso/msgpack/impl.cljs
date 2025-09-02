@@ -4,7 +4,7 @@
    [goog.crypt]
    [goog.math.Long]
    [taoensso.msgpack.common :as c
-    :refer [Packable PackableExt pack-bytes]]))
+    :refer [Packable PackableExt pack-bytes CachedKey]]))
 
 ;;;; Streams
 
@@ -169,14 +169,27 @@
       :else (throw (ex-info "Int too large to pack" {:type (type-name n), :value n})))))
 
 (defn- pack-num  [n out] (if (integer? n) (pack-int n out) (pack-dbl n out)))
-(defn- pack-coll [c out] (reduce    (fn [_ el]  (pack-bytes el out))                    nil c))
-(defn- pack-kvs  [m out] (reduce-kv (fn [_ k v] (pack-bytes k  out) (pack-bytes v out)) nil m))
+(defn- pack-coll [c out] (reduce (fn [_ el] (pack-bytes el out)) nil c))
 (defn- pack-seq  [s out]
   (let [len (count s)]
     (cond
       (<= len 0xf)        (do (write-u8 out   (bit-or 2r10010000 len)) (pack-coll s out))
       (<= len 0xffff)     (do (write-u8 out 0xdc) (write-u16 out len)  (pack-coll s out))
       (<= len 0xffffffff) (do (write-u8 out 0xdd) (write-u32 out len)  (pack-coll s out)))))
+
+#_(defn- pack-kvs [m out] (reduce-kv (fn [_ k v] (pack-bytes k  out) (pack-bytes v out)) nil m))
+(defn-   pack-kvs [m out]
+  (let [key-cache_ c/*key-cache_*]
+    (reduce-kv
+      (fn [_ k v]
+        (if-let [cache-idx (c/key-cache-pack! key-cache_ k)]
+          (do
+            (write-u8 out 0xd4) ; 1-byte PackableExt
+            (write-u8 out 8)    ; PackableExt byte-id
+            (write-u8 out cache-idx))
+          (pack-bytes k out))
+        (pack-bytes   v out))
+      nil m)))
 
 (defn- pack-map [m out]
   (let [len (count m)]
@@ -239,8 +252,21 @@
 
 (declare unpack-1)
 (defn-   unpack-n   [init n in] (persistent! (reduce (fn [acc _] (conj!  acc (unpack-1 in)))               (transient init) (range n))))
-(defn-   unpack-map [     n in] (persistent! (reduce (fn [acc _] (assoc! acc (unpack-1 in) (unpack-1 in))) (transient   {}) (range n))))
-(defn-   unpack-1   [       in]
+#_(defn- unpack-map [     n in] (persistent! (reduce (fn [acc _] (assoc! acc (unpack-1 in) (unpack-1 in))) (transient   {}) (range n))))
+(defn-   unpack-map [     n in]
+  (let [key-cache_ c/*key-cache_*]
+    (persistent!
+      (reduce
+        (fn [acc _]
+          (let [k (unpack-1 in)
+                k
+                (if (instance? CachedKey k)
+                  (.-val      ^CachedKey k)
+                  (do (c/key-cache-unpack! key-cache_ k) k))]
+            (assoc! acc k (unpack-1 in))))
+        (transient {}) (range n)))))
+
+(defn-   unpack-1 [in]
   (let   [byte-id (read-u8 in)]
     (case byte-id
       0xc0 nil
@@ -369,3 +395,7 @@
           secs      (.toNumber long-secs)
           millis (+ (* secs 1000) (/ nanos 1000000))]
       (js/Date. millis))))
+
+(c/extend-packable 8 nil nil ; Cached key
+  (unpack [ba]
+    (CachedKey. (get @c/*key-cache_* (read-u8 (in-stream ba))))))
