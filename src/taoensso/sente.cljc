@@ -189,30 +189,46 @@
 (defn- coerce-packer [x] (if (= x :edn) edn-packer (truss/have [:satisfies? i/IPacker2] x)))
 
 (defn- on-packed [packer ws? clj ?cb-uuid error-fn value-fn]
-  (truss/try*
-    (i/pack packer ws? [clj ?cb-uuid] ; Note wrapping to add ?cb-uuid
-      (fn cb-fn [{:keys [error value]}]
-        (if error (throw error) (value-fn value))))
+  (let [error-fn*
+        (fn [e]
+          (trove/log!
+            {:level :error, :id :sente.packer/pack-failure, :error e,
+             :data {:ws? ws?, :given {:value clj, :type (type clj)}}})
 
-    (catch :all error
-      (trove/log!
-        {:level :error, :id :sente.packer/pack-failure, :error error,
-         :data {:ws? ws?, :given {:value clj, :type (type clj)}}})
+          (when error-fn (error-fn e)))]
 
-      (when error-fn (error-fn error)))))
+    (truss/try*
+      (i/pack packer ws? [clj ?cb-uuid] ; Note wrapping to add ?cb-uuid
+        (fn cb-fn [{:keys [error value]}] ; May be called sync or async
+          (truss/try*
+            (if error (error-fn* error) (value-fn value))
+            (catch :all t (truss/ex-info! "Error after packing" {} t)))))
+
+      (catch :all t
+        (if (= (ex-message t) "Error after packing")
+          (throw (ex-cause t)) ; Was sync
+          (error-fn*       t))))))
 
 (defn- on-unpacked [packer ws? packed error-fn value-fn]
-  (truss/try*
-    (i/unpack packer ws? packed
-      (fn [{:keys [error value]}]
-        (if error (throw error) (value-fn value))))
+  (let [error-fn*
+        (fn [e]
+          (trove/log!
+            {:level :error, :id :sente.packer/unpack-failure, :error e,
+             :data {:ws? ws?, :given {:value packed, :type (type packed)}}})
 
-    (catch :all error
-      (trove/log!
-        {:level :error, :id :sente.packer/unpack-failure, :error error,
-         :data {:ws? ws?, :given {:value packed, :type (type packed)}}})
+          (when error-fn (error-fn e)))]
 
-      (when error-fn (error-fn error)))))
+    (truss/try*
+      (i/unpack packer ws? packed
+        (fn cb-fn [{:keys [error value]}] ; May be called sync or async
+          (truss/try*
+            (if error (error-fn* error) (value-fn value))
+            (catch :all t (truss/ex-info! "Error after unpacking" {} t)))))
+
+      (catch :all t
+        (if (= (ex-message t) "Error after unpacking")
+          (throw (ex-cause t)) ; Was sync
+          (error-fn*       t))))))
 
 ;;;; Server API
 
