@@ -257,8 +257,8 @@
 
   (unpack [ba]
     (let  [bb     (ByteBuffer/wrap ba)
-           _      (.order      bb (ByteOrder/nativeOrder))
-           int-bb (.asIntBbfer bb)
+           _      (.order       bb (ByteOrder/nativeOrder))
+           int-bb (.asIntBuffer bb)
            int-ar (int-array (.limit int-bb))]
       (.get int-bb int-ar)
       (do          int-ar))))
@@ -272,8 +272,8 @@
 
   (unpack [ba]
     (let  [bb       (ByteBuffer/wrap ba)
-           _        (.order        bb (ByteOrder/nativeOrder))
-           float-bb (.asFloatBbfer bb)
+           _        (.order         bb (ByteOrder/nativeOrder))
+           float-bb (.asFloatBuffer bb)
            float-ar (float-array (.limit float-bb))]
       (.get float-bb float-ar)
       (do            float-ar))))
@@ -287,8 +287,8 @@
 
   (unpack [ba]
     (let  [bb        (ByteBuffer/wrap ba)
-           _         (.order         bb (ByteOrder/nativeOrder))
-           double-bb (.asDoubleBbfer bb)
+           _         (.order          bb (ByteOrder/nativeOrder))
+           double-bb (.asDoubleBuffer bb)
            double-ar (double-array (.limit double-bb))]
       (.get double-bb double-ar)
       (do             double-ar))))

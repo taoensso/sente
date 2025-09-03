@@ -16,12 +16,22 @@
 ;;;;
 
 (defn byte-vec [x]
-  #?(:clj (when (or (bytes? x) (instance? (Class/forName "[Ljava.lang.Byte;") x)) (vec x))
+  #?(:clj
+     (when (or (bytes? x)
+             (instance? (Class/forName "[Ljava.lang.Byte;") x)
+             (instance? (Class/forName "[I") x)
+             (instance? (Class/forName "[F") x)
+             (instance? (Class/forName "[D") x)) (vec x))
+
      :cljs
      (cond
-       (instance? js/Uint8Array  x) (vec (js/Array.from x))
        (instance? js/ArrayBuffer x) (vec (js/Array.from (js/Uint8Array. x)))
        (js/ArrayBuffer.isView    x) (vec (js/Array.from (js/Uint8Array. (.-buffer x) (.-byteOffset x) (.-byteLength x))))
+       (or
+         (instance? js/Uint8Array   x)
+         (instance? js/Int32Array   x)
+         (instance? js/Float32Array x)
+         (instance? js/Float64Array x)) (vec (js/Array.from x))
        :else nil)))
 
 (defn eq
@@ -89,6 +99,11 @@
       (rt? "bin8"  (ubytes 255))
       (rt? "bin16" (ubytes 256))
       (rt? "bin32" (ubytes 65536))])
+
+   (testing "Primitive num arrays"
+     [(rt? #?(:clj (int-array    (range 128)), :cljs (js/Int32Array.   (to-array (range 128)))))
+      (rt? #?(:clj (float-array  (range 128)), :cljs (js/Float32Array. (to-array (range 128)))))
+      (rt? #?(:clj (double-array (range 128)), :cljs (js/Float64Array. (to-array (range 128)))))])
 
    (testing "Ext types"
      [(is (let [ub (ubytes     1)] (eq ub (:ba-content (rt (i/->PackableExt 106 ub))))))
