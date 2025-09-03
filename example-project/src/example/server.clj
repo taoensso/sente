@@ -193,7 +193,7 @@
   []
   (doseq [uid (:any @connected-uids_)]
     (doseq [i (range 100)]
-      (chsk-send! uid [:example/broadcast (str {:i i, :uid uid})]))))
+      (chsk-send! uid [:example/broadcast {:i i, :uid uid}]))))
 
 (comment (test-broadcast!))
 

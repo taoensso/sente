@@ -29,7 +29,7 @@ See [here][GitHub releases] for earlier releases.
 - **Bidirectional a/sync comms** over **WebSockets** with **auto Ajax fallback**
 - **It just works**: auto keep-alive, buffering, protocol selection, reconnects
 - **Efficient design** with auto event batching for low-bandwidth use, even over Ajax
-- Send **arbitrary Clojure vals** with **high-speed binary serialization** (v1.21+) or [edn](https://github.com/edn-format/edn)
+- Send **arbitrary Clojure vals** with **high-speed binary serialization** (v1.21+)
 - Tiny, easy-to-use [API](../../wiki/1-Getting-started#usage)
 - Support for users simultaneously connected with **multiple clients** and/or devices
 - Realtime info on **which users are connected**, and over which protocols
