@@ -251,13 +251,13 @@
 (i/extend-packable 5 (class (int-array 0))
   (pack  [ar]
     (let [bb (ByteBuffer/allocate (* 4 (count ar)))]
-      (.order bb (ByteOrder/nativeOrder))
+      (.order bb (ByteOrder/BIG_ENDIAN))
       (areduce ^ints ar i _ nil (.putInt bb (aget ^ints ar i)))
       (.array bb)))
 
   (unpack [ba]
     (let  [bb     (ByteBuffer/wrap ba)
-           _      (.order       bb (ByteOrder/nativeOrder))
+           _      (.order       bb (ByteOrder/BIG_ENDIAN))
            int-bb (.asIntBuffer bb)
            int-ar (int-array (.limit int-bb))]
       (.get int-bb int-ar)
@@ -266,13 +266,13 @@
 (i/extend-packable 6 (class (float-array 0))
   (pack [ar]
     (let     [bb (ByteBuffer/allocate (* 4 (count ar)))]
-      (.order bb (ByteOrder/nativeOrder))
+      (.order bb (ByteOrder/BIG_ENDIAN))
       (areduce ^floats ar idx _ nil (.putFloat bb (aget ^floats ar idx)))
       (.array bb)))
 
   (unpack [ba]
     (let  [bb       (ByteBuffer/wrap ba)
-           _        (.order         bb (ByteOrder/nativeOrder))
+           _        (.order         bb (ByteOrder/BIG_ENDIAN))
            float-bb (.asFloatBuffer bb)
            float-ar (float-array (.limit float-bb))]
       (.get float-bb float-ar)
@@ -281,13 +281,13 @@
 (i/extend-packable 7 (class (double-array 0))
   (pack [ar]
     (let     [bb (ByteBuffer/allocate (* 8 (count ar)))]
-      (.order bb (ByteOrder/nativeOrder))
+      (.order bb (ByteOrder/BIG_ENDIAN))
       (areduce ^doubles ar idx _ nil (.putDouble bb (aget ^doubles ar idx)))
       (.array bb)))
 
   (unpack [ba]
     (let  [bb        (ByteBuffer/wrap ba)
-           _         (.order          bb (ByteOrder/nativeOrder))
+           _         (.order          bb (ByteOrder/BIG_ENDIAN))
            double-bb (.asDoubleBuffer bb)
            double-ar (double-array (.limit double-bb))]
       (.get double-bb double-ar)
