@@ -10,12 +10,12 @@
 #?(:clj
    (defmacro extend-packable [byte-id class & [pack-clause unpack-clause]]
      (let [pack-clause
-           (when-let [[_ args form] pack-clause]
+           (when-let [[_ [arg] & body] pack-clause]
              `(extend-protocol Packable ~class
-                (pack-bytes [~@args out#] (pack-bytes (PackableExt. ~byte-id ~form) out#))))
+                (pack-bytes [~arg out#] (pack-bytes (PackableExt. ~byte-id (do ~@body)) out#))))
 
            unpack-clause
-           (when-let [[_ args form] unpack-clause]
-             `(defmethod unpack-ext ~byte-id [~'byte-id ~@args] ~form))]
+           (when-let [[_ [arg] & body] unpack-clause]
+             `(defmethod unpack-ext ~byte-id [~'byte-id ~arg] ~@body))]
 
        `(do ~pack-clause ~unpack-clause))))
