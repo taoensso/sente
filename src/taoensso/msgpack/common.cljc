@@ -26,9 +26,9 @@
 
 (deftype CachedKey [val])
 (def ^:no-doc ^:dynamic *key-cache_*
-  "When  packing: {clj-val cache-idx},
-  When unpacking: {cache-idx clj-val}."
-  (atom {}))
+  "When  packing: (atom {clj-val cache-idx}),
+  When unpacking: (atom {cache-idx clj-val})."
+  nil)
 
 #?(:clj
    (defmacro ^:no-doc with-key-cache [& body]

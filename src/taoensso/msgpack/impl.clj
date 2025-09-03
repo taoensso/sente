@@ -10,14 +10,14 @@
 
 ;;;; Utils
 
-(defmacro with-out [[out] & body]
-  `(let [baos# (ByteArrayOutputStream.)
+(defmacro with-out [[out size] & body]
+  `(let [baos# (ByteArrayOutputStream. ~size)
          ~out  (DataOutputStream. baos#)]
      ~@body
      (.toByteArray baos#)))
 
 (defmacro with-in [[in ba] & body]
-  `(let [bais# (ByteArrayInputStream. ~ba)
+  `(let [bais# (ByteArrayInputStream. ~(with-meta ba {:tag 'bytes}))
          ~in   (DataInputStream. bais#)]
      ~@body))
 
@@ -30,8 +30,9 @@
       (<= len 0xffff)     (do (.writeByte out 0xc5) (.writeShort out len) (.write out ba))
       (<= len 0xffffffff) (do (.writeByte out 0xc6) (.writeInt   out len) (.write out ba)))))
 
-(defn- pack-str [^bytes ba ^DataOutput out]
-  (let [len (count ba)]
+(defn- pack-str [^String s ^DataOutput out]
+  (let [ba  (.getBytes s StandardCharsets/UTF_8)
+        len (alength ba)]
     (cond
       (<= len 0x1f)       (do (.writeByte out     (bit-or 2r10100000 len)) (.write out ba))
       (<= len 0xff)       (do (.writeByte out 0xd9) (.writeByte  out len)  (.write out ba))
@@ -69,10 +70,11 @@
   (let [key-cache_ c/*key-cache_*]
     (reduce-kv
       (fn [_ k v]
-        (if-let [cache-idx (c/key-cache-pack! key-cache_ k)]
+        (if-let [cache-idx (when key-cache_ (c/key-cache-pack! key-cache_ k))]
+          #_(pack-bytes (PackableExt. 8 (with-out [out 1] (.writeByte out cache-idx))) out)
           (do
-            (.writeByte out 0xd4) ; 1-byte PackableExt
-            (.writeByte out 8)    ; PackableExt byte-id
+            (.writeByte out 0xd4)
+            (.writeByte out 8)
             (.writeByte out cache-idx))
           (pack-bytes k out))
         (pack-bytes   v out))
@@ -88,14 +90,14 @@
 (extend-protocol Packable
   nil                         (pack-bytes [_ ^DataOutput out]       (.writeByte out 0xc0))
   java.lang.Boolean           (pack-bytes [b ^DataOutput out] (if b (.writeByte out 0xc3) (.writeByte out 0xc2)))
-  java.lang.String            (pack-bytes [s ^DataOutput out] (pack-str (.getBytes ^String s StandardCharsets/UTF_8) out))
+  java.lang.String            (pack-bytes [s ^DataOutput out] (pack-str s out))
   ;;
   java.lang.Byte              (pack-bytes [n ^DataOutput out] (pack-int n out))
   java.lang.Short             (pack-bytes [n ^DataOutput out] (pack-int n out))
   java.lang.Integer           (pack-bytes [n ^DataOutput out] (pack-int n out))
   java.lang.Long              (pack-bytes [n ^DataOutput out] (pack-int n out))
-  java.math.BigInteger        (pack-bytes [n ^DataOutput out] (pack-int (.longValueExact                n)  out))
-  clojure.lang.BigInt         (pack-bytes [n ^DataOutput out] (pack-int (.longValueExact (.toBigInteger n)) out))
+  java.math.BigInteger        (pack-bytes [n ^DataOutput out] (pack-int (.longValueExact                n)  out)) ; i64 range, or throw
+  clojure.lang.BigInt         (pack-bytes [n ^DataOutput out] (pack-int (.longValueExact (.toBigInteger n)) out)) ; ''
   ;;
   java.lang.Float             (pack-bytes [f ^DataOutput out] (do (.writeByte out 0xca) (.writeFloat  out f)))
   java.lang.Double            (pack-bytes [d ^DataOutput out] (do (.writeByte out 0xcb) (.writeDouble out d)))
@@ -222,53 +224,30 @@
         (== (bit-and byte-id 2r11110000) 2r10000000) (unpack-map  (bit-and 2r1111  byte-id)              in)  ; Map
         :else (throw (ex-info "Unpack failed: unexpected `byte-id`" {:byte-id byte-id}))))))
 
-(defn pack
-  (^bytes [clj] (let [baos (ByteArrayOutputStream.)] (pack clj baos) (.toByteArray baos)))
-  ([clj  out]
-   (let [out
-         (cond
-           (instance? DataOutput   out)                               out
-           (instance? OutputStream out) (DataOutputStream. ^OutStream out)
-           :else
-           (throw
-             (ex-info "Pack failed: unexpected `out` type"
-               {:given {:value out, :type (type out)}
-                :expected '#{DataOutput OutputStream}})))]
-
-     (c/with-key-cache (pack-bytes clj out)))))
-
-(defn unpack [packed]
-  (cond
-    (bytes?                packed) (unpack-1 (DataInputStream. (ByteArrayInputStream.             packed)))
-    (instance? DataInput   packed) (unpack-1                                                     packed)
-    (instance? InputStream packed) (unpack-1 (DataInputStream.                                    packed))
-    (seq?                  packed) (unpack-1 (DataInputStream. (ByteArrayInputStream. (byte-array packed))))
-    :else
-    (throw
-      (ex-info "Unpack failed: unexpected `packed` type"
-        {:given {:value packed, :type (type packed)}
-         :expected '#{bytes DataInput InputStream}}))))
-
 ;;;; Built-in extensions
 
 (c/extend-packable 0 clojure.lang.Keyword
-  (pack   [k]  (pack (subs (str k) 1)))
-  (unpack [ba] (keyword (unpack ba))))
+  (pack   [k]  (.getBytes (.substring (str k) 1) StandardCharsets/UTF_8))
+  (unpack [ba] (keyword (String. ^bytes ba       StandardCharsets/UTF_8))))
 
 (c/extend-packable 1 clojure.lang.Symbol
-  (pack   [s]  (pack (str s)))
-  (unpack [ba] (symbol (unpack ba))))
+  (pack   [s]  (.getBytes (str s)         StandardCharsets/UTF_8))
+  (unpack [ba] (symbol (String. ^bytes ba StandardCharsets/UTF_8))))
 
 (c/extend-packable 2 java.lang.Character
-  (pack   [c]  (pack (str c)))
-  (unpack [ba] (aget (char-array (unpack ba)) 0)))
+  (pack   [c]  (.getBytes (str c)          StandardCharsets/UTF_8))
+  (unpack [ba] (.charAt (String. ^bytes ba StandardCharsets/UTF_8) 0)))
 
 (c/extend-packable 3 clojure.lang.Ratio
-  (pack   [r]  (pack [(numerator r) (denominator r)]))
-  (unpack [ba] (let [[n d] (unpack ba)] (/ n d))))
+  (pack [r]
+    (with-out [out 32]
+      (pack-bytes (numerator   r) out)
+      (pack-bytes (denominator r) out)))
+
+  (unpack [ba] (with-in [in ba] (/ (unpack-1 in) (unpack-1 in)))))
 
 (c/extend-packable 4 clojure.lang.IPersistentSet
-  (pack   [s]  (with-out [out] (pack-seq s out)))
+  (pack   [s]  (with-out [out 128] (pack-seq s out)))
   (unpack [ba]
     (with-in [in ba]
       (let    [byte-id (.readUnsignedByte in)]
@@ -278,49 +257,49 @@
           (do  (unpack-n #{} (bit-and 2r1111 byte-id) in)))))))
 
 (c/extend-packable 5 (class (int-array 0))
-  (pack  [ar]
-    (let [bb (ByteBuffer/allocate (* 4 (count ar)))]
-      (.order bb (ByteOrder/BIG_ENDIAN))
-      (areduce ^ints ar i _ nil (.putInt bb (aget ^ints ar i)))
+  (pack  [ia]
+    (let [ba (byte-array (* 4 (alength ^ints ia)))
+          bb (doto (ByteBuffer/wrap ba) (.order ByteOrder/BIG_ENDIAN))
+          ib (.asIntBuffer bb)]
+      (.put ib ^ints ia)
       (.array bb)))
 
   (unpack [ba]
-    (let  [bb     (ByteBuffer/wrap ba)
-           _      (.order       bb (ByteOrder/BIG_ENDIAN))
-           int-bb (.asIntBuffer bb)
-           int-ar (int-array (.limit int-bb))]
-      (.get int-bb int-ar)
-      (do          int-ar))))
+    (let  [bb (doto (ByteBuffer/wrap ba) (.order ByteOrder/BIG_ENDIAN))
+           ib (.asIntBuffer bb)
+           ia (int-array (.remaining ib))]
+      (.get ib ia)
+      ia)))
 
 (c/extend-packable 6 (class (float-array 0))
-  (pack [ar]
-    (let     [bb (ByteBuffer/allocate (* 4 (count ar)))]
-      (.order bb (ByteOrder/BIG_ENDIAN))
-      (areduce ^floats ar idx _ nil (.putFloat bb (aget ^floats ar idx)))
+  (pack  [fa]
+    (let [ba (byte-array (* 4 (alength ^floats fa)))
+          bb (doto (ByteBuffer/wrap ba) (.order ByteOrder/BIG_ENDIAN))
+          fb (.asFloatBuffer bb)]
+      (.put fb ^floats fa)
       (.array bb)))
 
   (unpack [ba]
-    (let  [bb       (ByteBuffer/wrap ba)
-           _        (.order         bb (ByteOrder/BIG_ENDIAN))
-           float-bb (.asFloatBuffer bb)
-           float-ar (float-array (.limit float-bb))]
-      (.get float-bb float-ar)
-      (do            float-ar))))
+    (let  [bb (doto (ByteBuffer/wrap ba) (.order ByteOrder/BIG_ENDIAN))
+           fb (.asFloatBuffer bb)
+           fa (float-array (.remaining fb))]
+      (.get fb fa)
+      fa)))
 
 (c/extend-packable 7 (class (double-array 0))
-  (pack [ar]
-    (let     [bb (ByteBuffer/allocate (* 8 (count ar)))]
-      (.order bb (ByteOrder/BIG_ENDIAN))
-      (areduce ^doubles ar idx _ nil (.putDouble bb (aget ^doubles ar idx)))
+  (pack  [da]
+    (let [ba (byte-array (* 8 (alength ^doubles da)))
+          bb (doto (ByteBuffer/wrap ba) (.order ByteOrder/BIG_ENDIAN))
+          db (.asDoubleBuffer bb)]
+      (.put db ^doubles da)
       (.array bb)))
 
   (unpack [ba]
-    (let  [bb        (ByteBuffer/wrap ba)
-           _         (.order          bb (ByteOrder/BIG_ENDIAN))
-           double-bb (.asDoubleBuffer bb)
-           double-ar (double-array (.limit double-bb))]
-      (.get double-bb double-ar)
-      (do             double-ar))))
+    (let  [bb (doto (ByteBuffer/wrap ba) (.order ByteOrder/BIG_ENDIAN))
+           db (.asDoubleBuffer bb)
+           da (double-array (.remaining db))]
+      (.get db da)
+      da)))
 
 (defn- instant->ba [^java.time.Instant i]
   (let [bb (ByteBuffer/allocate 12)]
@@ -341,9 +320,20 @@
   (unpack [ba]
     (CachedKey. (get @c/*key-cache_* (bit-and 0xff (aget ^bytes ba 0))))))
 
-(comment
-  (require '[taoensso.encore :as enc])
-  (let [x [nil {:a :A :b :B :c "foo", :v (vec (range 128)), :s (set (range 128))}]]
-    (enc/qb 1e4 ; [971.64 187.62]
-      (enc/read-edn (enc/pr-edn x))
-      (unpack       (pack       x)))))
+;;;;
+
+(defn pack
+  (^bytes      [clj                ] (with-out [out 1024] (pack-bytes clj out)))
+  (^DataOutput [clj ^DataOutput out]                      (pack-bytes clj out) out))
+
+(defn unpack [in]
+  (let [^DataInput in
+        (cond
+          (bytes?                in) (DataInputStream. (ByteArrayInputStream. in))
+          (instance? DataInput   in)                                          in
+          :else
+          (throw
+            (ex-info "Unexpected unpack `input` type"
+              {:given {:value in, :type (type in)}
+               :expected '#{bytes DataInput}})))]
+    (unpack-1 in)))

@@ -8,9 +8,9 @@
    (defn pack
      "1 arity: returns MessagePack-encoded byte[] for given Clj value.
       2 arity: writes  MessagePack-encoded bytes  for given Clj value to
-        given output ∈ #{DataOutput OutputStream} and returns output."
-     (^bytes [clj] (c/with-key-cache (impl/pack clj)))
-     ([output clj] (c/with-key-cache (impl/pack clj output)) output))
+        given DataOutput and returns the DataOutput."
+     (^bytes              [       clj] (c/with-key-cache (impl/pack clj)))
+     (^java.io.DataOutput [output clj] (c/with-key-cache (impl/pack clj output))))
 
    :cljs
    (defn pack
@@ -22,10 +22,17 @@
 
 #?(:clj
    (defn unpack
-     "Returns Clj value for given MessagePack-encoded payload ∈ #{byte[] DataInput InputStream}."
-     [packed] (c/with-key-cache (impl/unpack packed)))
+     "Returns Clj value for given MessagePack-encoded payload ∈ #{byte[] DataInput}."
+     [input] (c/with-key-cache (impl/unpack input)))
 
    :cljs
    (defn unpack
      "Returns Cljs value for given MessagePack-encoded payload ∈ #{Uint8Array}."
-     [packed] (c/with-key-cache (impl/unpack packed))))
+     [input] (c/with-key-cache (impl/unpack input))))
+
+(comment
+  (require '[taoensso.encore :as enc])
+  (let [x [nil {:a :A :b :B :c "foo", :v (vec (range 128)), :s (set (range 128))}]]
+    (enc/qb 1e4 ; [988.04 197.36]
+      (enc/read-edn (enc/pr-edn x))
+      (unpack       (pack       x)))))
