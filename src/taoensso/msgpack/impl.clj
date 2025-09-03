@@ -1,7 +1,7 @@
 (ns taoensso.msgpack.impl
-  (:require [taoensso.msgpack.interfaces :as i :refer [Packable pack-bytes]])
+  (:require [taoensso.msgpack.common :as c :refer [Packable pack-bytes]])
   (:import
-   [taoensso.msgpack.interfaces PackableExt]
+   [taoensso.msgpack.common PackableExt]
    [java.nio ByteBuffer ByteOrder]
    [java.nio.charset StandardCharsets]
    [java.io
@@ -178,14 +178,14 @@
       0xdf (unpack-map (read-u32 in) in)
 
       ;; Extensions
-      0xd4                        (i/unpack-ext (.readByte in) (read-bytes 1  in))
-      0xd5                        (i/unpack-ext (.readByte in) (read-bytes 2  in))
-      0xd6                        (i/unpack-ext (.readByte in) (read-bytes 4  in))
-      0xd7                        (i/unpack-ext (.readByte in) (read-bytes 8  in))
-      0xd8                        (i/unpack-ext (.readByte in) (read-bytes 16 in))
-      0xc7 (let [n (read-u8  in)] (i/unpack-ext (.readByte in) (read-bytes n  in)))
-      0xc8 (let [n (read-u16 in)] (i/unpack-ext (.readByte in) (read-bytes n  in)))
-      0xc9 (let [n (read-u32 in)] (i/unpack-ext (.readByte in) (read-bytes n  in)))
+      0xd4                        (c/unpack-ext (.readByte in) (read-bytes 1  in))
+      0xd5                        (c/unpack-ext (.readByte in) (read-bytes 2  in))
+      0xd6                        (c/unpack-ext (.readByte in) (read-bytes 4  in))
+      0xd7                        (c/unpack-ext (.readByte in) (read-bytes 8  in))
+      0xd8                        (c/unpack-ext (.readByte in) (read-bytes 16 in))
+      0xc7 (let [n (read-u8  in)] (c/unpack-ext (.readByte in) (read-bytes n  in)))
+      0xc8 (let [n (read-u16 in)] (c/unpack-ext (.readByte in) (read-bytes n  in)))
+      0xc9 (let [n (read-u32 in)] (c/unpack-ext (.readByte in) (read-bytes n  in)))
 
       ;; Fix types
       (cond
@@ -222,23 +222,23 @@
 
 ;;;; Built-in extensions
 
-(i/extend-packable 0 clojure.lang.Keyword
+(c/extend-packable 0 clojure.lang.Keyword
   (pack   [k]  (pack (subs (str k) 1)))
   (unpack [ba] (keyword (unpack ba))))
 
-(i/extend-packable 1 clojure.lang.Symbol
+(c/extend-packable 1 clojure.lang.Symbol
   (pack   [s]  (pack (str s)))
   (unpack [ba] (symbol (unpack ba))))
 
-(i/extend-packable 2 java.lang.Character
+(c/extend-packable 2 java.lang.Character
   (pack   [c]  (pack (str c)))
   (unpack [ba] (aget (char-array (unpack ba)) 0)))
 
-(i/extend-packable 3 clojure.lang.Ratio
+(c/extend-packable 3 clojure.lang.Ratio
   (pack   [r]  (pack [(numerator r) (denominator r)]))
   (unpack [ba] (let [[n d] (unpack ba)] (/ n d))))
 
-(i/extend-packable 4 clojure.lang.IPersistentSet
+(c/extend-packable 4 clojure.lang.IPersistentSet
   (pack   [s]  (with-out [out] (pack-seq s out)))
   (unpack [ba]
     (with-in [in ba]
@@ -248,7 +248,7 @@
           0xdd (unpack-n #{} (read-u32 in)            in)
           (do  (unpack-n #{} (bit-and 2r1111 byte-id) in)))))))
 
-(i/extend-packable 5 (class (int-array 0))
+(c/extend-packable 5 (class (int-array 0))
   (pack  [ar]
     (let [bb (ByteBuffer/allocate (* 4 (count ar)))]
       (.order bb (ByteOrder/BIG_ENDIAN))
@@ -263,7 +263,7 @@
       (.get int-bb int-ar)
       (do          int-ar))))
 
-(i/extend-packable 6 (class (float-array 0))
+(c/extend-packable 6 (class (float-array 0))
   (pack [ar]
     (let     [bb (ByteBuffer/allocate (* 4 (count ar)))]
       (.order bb (ByteOrder/BIG_ENDIAN))
@@ -278,7 +278,7 @@
       (.get float-bb float-ar)
       (do            float-ar))))
 
-(i/extend-packable 7 (class (double-array 0))
+(c/extend-packable 7 (class (double-array 0))
   (pack [ar]
     (let     [bb (ByteBuffer/allocate (* 8 (count ar)))]
       (.order bb (ByteOrder/BIG_ENDIAN))
@@ -299,8 +299,8 @@
     (.putLong bb (.getEpochSecond i))
     (.array   bb)))
 
-(i/extend-packable -1 java.util.Date (pack [d] (instant->ba (.toInstant d))))
-(i/extend-packable -1 java.time.Instant
+(c/extend-packable -1 java.util.Date (pack [d] (instant->ba (.toInstant d))))
+(c/extend-packable -1 java.time.Instant
   (pack   [i] (instant->ba i))
   (unpack [ba]
     (let  [bb (ByteBuffer/wrap ba)

@@ -2,7 +2,7 @@
   (:require
    [clojure.test :as test :refer [deftest testing is]]
    [taoensso.msgpack :as mp]
-   [taoensso.msgpack.interfaces :as i]
+   [taoensso.msgpack.common :as c]
 
    #?@(:clj
        [[clojure.test.check.clojure-test :refer [defspec]]
@@ -106,14 +106,14 @@
       (rt? #?(:clj (double-array (range 128)), :cljs (js/Float64Array. (to-array (range 128)))))])
 
    (testing "Ext types"
-     [(is (let [ub (ubytes     1)] (eq ub (:ba-content (rt (i/->PackableExt 106 ub))))))
-      (is (let [ub (ubytes     2)] (eq ub (:ba-content (rt (i/->PackableExt 106 ub))))))
-      (is (let [ub (ubytes     4)] (eq ub (:ba-content (rt (i/->PackableExt 106 ub))))))
-      (is (let [ub (ubytes     8)] (eq ub (:ba-content (rt (i/->PackableExt 106 ub))))))
-      (is (let [ub (ubytes    16)] (eq ub (:ba-content (rt (i/->PackableExt 106 ub))))))
-      (is (let [ub (ubytes   255)] (eq ub (:ba-content (rt (i/->PackableExt 106 ub))))))
-      (is (let [ub (ubytes   256)] (eq ub (:ba-content (rt (i/->PackableExt 106 ub))))))
-      (is (let [ub (ubytes 65536)] (eq ub (:ba-content (rt (i/->PackableExt 106 ub))))))])
+     [(is (let [ub (ubytes     1)] (eq ub (:ba-content (rt (c/->PackableExt 106 ub))))))
+      (is (let [ub (ubytes     2)] (eq ub (:ba-content (rt (c/->PackableExt 106 ub))))))
+      (is (let [ub (ubytes     4)] (eq ub (:ba-content (rt (c/->PackableExt 106 ub))))))
+      (is (let [ub (ubytes     8)] (eq ub (:ba-content (rt (c/->PackableExt 106 ub))))))
+      (is (let [ub (ubytes    16)] (eq ub (:ba-content (rt (c/->PackableExt 106 ub))))))
+      (is (let [ub (ubytes   255)] (eq ub (:ba-content (rt (c/->PackableExt 106 ub))))))
+      (is (let [ub (ubytes   256)] (eq ub (:ba-content (rt (c/->PackableExt 106 ub))))))
+      (is (let [ub (ubytes 65536)] (eq ub (:ba-content (rt (c/->PackableExt 106 ub))))))])
 
    #?(:clj  (is (rt? "Timestamps" (java.time.Instant/now) (java.util.Date.) (java.util.Date. -1))))
    #?(:cljs (is (rt? "Timestamps" (js/Date.))))])

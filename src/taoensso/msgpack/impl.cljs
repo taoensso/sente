@@ -3,7 +3,7 @@
    [cljs.reader]
    [goog.crypt]
    [goog.math.Long]
-   [taoensso.msgpack.interfaces :as i
+   [taoensso.msgpack.common :as c
     :refer [Packable PackableExt pack-bytes]]))
 
 ;;;; Streams
@@ -280,14 +280,14 @@
       0xdf (unpack-map (read-u32 in) in)
 
       ;; Extensions
-      0xd4                        (i/unpack-ext (read-i8 in) (read-1 in 1))
-      0xd5                        (i/unpack-ext (read-i8 in) (read-1 in 2))
-      0xd6                        (i/unpack-ext (read-i8 in) (read-1 in 4))
-      0xd7                        (i/unpack-ext (read-i8 in) (read-1 in 8))
-      0xd8                        (i/unpack-ext (read-i8 in) (read-1 in 16))
-      0xc7 (let [n (read-u8  in)] (i/unpack-ext (read-i8 in) (read-1 in n)))
-      0xc8 (let [n (read-u16 in)] (i/unpack-ext (read-i8 in) (read-1 in n)))
-      0xc9 (let [n (read-u32 in)] (i/unpack-ext (read-i8 in) (read-1 in n)))
+      0xd4                        (c/unpack-ext (read-i8 in) (read-1 in 1))
+      0xd5                        (c/unpack-ext (read-i8 in) (read-1 in 2))
+      0xd6                        (c/unpack-ext (read-i8 in) (read-1 in 4))
+      0xd7                        (c/unpack-ext (read-i8 in) (read-1 in 8))
+      0xd8                        (c/unpack-ext (read-i8 in) (read-1 in 16))
+      0xc7 (let [n (read-u8  in)] (c/unpack-ext (read-i8 in) (read-1 in n)))
+      0xc8 (let [n (read-u16 in)] (c/unpack-ext (read-i8 in) (read-1 in n)))
+      0xc9 (let [n (read-u32 in)] (c/unpack-ext (read-i8 in) (read-1 in n)))
 
       ;; Fix types
       (cond
@@ -309,23 +309,23 @@
 
 ;;;; Built-in extensions
 
-(i/extend-packable 0 Keyword
+(c/extend-packable 0 Keyword
   (pack   [k]  (pack (.substring (str k) 1)))
   (unpack [ba] (keyword (unpack-1 (in-stream ba)))))
 
-(i/extend-packable 1 Symbol
+(c/extend-packable 1 Symbol
   (pack   [s]  (pack (str s)))
   (unpack [ba] (symbol (unpack-1 (in-stream ba)))))
 
-(i/extend-packable 2 nil ; Char
+(c/extend-packable 2 nil ; Char
   nil
   (unpack [ba] (unpack-1 (in-stream ba))))
 
-(i/extend-packable 3 nil ; Ratio
+(c/extend-packable 3 nil ; Ratio
   nil
   (unpack [ba] (let [[n d] (unpack-1 (in-stream ba))] (/ n d))))
 
-(i/extend-packable 4 PersistentHashSet
+(c/extend-packable 4 PersistentHashSet
   (pack   [s]  (pack (or (seq s) [])))
   (unpack [ba]
     (let [in (in-stream ba)]
@@ -335,19 +335,19 @@
           0xdd (unpack-n #{} (read-u32 in)            in)
           (do  (unpack-n #{} (bit-and 2r1111 byte-id) in)))))))
 
-(i/extend-packable 5 js/Int32Array
+(c/extend-packable 5 js/Int32Array
   (pack   [a] (.-buffer a))
   (unpack [ba] (js/Int32Array. ba)))
 
-(i/extend-packable 6 js/Float32Array
+(c/extend-packable 6 js/Float32Array
   (pack   [a]  (.-buffer a))
   (unpack [ba] (js/Float32Array. ba)))
 
-(i/extend-packable 7 js/Float64Array
+(c/extend-packable 7 js/Float64Array
   (pack   [a]  (.-buffer a))
   (unpack [ba] (js/Float64Array. ba)))
 
-(i/extend-packable -1 js/Date
+(c/extend-packable -1 js/Date
   (pack [d]
     (let [millis (.getTime d)
           secs   (js/Math.floor (/ millis 1000))

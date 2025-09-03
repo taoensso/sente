@@ -1,5 +1,5 @@
-(ns taoensso.msgpack.interfaces
-  #?(:cljs (:require-macros [taoensso.msgpack.interfaces])))
+(ns taoensso.msgpack.common
+  #?(:cljs (:require-macros [taoensso.msgpack.common])))
 
 (defprotocol Packable    (pack-bytes [clj out]))
 (defrecord   PackableExt [byte-id ba-content])
