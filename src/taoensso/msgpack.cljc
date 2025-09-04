@@ -16,18 +16,20 @@
    (defn pack
      "1 arity: returns MessagePack-encoded Uint8Array for given Cljs value.
       2 arity: writes  MessagePack-encoded bytes      for given Cljs value to
-        given output ∈ #{ArrayBuffer} and returns output."
+        given output ∈ #{Uint8Array ArrayBuffer DataView subs} and returns an
+        output stream that can be dereffed to get Uint8Array."
      ([       clj] (c/with-key-cache (impl/pack clj)))
-     ([output clj] (c/with-key-cache (impl/pack clj output)) output)))
+     ([output clj] (c/with-key-cache (impl/pack clj output)))))
 
 #?(:clj
    (defn unpack
-     "Returns Clj value for given MessagePack-encoded payload ∈ #{byte[] DataInput}."
+     "Returns Clj value for given MessagePack-encoded input ∈ #{byte[] DataInput}."
      [input] (c/with-key-cache (impl/unpack input)))
 
    :cljs
    (defn unpack
-     "Returns Cljs value for given MessagePack-encoded payload ∈ #{Uint8Array}."
+     "Returns Cljs value for given MessagePack-encoded input
+     ∈ #{Uint8Array ArrayBuffer DataView subs}."
      [input] (c/with-key-cache (impl/unpack input))))
 
 (comment

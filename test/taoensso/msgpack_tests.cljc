@@ -61,12 +61,12 @@
       (rt? "uint8"  0x80 0xf0 0xff)
       (rt? "uint16" 0x100 0x2000 0xffff)
       (rt? "uint32" 0x10000 0x200000 0xffffffff)
-      (rt? "uint64" 0x100000000 0x200000000000 #?(:cljs 0xffffffffffffffff))
+      (rt? "uint64" 0x100000000 0x200000000000 #_0xffffffffffffffff)
 
       (rt? "int8"  -33 -100 -128)
       (rt? "int16" -129 -2000 -32768)
       (rt? "int32" -32769 -1000000000 -2147483648)
-      (rt? "int64" -2147483649 -1000000000000000002 -9223372036854775808)
+      (rt? "int64" -2147483649 #?(:clj -1000000000000000002) #?(:clj -9223372036854775808))
 
       (testing "Out-of-bounds ints"
         [(is (thrown? #?(:clj Exception :cljs js/Error) (mp/pack -0x8000000000001000)))

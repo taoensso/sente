@@ -1,130 +1,10 @@
 (ns taoensso.msgpack.impl
   (:require
-   [cljs.reader]
-   [goog.crypt]
    [goog.math.Long]
    [taoensso.msgpack.common :as c
     :refer [Packable PackableExt pack-bytes CachedKey]]))
 
-;;;; Streams
-
-(defprotocol IStream
-  (stream->ba       [_])
-  (inc-offset!      [_ n])
-  (ensure-capacity! [_ n]))
-
-(defprotocol IInputStream
-  (read-1   [_ n])
-  (read-ba  [_ n])
-  (read-str [_ n])
-  (read-u8  [_])
-  (read-i8  [_])
-  (read-u16 [_])
-  (read-i16 [_])
-  (read-u32 [_])
-  (read-i32 [_])
-  (read-u64 [_])
-  (read-i64 [_])
-  (read-f32 [_])
-  (read-f64 [_]))
-
-(defprotocol IOutputStream
-  (write-1   [_ buffer])
-  (write-u8  [_ u8])
-  (write-i8  [_ i8])
-  (write-u16 [_ u16])
-  (write-i16 [_ i16])
-  (write-u32 [_ u32])
-  (write-i32 [_ i32])
-  (write-u64 [_ u64])
-  (write-i64 [_ i64])
-  (write-f64 [_ f64]))
-
-(deftype InputStream [^:unsynchronized-mutable offset out]
-  IStream
-  (stream->ba       [_  ] (js/Uint8Array. (.-buffer out)))
-  (inc-offset!      [_ n] (set! offset (+ offset n)))
-  (ensure-capacity! [_ _] nil)
-
-  IInputStream
-  (read-1 [this n]
-    (let [old-offset offset]
-      (inc-offset! this n)
-      (.slice (.-buffer out) old-offset offset)))
-
-  (read-ba    [this n] (js/Uint8Array.                    (read-1  this n)))
-  (read-str   [this n] (.utf8ByteArrayToString goog.crypt (read-ba this n)))
-
-  (read-u8    [this] (let [u8  (.getUint8   out offset)]       (inc-offset! this 1) u8))
-  (read-i8    [this] (let [i8  (.getInt8    out offset)]       (inc-offset! this 1) i8))
-  (read-u16   [this] (let [u16 (.getUint16  out offset)]       (inc-offset! this 2) u16))
-  (read-i16   [this] (let [i16 (.getInt16   out offset false)] (inc-offset! this 2) i16))
-  (read-u32   [this] (let [u32 (.getUint32  out offset false)] (inc-offset! this 4) u32))
-  (read-i32   [this] (let [i32 (.getInt32   out offset false)] (inc-offset! this 4) i32))
-
-  (read-f32   [this] (let [f32 (.getFloat32 out offset false)] (inc-offset! this 4) f32))
-  (read-f64   [this] (let [f64 (.getFloat64 out offset false)] (inc-offset! this 8) f64))
-
-  (read-u64   [this]
-    (let [hi (.getUint32 out    offset    false)
-          lo (.getUint32 out (+ offset 4) false)]
-      (inc-offset! this 8)
-      (+ (* hi 0x100000000) lo)))
-
-  (read-i64 [this]
-    (let [hi (.getInt32 out    offset    false)
-          lo (.getInt32 out (+ offset 4) false)]
-      (inc-offset! this 8)
-      (.toNumber (goog.math.Long. lo hi)))))
-
-(deftype OutputStream
-  [^:unsynchronized-mutable offset
-   ^:unsynchronized-mutable out]
-
-  IStream
-  (stream->ba       [_  ] (js/Uint8Array. (.-buffer out) 0 offset))
-  (inc-offset!      [_ n] (set! offset (+ offset n)))
-  (ensure-capacity! [_ n]
-    (let [base (+ offset n)]
-      (when (> base (.-byteLength out))
-        (let [old-ba (js/Uint8Array. (.-buffer out))
-              new-ba (js/Uint8Array. (bit-or 0 (* 1.5 base)))]
-          (set! out (js/DataView. (.-buffer new-ba)))
-          (.set new-ba old-ba 0)))))
-
-  IOutputStream
-  (write-1 [this buffer]
-    (ensure-capacity! this (.-byteLength buffer))
-    (if (instance? js/ArrayBuffer buffer)
-      (.set (js/Uint8Array. (.-buffer out)) (js/Uint8Array. buffer) offset)
-      (.set (js/Uint8Array. (.-buffer out))                 buffer  offset))
-    (inc-offset! this (.-byteLength buffer)))
-
-  (write-u8  [this u8]  (ensure-capacity! this 1) (.setUint8   out offset u8  false) (inc-offset! this 1))
-  (write-i8  [this i8]  (ensure-capacity! this 1) (.setInt8    out offset i8  false) (inc-offset! this 1))
-  (write-u16 [this u16] (ensure-capacity! this 2) (.setUint16  out offset u16 false) (inc-offset! this 2))
-  (write-i16 [this i16] (ensure-capacity! this 2) (.setInt16   out offset i16 false) (inc-offset! this 2))
-  (write-u32 [this u32] (ensure-capacity! this 4) (.setUint32  out offset u32 false) (inc-offset! this 4))
-  (write-i32 [this i32] (ensure-capacity! this 4) (.setInt32   out offset i32 false) (inc-offset! this 4))
-  (write-f64 [this f64] (ensure-capacity! this 8) (.setFloat64 out offset f64 false) (inc-offset! this 8))
-
-  (write-u64 [this u64] ; round if |n| > js/Number.MAX_SAFE_INTEGER
-    (let [raw-hi (Math/floor (/ u64 0x100000000))
-          hi     (min raw-hi 0xFFFFFFFF)
-          raw-lo (Math/floor (- u64 (* hi 0x100000000)))
-          lo     (min (max raw-lo 0) 0xFFFFFFFF)]
-      (write-u32 this hi)
-      (write-u32 this lo)))
-
-  (write-i64 [this i64] ; round if |n| > js/Number.MAX_SAFE_INTEGER
-    (let [gl (goog.math.Long.fromNumber i64)]
-      (write-i32 this (.getHighBits gl))
-      (write-i32 this (.getLowBits  gl)))))
-
-(defn-  in-stream [in]  (InputStream.  0 (js/DataView. in)))
-(defn- out-stream [out] (OutputStream. 0 (js/DataView. out)))
-
-;;;; Packing
+;;;; Utils
 
 (defn- type-name [x]
   (let [ctor (type x)]
@@ -133,40 +13,200 @@
       (try (pr-str ctor) (catch :default _ nil))
       "<unknown>")))
 
-(defn- pack-ba [ba out]
-  (let [len (.-byteLength ba)]
-    (cond
-      (<= len 0xff)       (do (write-u8 out 0xc4) (write-u8  out len) (write-1 out ba))
-      (<= len 0xffff)     (do (write-u8 out 0xc5) (write-u16 out len) (write-1 out ba))
-      (<= len 0xffffffff) (do (write-u8 out 0xc6) (write-u32 out len) (write-1 out ba)))))
+;;;; Streams
 
-(defn- pack-str [s out]
-  (let [ba  (js/Uint8Array. (.stringToUtf8ByteArray goog.crypt s))
-        len (.-byteLength ba)]
-    (cond
-      (<= len 0x1f)       (do (write-u8 out   (bit-or 2r10100000 len)) (write-1 out ba))
-      (<= len 0xff)       (do (write-u8 out 0xd9) (write-u8  out len)  (write-1 out ba))
-      (<= len 0xffff)     (do (write-u8 out 0xda) (write-u16 out len)  (write-1 out ba))
-      (<= len 0xffffffff) (do (write-u8 out 0xdb) (write-u32 out len)  (write-1 out ba)))))
+(defprotocol IInputStream
+  (read-u8s [_ n])
+  (read-str [_ n])
+  (read-u8  [_])
+  (read-i8  [_])
+  (read-u16 [_])
+  (read-i16 [_])
+  (read-u32 [_])
+  (read-i32 [_])
+  (read-i64 [_])
+  (read-f32 [_])
+  (read-f64 [_]))
 
-(defn- pack-dbl [n out] (do (write-u8 out 0xcb) (write-f64 out n)))
+(defprotocol IOutputStream
+  (expand     [_ n])
+  (write-u8s* [_ in])
+  (write-u8s  [_ u8s])
+  (write-u8   [_ u8])
+  (write-i8   [_ i8])
+  (write-u16  [_ u16])
+  (write-i16  [_ i16])
+  (write-u32  [_ u32])
+  (write-i32  [_ i32])
+  (write-f32  [_ f32])
+  (write-i64  [_ i64])
+  (write-f64  [_ f64]))
+
+(defn- as-u8s
+  "#{Uint8Array ArrayBuffer DataView} -> Uint8Array"
+  ^js [input]
+  (cond
+    (instance? js/Uint8Array  input)                 input
+    (instance? js/ArrayBuffer input) (js/Uint8Array. input)
+    (instance? js/DataView    input) (js/Uint8Array. (.-buffer     input)
+                                                     (.-byteOffset input)
+                                                     (.-byteLength input))
+    :else
+    (throw
+      (ex-info "Unexpected input type"
+        {:type  (type-name input),
+         :expected '#{Uint8Array ArrayBuffer DataView}}))))
+
+(def ^:private ^:const max-safe-int js/Number.MAX_SAFE_INTEGER)
+(def ^:private ^:const min-safe-int (- max-safe-int))
+
+(def ^:private text-decoder (js/TextDecoder. "utf-8"))
+(def ^:private text-encoder (js/TextEncoder.))
+
+(deftype InputStream
+  [    ^:unsynchronized-mutable offset
+   ^js ^:unsynchronized-mutable view
+   ^js ^:unsynchronized-mutable u8s]
+
+  IDeref (-deref [_] u8s)
+  IInputStream
+  (read-u8s [this n]
+    (let [i     offset
+          end   (+ i n)
+          chunk (.subarray u8s i end)]
+      (set! offset end)
+      chunk))
+
+  (read-str [this n] (.decode text-decoder (read-u8s this n)))
+  (read-u8  [this] (let [i offset, v (.getUint8   view i)] (set! offset (+ i 1)) v))
+  (read-i8  [this] (let [i offset, v (.getInt8    view i)] (set! offset (+ i 1)) v))
+  (read-u16 [this] (let [i offset, v (.getUint16  view i)] (set! offset (+ i 2)) v))
+  (read-i16 [this] (let [i offset, v (.getInt16   view i)] (set! offset (+ i 2)) v))
+  (read-u32 [this] (let [i offset, v (.getUint32  view i)] (set! offset (+ i 4)) v))
+  (read-i32 [this] (let [i offset, v (.getInt32   view i)] (set! offset (+ i 4)) v))
+  (read-f32 [this] (let [i offset, v (.getFloat32 view i)] (set! offset (+ i 4)) v))
+  (read-f64 [this] (let [i offset, v (.getFloat64 view i)] (set! offset (+ i 8)) v))
+  (read-i64 [this]
+    (let [i  offset
+          hi (.getInt32  view    i)
+          lo (.getUint32 view (+ i 4))]
+      (set! offset (+ i 8))
+      (.toNumber (goog.math.Long.fromBits lo hi)))))
+
+(deftype OutputStream
+  [    ^:unsynchronized-mutable offset
+   ^js ^:unsynchronized-mutable view
+   ^js ^:unsynchronized-mutable u8s]
+
+  IDeref (-deref [_] (.subarray u8s 0 offset))
+  IOutputStream
+  (expand [_ n]
+    (let [i offset, need (+ i n)]
+      (when   (> need (.-byteLength u8s))
+        (let [old-buf (.-buffer     u8s)
+              old-len (.-byteLength u8s)
+              new-len (long (max need (* 2 old-len)))
+              new-u8s (js/Uint8Array.      new-len)]
+          (.set     new-u8s (.subarray u8s 0 i) 0)
+          (set! u8s new-u8s)
+          (set! view (js/DataView. (.-buffer new-u8s)))))))
+
+  (write-u8s* [this          in] (write-u8s this (as-u8s in)))
+  (write-u8s  [this ^js src-u8s]
+    (let [i offset, n (.-byteLength ^js src-u8s)]
+      (expand this n)
+      (.set ^js u8s src-u8s i)
+      (set! offset (+ i n))))
+
+  (write-u8  [this n] (expand this 1) (let [i offset] (.setUint8   view i n) (set! offset (+ i 1))))
+  (write-i8  [this n] (expand this 1) (let [i offset] (.setInt8    view i n) (set! offset (+ i 1))))
+  (write-u16 [this n] (expand this 2) (let [i offset] (.setUint16  view i n) (set! offset (+ i 2))))
+  (write-i16 [this n] (expand this 2) (let [i offset] (.setInt16   view i n) (set! offset (+ i 2))))
+  (write-u32 [this n] (expand this 4) (let [i offset] (.setUint32  view i n) (set! offset (+ i 4))))
+  (write-i32 [this n] (expand this 4) (let [i offset] (.setInt32   view i n) (set! offset (+ i 4))))
+  (write-f32 [this n] (expand this 4) (let [i offset] (.setFloat32 view i n) (set! offset (+ i 4))))
+  (write-f64 [this n] (expand this 8) (let [i offset] (.setFloat64 view i n) (set! offset (+ i 8))))
+  (write-i64 [this n]
+    (let [gl (goog.math.Long.fromNumber n)]
+      (write-i32 this (.getHighBits gl))
+      (write-i32 this (.getLowBits  gl)))))
+
+(defn- in-stream
+  "Uint8Array -> InputStream"
+  [^js u8s]
+  (let [ab  (.-buffer     u8s)
+        off (.-byteOffset u8s)
+        len (.-byteLength u8s)
+        ^js view (js/DataView. ab off len)]
+    (InputStream. 0 view u8s)))
+
+(defn- in-stream*
+  "#{Uint8Array ArrayBuffer DataView subs} -> InputStream"
+  [input] (in-stream (as-u8s input)))
+
+(defn- out-stream
+  "Returns OutputStream of given size"
+  [size]
+  (let [^js ab (js/ArrayBuffer. size)]
+    (OutputStream. 0
+      ^js (js/DataView.   ab)
+      ^js (js/Uint8Array. ab))))
+
+(defn- out-stream*
+  "#{Uint8Array ArrayBuffer DataView subs} -> OutputStream"
+  [output]
+  (if (instance? OutputStream output)
+    output
+    (let [^js u8s (as-u8s output)
+          ab   (.-buffer     u8s)
+          off  (.-byteOffset u8s)
+          len  (.-byteLength u8s)
+          ^js view (js/DataView. ab off len)]
+      (OutputStream. 0 view u8s))))
+
+;;;; Packing
+
+(defn- pack-u8s [^js u8s out]
+  (let [len (.-byteLength u8s)]
+    (cond
+      (<= len 0xff)       (do (write-u8 out 0xc4) (write-u8  out len) (write-u8s out u8s))
+      (<= len 0xffff)     (do (write-u8 out 0xc5) (write-u16 out len) (write-u8s out u8s))
+      (<= len 0xffffffff) (do (write-u8 out 0xc6) (write-u32 out len) (write-u8s out u8s)))))
+
+(defn- pack-str [^string s out]
+  (let [^js u8s (.encode text-encoder s)
+        len (.-byteLength u8s)]
+    (cond
+      (<= len 0x1f)       (do (write-u8 out   (bit-or 2r10100000 len)) (write-u8s out u8s))
+      (<= len 0xff)       (do (write-u8 out 0xd9) (write-u8  out len)  (write-u8s out u8s))
+      (<= len 0xffff)     (do (write-u8 out 0xda) (write-u16 out len)  (write-u8s out u8s))
+      (<= len 0xffffffff) (do (write-u8 out 0xdb) (write-u32 out len)  (write-u8s out u8s)))))
+
 (defn- pack-int [n out]
   (if (neg? n)
     (cond
-      (>= n -32)                                         (write-i8  out n)  ; -fixnum
-      (>= n -0x80)               (do (write-u8 out 0xd0) (write-i8  out n)) ; int8
-      (>= n -0x8000)             (do (write-u8 out 0xd1) (write-i16 out n)) ; int16
-      (>= n -0x80000000)         (do (write-u8 out 0xd2) (write-i32 out n)) ; int32
-      (>= n -0x8000000000000000) (do (write-u8 out 0xd3) (write-i64 out n)) ; int64
-      :else (throw (ex-info "Int too small to pack" {:type (type-name n), :value n})))
+      (>= n -32)                                  (write-i8  out n)  ; -fixnum
+      (>= n -0x80)        (do (write-u8 out 0xd0) (write-i8  out n)) ; int8
+      (>= n -0x8000)      (do (write-u8 out 0xd1) (write-i16 out n)) ; int16
+      (>= n -0x80000000)  (do (write-u8 out 0xd2) (write-i32 out n)) ; int32
+      (>= n min-safe-int) (do (write-u8 out 0xd3) (write-i64 out n)) ; int64
+      :else (throw (js/RangeError. (str "Int too small to safely pack: " n))))
 
     (cond
-      (<= n 127)                                        (write-u8  out n)  ; +fixnum
-      (<= n 0xff)               (do (write-u8 out 0xcc) (write-u8  out n)) ; uint8
-      (<= n 0xffff)             (do (write-u8 out 0xcd) (write-u16 out n)) ; uint16
-      (<= n 0xffffffff)         (do (write-u8 out 0xce) (write-u32 out n)) ; uint32
-      (<= n 0xffffffffffffffff) (do (write-u8 out 0xcf) (write-u64 out n)) ; uint64
-      :else (throw (ex-info "Int too large to pack" {:type (type-name n), :value n})))))
+      (<= n 127)                                         (write-u8  out n)  ; +fixnum
+      (<= n 0xff)         (do (write-u8 out 0xcc)        (write-u8  out n)) ; uint8
+      (<= n 0xffff)       (do (write-u8 out 0xcd)        (write-u16 out n)) ; uint16
+      (<= n 0xffffffff)   (do (write-u8 out 0xce)        (write-u32 out n)) ; uint32
+      (<= n max-safe-int) (do (write-u8 out 0xd3 #_0xcf) (write-i64 out n)) ;  int64 (no uint64 support)
+      :else (throw (js/RangeError. (str "Int too large to safely pack: " n))))))
+
+(let [f32a (js/Float32Array. 1)
+      f32-exact? (fn [n] (aset f32a 0 n) (= (aget f32a 0) n))]
+
+  (defn- pack-dbl [n out]
+    (if (f32-exact? n)
+      (do (write-u8 out 0xca) (write-f32 out n))
+      (do (write-u8 out 0xcb) (write-f64 out n)))))
 
 (defn- pack-num  [n out] (if (integer? n) (pack-int n out) (pack-dbl n out)))
 (defn- pack-coll [c out] (reduce (fn [_ el] (pack-bytes el out)) nil c))
@@ -183,10 +223,11 @@
     (reduce-kv
       (fn [_ k v]
         (if-let [cache-idx (c/key-cache-pack! key-cache_ k)]
+          #_(pack-bytes (PackableExt. 8 (js/Uint8Array. #js [cache-idx])) out)
           (do
-            (write-u8 out 0xd4) ; 1-byte PackableExt
-            (write-u8 out 8)    ; PackableExt byte-id
-            (write-u8 out cache-idx))
+            (write-u8  out 0xd4)
+            (write-u8  out 8)
+            (write-u8s out (js/Uint8Array. #js [cache-idx])))
           (pack-bytes k out))
         (pack-bytes   v out))
       nil m)))
@@ -214,13 +255,13 @@
   PersistentArrayMap (pack-bytes [m out] (pack-map      m  out))
   PersistentHashMap  (pack-bytes [m out] (pack-map      m  out))
   ;;
-  js/Uint8Array      (pack-bytes [a out] (pack-ba       a  out))
+  js/Uint8Array      (pack-bytes [a out] (pack-u8s      a  out))
   ;;
   PackableExt
   (pack-bytes [x out]
-    (let [byte-id    (.-byte-id    x)
-          ba-content (.-ba-content x)
-          len (.-byteLength ba-content)]
+    (let [byte-id     (.-byte-id    x)
+          u8s-content (.-ba-content x)
+          len (.-byteLength u8s-content)]
 
       (case len
         1  (write-u8 out 0xd4)
@@ -232,8 +273,8 @@
           (<= len 0xff)       (do (write-u8 out 0xc7) (write-u8  out len))
           (<= len 0xffff)     (do (write-u8 out 0xc8) (write-u16 out len))
           (<= len 0xffffffff) (do (write-u8 out 0xc9) (write-u32 out len))))
-      (write-u8 out byte-id)
-      (write-1  out ba-content)))
+      (write-u8  out byte-id)
+      (write-u8s out u8s-content)))
 
   default
   (pack-bytes [x out]
@@ -251,22 +292,31 @@
 ;;;; Unpacking
 
 (declare unpack-1)
-(defn-   unpack-n   [init n in] (persistent! (reduce (fn [acc _] (conj!  acc (unpack-1 in)))               (transient init) (range n))))
-#_(defn- unpack-map [     n in] (persistent! (reduce (fn [acc _] (assoc! acc (unpack-1 in) (unpack-1 in))) (transient   {}) (range n))))
-(defn-   unpack-map [     n in]
-  (let [key-cache_ c/*key-cache_*]
-    (persistent!
-      (reduce
-        (fn [acc _]
+#_(defn- unpack-n [init n in] (persistent! (reduce (fn [acc _] (conj!  acc (unpack-1 in))) (transient init) (range n))))
+(defn-   unpack-n [init n in]
+  (if (zero? n)
+    init
+    (loop [n n, acc (transient init)]
+      (if (zero? n)
+        (persistent! acc)
+        (recur (dec n) (conj! acc (unpack-1 in)))))))
+
+#_(defn- unpack-map [n in] (persistent! (reduce (fn [acc _] (assoc! acc (unpack-1 in) (unpack-1 in))) (transient {}) (range n))))
+(defn-   unpack-map [n in]
+  (if (zero? n)
+    {}
+    (let [key-cache_ c/*key-cache_*]
+      (loop [n n, acc (transient {})]
+        (if (zero? n)
+          (persistent! acc)
           (let [k (unpack-1 in)
                 k
                 (if (instance? CachedKey k)
                   (.-val      ^CachedKey k)
                   (do (c/key-cache-unpack! key-cache_ k) k))]
-            (assoc! acc k (unpack-1 in))))
-        (transient {}) (range n)))))
+            (recur (dec n) (assoc! acc k (unpack-1 in)))))))))
 
-(defn-   unpack-1 [in]
+(defn- unpack-1 [in]
   (let   [byte-id (read-u8 in)]
     (case byte-id
       0xc0 nil
@@ -277,7 +327,7 @@
       0xcc (read-u8  in)
       0xcd (read-u16 in)
       0xce (read-u32 in)
-      0xcf (read-u64 in)
+      0xcf (throw (js/RangeError. (str "Int too large to safely unpack (need u64)")))
       0xd0 (read-i8  in)
       0xd1 (read-i16 in)
       0xd2 (read-i32 in)
@@ -293,9 +343,9 @@
       0xdb (read-str in (read-u32 in))
 
       ;; Byte arrays
-      0xc4 (read-ba in (read-u8  in))
-      0xc5 (read-ba in (read-u16 in))
-      0xc6 (read-ba in (read-u32 in))
+      0xc4 (read-u8s in (read-u8  in))
+      0xc5 (read-u8s in (read-u16 in))
+      0xc6 (read-u8s in (read-u32 in))
 
       ;; Seqs
       0xdc (unpack-n [] (read-u16 in) in)
@@ -306,14 +356,14 @@
       0xdf (unpack-map (read-u32 in) in)
 
       ;; Extensions
-      0xd4                        (c/unpack-ext (read-i8 in) (read-1 in 1))
-      0xd5                        (c/unpack-ext (read-i8 in) (read-1 in 2))
-      0xd6                        (c/unpack-ext (read-i8 in) (read-1 in 4))
-      0xd7                        (c/unpack-ext (read-i8 in) (read-1 in 8))
-      0xd8                        (c/unpack-ext (read-i8 in) (read-1 in 16))
-      0xc7 (let [n (read-u8  in)] (c/unpack-ext (read-i8 in) (read-1 in n)))
-      0xc8 (let [n (read-u16 in)] (c/unpack-ext (read-i8 in) (read-1 in n)))
-      0xc9 (let [n (read-u32 in)] (c/unpack-ext (read-i8 in) (read-1 in n)))
+      0xd4                        (c/unpack-ext (read-i8 in) (read-u8s in 1))
+      0xd5                        (c/unpack-ext (read-i8 in) (read-u8s in 2))
+      0xd6                        (c/unpack-ext (read-i8 in) (read-u8s in 4))
+      0xd7                        (c/unpack-ext (read-i8 in) (read-u8s in 8))
+      0xd8                        (c/unpack-ext (read-i8 in) (read-u8s in 16))
+      0xc7 (let [n (read-u8  in)] (c/unpack-ext (read-i8 in) (read-u8s in n)))
+      0xc8 (let [n (read-u16 in)] (c/unpack-ext (read-i8 in) (read-u8s in n)))
+      0xc9 (let [n (read-u32 in)] (c/unpack-ext (read-i8 in) (read-u8s in n)))
 
       ;; Fix types
       (cond
@@ -324,37 +374,29 @@
         (== (bit-and byte-id 2r11110000) 2r10000000) (unpack-map  (bit-and 2r1111  byte-id) in) ; Map
         :else (throw (ex-info "Unpack failed: unexpected `byte-id`" {:byte-id byte-id}))))))
 
-(defn pack
-  ([clj    ] (let [out (out-stream (js/ArrayBuffer. 2048))] (pack-bytes clj out) (stream->ba out)))
-  ([clj out] (let [out (out-stream out)]                    (pack-bytes clj out))))
-
-(defn unpack [packed]
-  (cond
-    (instance? js/Uint8Array packed) (unpack-1 (in-stream (.-buffer packed)))
-    :else                            (unpack-1 (in-stream           packed))))
-
 ;;;; Built-in extensions
 
 (c/extend-packable 0 Keyword
-  (pack   [k]  (pack (.substring (str k) 1)))
-  (unpack [ba] (keyword (unpack-1 (in-stream ba)))))
+  (pack   [k]       (.encode text-encoder (.substring (str k) 1)))
+  (unpack [^js u8s] (keyword (.decode text-decoder ^js u8s))))
 
 (c/extend-packable 1 Symbol
-  (pack   [s]  (pack (str s)))
-  (unpack [ba] (symbol (unpack-1 (in-stream ba)))))
+  (pack   [s]       (.encode text-encoder (str s) 1))
+  (unpack [^js u8s] (symbol (.decode text-decoder ^js u8s))))
 
 (c/extend-packable 2 nil ; Char
   nil
-  (unpack [ba] (unpack-1 (in-stream ba))))
+  (unpack [^js u8s] (.decode text-decoder ^js u8s)))
 
 (c/extend-packable 3 nil ; Ratio
   nil
-  (unpack [ba] (let [[n d] (unpack-1 (in-stream ba))] (/ n d))))
+  (unpack [^js u8s]
+    (let [in (in-stream ^js u8s)] (/ (unpack-1 in) (unpack-1 in)))))
 
 (c/extend-packable 4 PersistentHashSet
-  (pack   [s]  (pack (or (seq s) [])))
-  (unpack [ba]
-    (let [in (in-stream ba)]
+  (pack   [s] (let [out (out-stream 1024)] (pack-seq s out) @out))
+  (unpack [^js u8s]
+    (let [in (in-stream u8s)]
       (let    [byte-id (read-u8 in)]
         (case  byte-id
           0xdc (unpack-n #{} (read-u16 in)            in)
@@ -362,40 +404,57 @@
           (do  (unpack-n #{} (bit-and 2r1111 byte-id) in)))))))
 
 (c/extend-packable 5 js/Int32Array
-  (pack   [a] (.-buffer a))
-  (unpack [ba] (js/Int32Array. ba)))
+  (pack   [a] (js/Uint8Array. (.-buffer a) (.-byteOffset a) (.-byteLength a)))
+  (unpack [^js u8s]
+    (let [^js copy (js/Uint8Array. u8s)]
+      (js/Int32Array. (.-buffer copy) 0 (quot (.-byteLength copy) 4)))))
 
 (c/extend-packable 6 js/Float32Array
-  (pack   [a]  (.-buffer a))
-  (unpack [ba] (js/Float32Array. ba)))
+  (pack   [a] (js/Uint8Array. (.-buffer a) (.-byteOffset a) (.-byteLength a)))
+  (unpack [^js u8s]
+    (let [^js copy (js/Uint8Array. u8s)]
+      (js/Float32Array. (.-buffer copy) 0 (quot (.-byteLength copy) 4)))))
 
 (c/extend-packable 7 js/Float64Array
-  (pack   [a]  (.-buffer a))
-  (unpack [ba] (js/Float64Array. ba)))
+  (pack   [a] (js/Uint8Array. (.-buffer a) (.-byteOffset a) (.-byteLength a)))
+  (unpack [^js u8s]
+    (let [^js copy (js/Uint8Array. u8s)]
+      (js/Float64Array. (.-buffer copy) 0 (quot (.-byteLength copy) 8)))))
 
 (c/extend-packable -1 js/Date
   (pack [d]
-    (let [millis (.getTime d)
-          secs   (js/Math.floor (/ millis 1000))
-          nanos  (* (- millis   (* secs   1000)) 1000000)
-          buffer (js/ArrayBuffer. 12)
-          view   (js/DataView. buffer)
-          long-secs (goog.math.Long.fromNumber secs)]
-      (.setUint32 view 0 nanos false)
-      (.setInt32  view 4 (.getHighBits long-secs) false)
-      (.setInt32  view 8 (.getLowBits  long-secs) false)
-      buffer))
+    (let [millis   (.getTime d)
+          secs     (js/Math.floor (/ millis 1000))
+          nanos    (* (- millis (* secs 1000)) 1000000)
+          ^js ab   (js/ArrayBuffer. 12)
+          ^js view (js/DataView. ab)
+          long-s   (goog.math.Long.fromNumber secs)]
+      (.setUint32 view 0 nanos)
+      (.setInt32  view 4 (.getHighBits long-s))
+      (.setInt32  view 8 (.getLowBits  long-s))
+      (js/Uint8Array. ab)))
 
-  (unpack [ba]
-    (let [view  (js/DataView. ba)
-          nanos (.getUint32 view 0 false)
-          hi    (.getInt32  view 4 false)
-          lo    (.getInt32  view 8 false)
-          long-secs (goog.math.Long. lo hi)
-          secs      (.toNumber long-secs)
-          millis (+ (* secs 1000) (/ nanos 1000000))]
+  (unpack [u8s]
+    (let [^js u8s                u8s
+          ab       (.-buffer     u8s)
+          off      (.-byteOffset u8s)
+          len      (.-byteLength u8s)
+          ^js view (js/DataView. ab off len)
+          nanos    (.getUint32 view 0)
+          hi       (.getInt32  view 4)
+          lo       (.getInt32  view 8)
+          long-s   (goog.math.Long. lo hi)
+          secs     (.toNumber long-s)
+          millis   (+ (* secs 1000) (/ nanos 1000000))]
       (js/Date. millis))))
 
 (c/extend-packable 8 nil nil ; Cached key
-  (unpack [ba]
-    (CachedKey. (get @c/*key-cache_* (read-u8 (in-stream ba))))))
+  (unpack [u8s]
+    (CachedKey. (get @c/*key-cache_* (aget ^js u8s 0)))))
+
+;;;;
+
+(defn unpack [in] (unpack-1 (in-stream* in)))
+(defn pack
+  ([clj    ] (let [out (out-stream  1024)] (pack-bytes clj out) @out))
+  ([clj out] (let [out (out-stream* out)]  (pack-bytes clj out)  out)))
