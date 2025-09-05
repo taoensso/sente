@@ -9,6 +9,8 @@ This project uses [**Break Versioning**](https://www.taoensso.com/break-versioni
 
 Like `v1.21.0-RC1` but adds some performance improvements and fixes to Sente's new experimental [binary serialization](https://cljdoc.org/d/com.taoensso/sente/CURRENT/api/taoensso.sente.packers.msgpack).
 
+---
+
 # `v1.21.0-RC1` (2025-09-02)
 
 - **Dependency**: [on Clojars](https://clojars.org/com.taoensso/sente/versions/1.21.0-RC1)

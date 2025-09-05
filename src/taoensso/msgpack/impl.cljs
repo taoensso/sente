@@ -1,17 +1,10 @@
 (ns taoensso.msgpack.impl
   (:require
    [goog.math.Long]
+   [taoensso.truss  :as truss]
+   [taoensso.encore :as enc]
    [taoensso.msgpack.common :as c
     :refer [Packable PackableExt pack-bytes CachedKey]]))
-
-;;;; Utils
-
-(defn- type-name [x]
-  (let [ctor (type x)]
-    (or
-      (.-name ctor) (.-displayName ctor) (goog/typeOf x)
-      (try (pr-str ctor) (catch :default _ nil))
-      "<unknown>")))
 
 ;;;; Streams
 
@@ -52,10 +45,9 @@
                                                      (.-byteOffset input)
                                                      (.-byteLength input))
     :else
-    (throw
-      (ex-info "Unexpected input type"
-        {:type  (type-name input),
-         :expected '#{Uint8Array ArrayBuffer DataView}}))))
+    (truss/ex-info! "Unexpected input type"
+      {:type (enc/type-name input)
+       :expected '#{Uint8Array ArrayBuffer DataView}})))
 
 (def ^:private ^:const max-safe-int js/Number.MAX_SAFE_INTEGER)
 (def ^:private ^:const min-safe-int (- max-safe-int))
@@ -282,11 +274,11 @@
       (pack-seq x out)
       (pack-bytes
         {:msgpack/unpackable
-         {:type (type-name x)
+         {:type (enc/type-name x)
           :preview
           (try
             (let [s (pr-str x)] (subs s 0 (min 16 (count s))))
-            (catch :default _ "<unprintable>"))}}
+            (catch :default _ :unprintable))}}
         out))))
 
 ;;;; Unpacking
@@ -327,7 +319,7 @@
       0xcc (read-u8  in)
       0xcd (read-u16 in)
       0xce (read-u32 in)
-      0xcf (throw (js/RangeError. (str "Int too large to safely unpack (need u64)")))
+      0xcf (throw (js/RangeError. "Int too large to safely unpack (need u64)"))
       0xd0 (read-i8  in)
       0xd1 (read-i16 in)
       0xd2 (read-i32 in)
@@ -372,7 +364,7 @@
         (== (bit-and byte-id 2r11100000) 2r10100000) (read-str in (bit-and 2r11111 byte-id))    ; String
         (== (bit-and byte-id 2r11110000) 2r10010000) (unpack-n [] (bit-and 2r1111  byte-id) in) ; Seq
         (== (bit-and byte-id 2r11110000) 2r10000000) (unpack-map  (bit-and 2r1111  byte-id) in) ; Map
-        :else (throw (ex-info "Unpack failed: unexpected `byte-id`" {:byte-id byte-id}))))))
+        :else (truss/ex-info! "Unpack failed: unexpected `byte-id`" {:byte-id byte-id})))))
 
 ;;;; Built-in extensions
 

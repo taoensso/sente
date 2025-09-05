@@ -1,5 +1,8 @@
 (ns taoensso.msgpack.impl
-  (:require [taoensso.msgpack.common :as c :refer [Packable pack-bytes]])
+  (:require
+   [taoensso.truss :as truss]
+   [taoensso.msgpack.common :as c :refer [Packable pack-bytes]])
+
   (:import
    [taoensso.msgpack.common PackableExt CachedKey]
    [java.nio ByteBuffer ByteOrder]
@@ -134,7 +137,7 @@
         :preview
         (try
           (let [out (pr-str x)] (subs out 0 (min 16 (count out))))
-          (catch Throwable _ "<unprintable>"))}}
+          (catch Throwable _ :unprintable))}}
       out)))
 
 ;; Separate for CLJ-1381
@@ -223,7 +226,7 @@
         (== (bit-and byte-id 2r11100000) 2r10100000) (let [n      (bit-and 2r11111 byte-id)] (read-str n in)) ; String
         (== (bit-and byte-id 2r11110000) 2r10010000) (unpack-n [] (bit-and 2r1111  byte-id)              in)  ; Seq
         (== (bit-and byte-id 2r11110000) 2r10000000) (unpack-map  (bit-and 2r1111  byte-id)              in)  ; Map
-        :else (throw (ex-info "Unpack failed: unexpected `byte-id`" {:byte-id byte-id}))))))
+        :else (truss/ex-info! "Unpack failed: unexpected `byte-id`" {:byte-id byte-id})))))
 
 ;;;; Built-in extensions
 
@@ -333,8 +336,7 @@
           (bytes?                in) (DataInputStream. (ByteArrayInputStream. in))
           (instance? DataInput   in)                                          in
           :else
-          (throw
-            (ex-info "Unexpected unpack `input` type"
-              {:given {:value in, :type (type in)}
-               :expected '#{bytes DataInput}})))]
+          (truss/ex-info! "Unexpected unpack `input` type"
+            {:given {:value in, :type (type in)}
+             :expected '#{bytes DataInput}}))]
     (unpack-1 in)))

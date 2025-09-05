@@ -1874,12 +1874,10 @@
                :ws      (new-ChWebSocket    ws-chsk-opts ?csrf-token-or-fn)
                :ajax
                #?(:cljs (new-ChAjaxSocket ajax-chsk-opts ?csrf-token-or-fn)
-                  :clj  (throw (UnsupportedOperationException.
-                                 "Only :ws channel socket type supported for clj")))
+                  :clj  (throw (UnsupportedOperationException. "Only `:ws` channel socket type supported for Clj")))
                :auto
                #?(:cljs (new-ChAutoSocket auto-chsk-opts ?csrf-token-or-fn)
-                  :clj  (throw (UnsupportedOperationException.
-                                 "Only :ws channel socket type supported for clj")))))]
+                  :clj  (throw (UnsupportedOperationException. "Only `:ws` channel socket type supported for Clj")))))]
 
        (if-let [chsk ?chsk]
          (let [chsk-state_ (:state_ chsk)

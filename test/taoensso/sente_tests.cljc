@@ -4,7 +4,7 @@
   of checks have been done against the reference example project.
 
   In the hope of eventually doing more of this work automatically,
-  the current namespace provided as a groundwork for future automated
+  the current namespace provides a groundwork for future automated
   tests.
 
   PRs very welcome if you'd like to contribute to this effort!"
