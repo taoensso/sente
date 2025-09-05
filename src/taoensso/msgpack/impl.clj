@@ -50,11 +50,12 @@
       )
 
     (cond
-      (<= n 127)                                  (.writeByte  out n)                   ; +fixnum
-      (<= n 0xff)       (do (.writeByte out 0xcc) (.writeByte  out n))                  ; uint8
-      (<= n 0xffff)     (do (.writeByte out 0xcd) (.writeShort out n))                  ; uint16
-      (<= n 0xffffffff) (do (.writeByte out 0xce) (.writeInt   out (unchecked-int  n))) ; uint32
-      :else             (do (.writeByte out 0xcf) (.writeLong  out (unchecked-long n))) ; uint64
+      (<= n 127)                                          (.writeByte  out n)                   ; +fixnum
+      (<= n 0xff)               (do (.writeByte out 0xcc) (.writeByte  out n))                  ; uint8
+      (<= n 0xffff)             (do (.writeByte out 0xcd) (.writeShort out n))                  ; uint16
+      (<= n 0xffffffff)         (do (.writeByte out 0xce) (.writeInt   out (unchecked-int  n))) ; uint32
+      (<= n 0x7fffffffffffffff) (do (.writeByte out 0xd3) (.writeLong  out n))                  ;  int64 if possible
+      :else                     (do (.writeByte out 0xcf) (.writeLong  out (unchecked-long n))) ; uint64
       )))
 
 (defn- pack-coll [c ^DataOutput out] (reduce (fn [_ el] (pack-bytes el out)) nil c))
