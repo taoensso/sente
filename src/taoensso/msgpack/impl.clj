@@ -324,6 +324,21 @@
   (unpack [ba]
     (CachedKey. (get @c/*key-cache_* (bit-and 0xff (aget ^bytes ba 0))))))
 
+(c/extend-packable 9 java.util.UUID
+  (pack   [u]  (.getBytes (str u)                            StandardCharsets/UTF_8))
+  (unpack [ba] (java.util.UUID/fromString (String. ^bytes ba StandardCharsets/UTF_8))))
+
+#_ ; Unfortunately no simple equivalent for Cljs
+(c/extend-packable 9 java.util.UUID
+  (pack [u]
+    (with-out [out 64]
+      (.writeLong out (.getMostSignificantBits  u))
+      (.writeLong out (.getLeastSignificantBits u))))
+
+  (unpack [ba] (with-in [in ba] (java.util.UUID. (.readLong in) (.readLong in)))))
+
+(comment (unpack (pack (java.util.UUID/randomUUID))))
+
 ;;;;
 
 (defn pack

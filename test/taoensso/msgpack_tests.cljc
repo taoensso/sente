@@ -118,6 +118,8 @@
    #?(:clj  (is (rt? "Timestamps" (java.time.Instant/now) (java.util.Date.) (java.util.Date. -1))))
    #?(:cljs (is (rt? "Timestamps" (js/Date.))))
 
+   (rt? "UUID" #uuid "66d96ab4-9834-40db-a3cd-42b361503ab9")
+
    (testing "Key caching"
      [(rt? "Basic" [{:a :A} {:a :A}] {:foo {1 {:x :X} 2 {:y :Y}}})
       (rt? ">256    keys" (let [m (into {} (map (fn [n] [(str "key" n) n])) (range 512))] [m m {:a :A :b :B} m]))

@@ -444,6 +444,10 @@
   (unpack [u8s]
     (CachedKey. (get @c/*key-cache_* (aget ^js u8s 0)))))
 
+(c/extend-packable 9 UUID
+  (pack   [u]             (.encode text-encoder (str u)))
+  (unpack [^js u8s] (uuid (.decode text-decoder ^js u8s))))
+
 ;;;;
 
 (defn unpack [in] (unpack-1 (in-stream* in)))
