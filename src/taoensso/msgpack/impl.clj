@@ -321,6 +321,10 @@
   (unpack [ba]
     (CachedKey. (get @c/*key-cache_* (bit-and 0xff (aget ^bytes ba 0))))))
 
+(c/extend-packable 9 java.util.UUID
+  (pack   [u]  (.getBytes (str u)                            StandardCharsets/UTF_8))
+  (unpack [ba] (java.util.UUID/fromString (String. ^bytes ba StandardCharsets/UTF_8))))
+
 ;;;;
 
 (defn pack
