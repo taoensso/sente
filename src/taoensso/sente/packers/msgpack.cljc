@@ -6,17 +6,17 @@
    [taoensso.sente.interfaces :as i]))
 
 (defn get-packer
-  "Returns Sente packer that uses the binary MessagePack
+  "Experimental, please test carefully and report any issues!
+
+  Returns Sente packer that uses the binary MessagePack
   format, Ref. <https://msgpack.org/index.html>.
 
   Clj/s MessagePack implementation adapted from
-  <https://github.com/rosejn/msgpack-cljc>.
-
-  Experimental, please test carefully and report any issues!"
+  <https://github.com/rosejn/msgpack-cljc>."
   []
   (reify i/IPacker2
-    (pack   [_ _ws? x  cb-fn] (cb-fn {:value (msgpack/pack    x)}))
-    (unpack [_ _ws? ba cb-fn] (cb-fn {:value (msgpack/unpack ba)}))))
+    (pack   [_ _ws? x  cb] (cb {:value (msgpack/pack    x)}))
+    (unpack [_ _ws? in cb] (cb {:value (msgpack/unpack in)}))))
 
 (comment
   (let [p (get-packer)]

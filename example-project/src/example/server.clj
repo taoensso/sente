@@ -281,10 +281,11 @@
   (let [old-mode @example.dynamic-packer/mode_
         new-mode
         (case old-mode
-          :edn/txt :edn/bin
-          :edn/bin :transit
-          :transit :msgpack
-          :msgpack :edn/txt)]
+          :edn/txt    :edn/bin
+          :edn/bin    :transit
+          :transit    :msgpack
+          :msgpack    :msgpack+gz
+          :msgpack+gz :edn/txt)]
 
     (tel/log! (str "Changing packer mode: " old-mode " -> " new-mode))
     (?reply-fn [old-mode new-mode])
