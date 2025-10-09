@@ -1215,7 +1215,7 @@
              i/IClientWebSocket
              (cws-raw   [_]                            socket)
              (cws-send  [_ data]               (.send  socket data))
-             (cws-close [_ code reason clean?] (.close socket reason clean?))))))))
+             (cws-close [_ code reason clean?] (.close socket code reason))))))))
 
 (defn- get-client-csrf-token-str
   "Returns non-blank client CSRF token ?string from given token string

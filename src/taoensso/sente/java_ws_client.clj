@@ -34,4 +34,4 @@
         i/IClientWebSocket
         (cws-raw   [_]                            ws-client)
         (cws-send  [_ data]               (.send  ws-client data))
-        (cws-close [_ code reason clean?] (.close ws-client code reason clean?))))))
+        (cws-close [_ code reason clean?] (.close ws-client code reason))))))
