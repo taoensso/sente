@@ -18,24 +18,25 @@
 
    [example.dynamic-packer]
 
-   ;;; TODO Choose (uncomment) a supported web server + adapter -------------
+   ;; http-kit
    [org.httpkit.server :as http-kit]
    [taoensso.sente.server-adapters.http-kit :refer [get-sch-adapter]]
 
-   ;; [immutant.web :as immutant]
-   ;; [taoensso.sente.server-adapters.immutant :refer [get-sch-adapter]]
+   ;; Immutant
+   #_[immutant.web :as immutant]
+   #_[taoensso.sente.server-adapters.immutant :refer [get-sch-adapter]]
 
-   ;; [nginx.clojure.embed :as nginx-clojure]
-   ;; [taoensso.sente.server-adapters.nginx-clojure :refer [get-sch-adapter]]
+   ;; nginx-clojure
+   #_[nginx.clojure.embed :as nginx-clojure]
+   #_[taoensso.sente.server-adapters.nginx-clojure :refer [get-sch-adapter]]
 
-   ;; [aleph.http :as aleph]
-   ;; [taoensso.sente.server-adapters.aleph :refer [get-sch-adapter]]
+   ;; Aleph
+   #_[aleph.http :as aleph]
+   #_[taoensso.sente.server-adapters.aleph :refer [get-sch-adapter]]
 
-   ;; [ring.adapter.jetty9.websocket :as jetty9.websocket]
-   ;; [taoensso.sente.server-adapters.jetty9 :refer [get-sch-adapter]]
-   ;; Ref. <https://gist.github.com/wavejumper/40c4cbb21d67e4415e20685710b68ea0>
-   ;; for full example using Jetty 9
-   ))
+   ;; Jetty 9, Ref .<https://gist.github.com/wavejumper/40c4cbb21d67e4415e20685710b68ea0>
+   #_[ring.adapter.jetty9.websocket :as jetty9.websocket]
+   #_[taoensso.sente.server-adapters.jetty9 :refer [get-sch-adapter]]))
 
 ;;;; Logging
 
@@ -322,31 +323,42 @@
 
 ;;;; Init stuff
 
-(defonce    web-server_ (atom nil)) ; (fn stop [])
-(defn  stop-web-server! [] (when-let [stop-fn @web-server_] (stop-fn)))
+(encore/defonce web-server_ "?{:keys [port stop-fn]}" (atom nil))
+
+(defn  stop-web-server! [] (when-let [{:keys [stop-fn]} @web-server_] (stop-fn)))
 (defn start-web-server! [& [port]]
   (stop-web-server!)
-  (let [port (or port 0) ; 0 => Choose any available port
+  (let [port         (or port 0) ; 0 => Choose any available port
         ring-handler (var main-ring-handler)
 
-        [port stop-fn]
-        ;;; TODO Choose (uncomment) a supported web server ------------------
-        (let [stop-fn (http-kit/run-server ring-handler {:port port})]
-          [(:local-port (meta stop-fn)) (fn stop-fn [] (stop-fn :timeout 100))])
-        ;;
-        ;; (let [server (immutant/run ring-handler :port port)]
-        ;;   [(:port server) (fn stop-fn [] (immutant/stop server))])
-        ;;
-        ;; (let [port (nginx-clojure/run-server ring-handler {:port port})]
-        ;;   [port (fn stop-fn [] (nginx-clojure/stop-server))])
-        ;;
-        ;; (let [server (aleph/start-server ring-handler {:port port})
-        ;;       p (promise)]
-        ;;   (future @p) ; Workaround for Ref. https://goo.gl/kLvced
-        ;;   ;; (aleph.netty/wait-for-close server)
-        ;;   [(aleph.netty/port server)
-        ;;    (fn stop-fn [] (.close ^java.io.Closeable server) (deliver p nil))])
-        ;; ------------------------------------------------------------------
+        ;; http-kit
+        {:keys [port stop-fn]}
+        (let [server (http-kit/run-server ring-handler {:port port, :legacy-return-value? false})]
+          {:port           (http-kit/server-port  server)
+           :stop-fn (fn [] (http-kit/server-stop! server {:timeout 100}))})
+
+        ;; Immutant
+        #_{:keys [port stop-fn]}
+        #_(let [server (immutant/run ring-handler :port port)]
+          {:port    (:port server)
+           :stop-fn (fn [] (immutant/stop server))})
+
+        ;; nginx-clojure
+        #_{:keys [port stop-fn]}
+        #_
+        (let [port (nginx-clojure/run-server ring-handler {:port port})]
+          {:port    port
+           :stop-fn (fn [] (nginx-clojure/stop-server))})
+
+        ;; Aleph
+        #_{:keys [port stop-fn]}
+        #_
+        (let [server (aleph/start-server ring-handler {:port port})
+              p (promise)]
+          (future @p) ; Workaround for Ref. <https://github.com/clj-commons/aleph/issues/238>
+          ;; (aleph.netty/wait-for-close server)
+          {:port    (aleph.netty/port server)
+           :stop-fn (fn [] (.close ^java.io.Closeable server) (deliver p nil))})
 
         uri (format "http://localhost:%s/" port)]
 
@@ -355,14 +367,14 @@
       (.browse (java.awt.Desktop/getDesktop) (java.net.URI. uri))
       (catch Exception _))
 
-    (reset! web-server_ stop-fn)))
+    (reset! web-server_ {:port port, :stop-fn stop-fn})))
 
 (defn stop!  [] (stop-router!) (stop-web-server!))
-(defn start! []
+(defn start! [& [port]]
   (tel/log! (str "Sente version: " sente/sente-version))
   (tel/log! (str "Min log level: " @min-log-level_))
   (start-router!)
-  (let [stop-fn (start-web-server!)]
+  (let [stop-fn (start-web-server! port)]
     @auto-loop_
     stop-fn))
 
@@ -374,4 +386,7 @@
 
   (broadcast! [:example/foo])
   @connected-uids_
-  @conns_)
+  @conns_
+
+  ;; Restart at same port
+  (do (stop!) (start! (:port @web-server_))))
