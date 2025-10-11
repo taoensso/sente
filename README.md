@@ -15,7 +15,7 @@ Loosely inspired by [Socket.IO](https://socket.io/), it uses **core.async**, **W
 
 ## Latest release/s
 
-- `2025-09-05` `v1.21.0-RC2` (dev): [release info](../../releases/tag/v1.21.0-RC2)
+- `2025-10-11` `v1.21.0-RC3` (dev): [release info](../../releases/tag/v1.21.0-RC3)
 - `2024-12-31` `v1.20.0` (stable): [release info](../../releases/tag/v1.20.0)
 
 [![Clj tests][Clj tests SVG]][Clj tests URL]

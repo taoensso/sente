@@ -2,6 +2,22 @@ This project uses [**Break Versioning**](https://www.taoensso.com/break-versioni
 
 ---
 
+# `v1.21.0-RC3` (2025-10-11)
+
+- **Dependency**: [on Clojars](https://clojars.org/com.taoensso/sente/versions/1.21.0-RC3)
+- **Versioning**: [Break Versioning](https://www.taoensso.com/break-versioning)
+
+## Since `v1.21.0-RC2` (2025-09-05)
+
+- \[fix] \[#475] \[#476] Fix bad WebSocket close call args \[2120b136]
+- \[new] \[#477] Add [gzip-wrapping packer](https://cljdoc.org/d/com.taoensso/sente/CURRENT/api/taoensso.sente.packers.gzip) \[956268c8]
+- \[new] \[#476] Make it easier to test server restarts \[f292180b]
+- \[new] \[#474] Add UUID support to [Msgpack packer](https://cljdoc.org/d/com.taoensso/sente/CURRENT/api/taoensso.sente.packers.msgpack) (@jrgvf) \[2fdd8f82]
+* \[doc] Add [packer info](https://github.com/taoensso/sente/wiki/5-Packers) to wiki \[08dc349c]
+* \[mod] Drop Clojure v1.10 testing \[648ac31d]
+
+---
+
 # `v1.21.0-RC2` (2025-09-05)
 
 - **Dependency**: [on Clojars](https://clojars.org/com.taoensso/sente/versions/1.21.0-RC2)
