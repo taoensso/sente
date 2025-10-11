@@ -9,8 +9,8 @@
 
   :dependencies
   [[org.clojure/core.async "1.8.741"]
-   [com.taoensso/encore    "3.154.0"]
-   [com.taoensso/trove     "1.0.0"]]
+   [com.taoensso/encore    "3.155.0"]
+   [com.taoensso/trove     "1.1.0"]]
 
   :test-paths ["test" #_"src"]
 
