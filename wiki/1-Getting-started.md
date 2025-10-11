@@ -34,11 +34,10 @@ For Sente, we're going to add 2 new URLs and setup their handlers:
     [ring.middleware.anti-forgery :refer [wrap-anti-forgery]] ; <--- Recommended
 
     ;; Uncomment a web-server adapter --->
-    ;; [taoensso.sente.server-adapters.http-kit      :refer [get-sch-adapter]]
-    ;; [taoensso.sente.server-adapters.immutant      :refer [get-sch-adapter]]
-    ;; [taoensso.sente.server-adapters.nginx-clojure :refer [get-sch-adapter]]
-    ;; [taoensso.sente.server-adapters.aleph         :refer [get-sch-adapter]]
-  ))
+    #_[taoensso.sente.server-adapters.http-kit      :refer [get-sch-adapter]]
+    #_[taoensso.sente.server-adapters.immutant      :refer [get-sch-adapter]]
+    #_[taoensso.sente.server-adapters.nginx-clojure :refer [get-sch-adapter]]
+    #_[taoensso.sente.server-adapters.aleph         :refer [get-sch-adapter]]))
 
 ;;; Add this: --->
 (let [{:keys [ch-recv send-fn connected-uids
