@@ -34,7 +34,8 @@ See [here][GitHub releases] for earlier releases.
 - Support for users simultaneously connected with **multiple clients** and/or devices
 - Realtime info on **which users are connected**, and over which protocols
 - Standard **Ring security model**: auth as you like, HTTPS when available, CSRF support, etc.
-- Support for [several popular web servers](../../tree/master/src/taoensso/sente/server_adapters), [easily extended](../../blob/master/src/taoensso/sente/interfaces.cljc) to other servers.
+- Support for diverse [web servers](https://cljdoc.org/d/com.taoensso/sente/CURRENT/api/taoensso.sente.interfaces#IServerChanAdapter) to others
+- Support for diverse [transmission formats](https://github.com/taoensso/sente/wiki/5-Packers), [easily extended](https://cljdoc.org/d/com.taoensso/sente/CURRENT/api/taoensso.sente.interfaces#IPacker2) to others
 
 ### Capabilities
 

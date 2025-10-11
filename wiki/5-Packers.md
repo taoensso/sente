@@ -4,7 +4,7 @@ The following packers are available out-the-box:
 
 | Format                                                 | Packer                                                                                     | Type        | Comments                      |
 | ------------------------------------------------------ | ------------------------------------------------------------------------------------------ | ----------- | ----------------------------- |
-| [edn](https://github.com/edn-format/edn)               | [Link](https://cljdoc.org/d/com.taoensso/sente/CURRENT/api/taoensso.sente.packers.edn)     | Text        | Default, mature               |
+| [edn](https://github.com/edn-format/edn)               | [Link](https://cljdoc.org/d/com.taoensso/sente/CURRENT/api/taoensso.sente.packers.edn)     | Text        | Mature, default               |
 | [Transit](https://github.com/cognitect/transit-format) | [Link](https://cljdoc.org/d/com.taoensso/sente/CURRENT/api/taoensso.sente.packers.transit) | Text (JSON) | Mature                        |
 | [MessagePack](https://msgpack.org/index.html)          | [Link](https://cljdoc.org/d/com.taoensso/sente/CURRENT/api/taoensso.sente.packers.msgpack) | Binary      | New high-speed implementation |
 | [gzip](https://en.wikipedia.org/wiki/Gzip)             | [Link](https://cljdoc.org/d/com.taoensso/sente/CURRENT/api/taoensso.sente.packers.gzip)    | Text+Binary | Wraps any other packer        |
@@ -27,7 +27,7 @@ To use a packer you'll import it and provide it as an option to **both** your Se
     (sente/make-channel-socket-client! ... {:packer packer ...})))
 ```
 
-To use the gzip wrapping packer:
+To add gzip you'll wrap the underlying packer:
 
 ```clojure
 ;; Server (clj)
@@ -64,4 +64,4 @@ There's some [benchmarks](https://github.com/taoensso/sente/blob/ea59599d6690d29
 
 <img alt="Benchmarks" src="https://github.com/user-attachments/assets/2b9c1bae-1b3a-4cd7-8d18-bea5dc6becda" />
 
-Sente's [Reference example](https://github.com/taoensso/sente/tree/master/example-project) project also allows you to easily switch between different packers for testing, etc.
+Sente's [Reference example](https://github.com/taoensso/sente/tree/master/example-project) also allows you to easily switch between different packers for testing, etc.

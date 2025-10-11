@@ -13,8 +13,8 @@ This project uses [**Break Versioning**](https://www.taoensso.com/break-versioni
 - \[new] \[#477] Add [gzip-wrapping packer](https://cljdoc.org/d/com.taoensso/sente/CURRENT/api/taoensso.sente.packers.gzip) \[956268c8]
 - \[new] \[#476] Make it easier to test server restarts \[f292180b]
 - \[new] \[#474] Add UUID support to [Msgpack packer](https://cljdoc.org/d/com.taoensso/sente/CURRENT/api/taoensso.sente.packers.msgpack) (@jrgvf) \[2fdd8f82]
-* \[doc] Add [packer info](https://github.com/taoensso/sente/wiki/5-Packers) to wiki \[08dc349c]
-* \[mod] Drop Clojure v1.10 testing \[648ac31d]
+- \[doc] Add [packer info](https://github.com/taoensso/sente/wiki/5-Packers) to wiki \[08dc349c]
+- \[mod] Drop Clojure v1.10 testing \[648ac31d]
 
 ---
 
