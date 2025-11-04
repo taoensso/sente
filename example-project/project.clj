@@ -10,10 +10,10 @@
                 *assert* true}
 
   :dependencies
-  [[org.clojure/clojure        "1.12.2"]
+  [[org.clojure/clojure        "1.12.3"]
    [org.clojure/clojurescript "1.12.42"]
    [org.clojure/core.async    "1.8.741"]
-   [nrepl                       "1.3.1"] ; Optional, for Cider
+   [nrepl                       "1.5.1"] ; Optional, for Cider
 
    [com.taoensso/sente     "1.21.0-RC3"] ; <--- Sente
    [com.taoensso/telemere       "1.1.0"] ; Optional, for logging
@@ -26,11 +26,11 @@
    ;; [info.sunng/ring-jetty9-adapter "x.y.z"]
    ;; --------------------------------------------------------
 
-   [ring                 "1.13.0"] ; v1.14.2 break latest `ring-defaults` (v0.6.0)
+   [ring                 "1.13.0"] ; v1.14.2+ breaks latest `ring-defaults` (v0.6.0)?
    [ring/ring-defaults   "0.6.0"]  ; Includes `ring-anti-forgery`, etc.
    ;; [ring-anti-forgery "x.y.z"]
 
-   [compojure "1.7.1"] ; Or routing lib of your choice
+   [compojure "1.7.2"] ; Or routing lib of your choice
    [hiccup    "2.0.0"] ; Optional, to generate HTML
 
    ;; If you want to use Transit for serialization
@@ -41,7 +41,7 @@
   [[lein-pprint       "1.3.2"]
    [lein-ancient      "0.7.0"]
    [lein-cljsbuild    "1.1.8"]
-   [cider/cider-nrepl "0.57.0"]] ; Optional, for use with Emacs
+   [cider/cider-nrepl "0.58.0"]] ; Optional, for use with Emacs
 
   :cljsbuild
   {:builds
