@@ -1,5 +1,5 @@
 <a href="https://www.taoensso.com/clojure" title="More stuff by @ptaoussanis at www.taoensso.com"><img src="https://www.taoensso.com/open-source.png" alt="Taoensso open source" width="340"/></a>  
-[**API**][cljdoc] | [**Wiki**][GitHub wiki] | [Latest releases](#latest-releases) | [Slack channel][]
+[**API**][cljdoc] | [**Wiki**][GitHub wiki] | [Slack][] | Latest release: [v1.21.0](../../releases/tag/v1.21.0) (2025-11-04)
 
 # Sente
 
@@ -12,11 +12,6 @@ Loosely inspired by [Socket.IO](https://socket.io/), it uses **core.async**, **W
 <img width="600" src="../../raw/master/hero.jpg"/>
 
 > **Sen-te** (先手) is a Japanese [Go](https://en.wikipedia.org/wiki/Go_(game)) term used to describe a play with such an overwhelming follow-up that it demands an immediate response, leaving its player with the initiative.
-
-## Latest release/s
-
-- `2025-10-11` `v1.21.0-RC3` (dev): [release info](../../releases/tag/v1.21.0-RC3)
-- `2024-12-31` `v1.20.0` (stable): [release info](../../releases/tag/v1.20.0)
 
 [![Clj tests][Clj tests SVG]][Clj tests URL]
 [![Cljs tests][Cljs tests SVG]][Cljs tests URL]
@@ -50,7 +45,7 @@ So you can ignore the underlying protocol and deal directly with Sente's unified
 
 - [Wiki][GitHub wiki] (getting started, usage, etc.)
 - API reference via [cljdoc][cljdoc]
-- Support via [Slack channel][] or [GitHub issues][]
+- Support via [Slack][] or [GitHub issues][]
 
 ## Funding
 
@@ -66,7 +61,7 @@ Licensed under [EPL 1.0](LICENSE.txt) (same as Clojure).
 [GitHub releases]: ../../releases
 [GitHub issues]:   ../../issues
 [GitHub wiki]:     ../../wiki
-[Slack channel]: https://www.taoensso.com/sente/slack
+[Slack]: https://www.taoensso.com/sente/slack
 
 [Peter Taoussanis]: https://www.taoensso.com
 [sponsor]:          https://www.taoensso.com/sponsor

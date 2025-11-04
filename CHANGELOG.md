@@ -2,6 +2,71 @@ This project uses [**Break Versioning**](https://www.taoensso.com/break-versioni
 
 ---
 
+# `v1.21.0` (2025-11-04)
+
+- **Dependency**: [on Clojars](https://clojars.org/com.taoensso/sente/versions/1.21.0)
+- **Versioning**: [Break Versioning](https://www.taoensso.com/break-versioning)
+
+Sente v1.21 is a **major release** with many improvements! It includes **breaking changes** for some users. Please report any unexpected problems to the [Slack channel](http://taoensso.com/sente/slack) or [GitHub](https://github.com/taoensso/sente/issues). A big thanks to all contributors and testers on this release! 🙏
+
+\- [Peter Taoussanis](https://www.taoensso.com)
+
+Quick highlights:
+
+- Adds [support](https://github.com/taoensso/sente/issues/470) for **high-speed binary serialization**
+- Adds support for **compression** (WebSockets + Ajax) \[f8a3fad]
+- **Smaller dependency** \[4864926] \[6a7a609]
+- **Improved reliability** under load \[173652d] \[49000db] \[71e7bb0]
+- Pluggable logging via [Trove](https://www.taoensso.com/trove) \[4864926]
+- Many small fixes and improvements
+
+As always thank you to any contributors! In particular thank you to @rosejn, @edma2, and @pkcsecurity on whose [work](https://github.com/rosejn/msgpack-cljc) Sente's new MessagePack implementation is based 🙏
+
+## Since `v1.21.0-RC3` (2025-10-11)
+
+No changes (same as RC3).
+
+## Since `v1.20.0` (2024-12-31)
+
+### Changes
+
+- **➤ \[mod] [BREAKING]** [#472] Switch logging: Timbre -> Trove \[4864926]
+- **➤ \[mod] [BREAKING]** Make packers more flexible \[f8a3fad]
+- **➤ \[mod] [BREAKING]** Increase default `:ws-ping-timeout-ms` (5->10 secs) \[147fbdd]
+- \[mod] Drop Clojure v1.10 testing \[648ac31d]
+- \[mod] [#455] Halve given `ws-kalive-ms` \[49000db]
+- \[mod] Make Java WS client optional \[6a7a609]
+- \[mod] [#462] Don't throw by default on Ajax read timeouts \[fb30404]
+- \[mod] Enable WebSocket ping timeout by default \[71e7bb0]
+- \[mod] Change default WebSocket binary type (blob->arraybuffer) \[02da98e]
+- \[mod] Remove experimental, undocumented `cb-chan-as-fn` \[71db112]
+- \[mod] Remove long-vestigial legacy pack code \[cf2a149]
+
+### Fixes
+
+- \[fix] [#471] Switch to custom lightweight timer implementation \[173652d]
+- \[fix] [#466] Fix support for Jetty 12 community adapter (@aiba) \[d16bb6c]
+- \[fix] \[#464] \[#325] Fix option to use custom WebSocket constructor (@iarenaza) \[07a9bd9]
+- \[fix] \[#475] \[#476] Fix bad WebSocket close call args \[2120b136]
+
+### New
+
+- \[new] [#470] Add new binary [MessagePack packer](https://github.com/taoensso/sente/blob/a8de08f26cf739512d249dc88bc98c33a9992bcf/src/taoensso/sente/packers/msgpack.cljc#L8) \[757ebd2]
+- \[new] Add MessagePack packer to [example project](https://github.com/taoensso/sente/tree/master/example-project) \[e88a17f]
+- \[new] \[#477] Add [gzip-wrapping packer](https://cljdoc.org/d/com.taoensso/sente/CURRENT/api/taoensso.sente.packers.gzip) \[956268c8]
+- \[new] [#467] Allow `:csrf-token-fn` to return `:sente/skip-CSRF-check` \[8aae3d0]
+- \[new] [#467] Make `cb-error?`, `cb-success?` available to Clj code \[08e8b3e]
+- \[new] [#462] Keep Ring request in Ajax channel \[01a41a3]
+- \[new] \[#474] Add UUID support to [Msgpack packer](https://cljdoc.org/d/com.taoensso/sente/CURRENT/api/taoensso.sente.packers.msgpack) (@jrgvf) \[2fdd8f82]
+- \[new] \[#476] Make it easier to test server restarts \[f292180b]
+- \[new] Update ref example to add dynamic packer \[cd98db7]
+- \[new] Update ref example logging \[85b3e8a]
+- \[doc] Document limitations on event ordering \[532064d]
+- \[doc] Clarify client-side send-fn args \[1feca6f]
+- \[doc] Add [packer info](https://github.com/taoensso/sente/wiki/5-Packers) to wiki \[08dc349c]
+
+---
+
 # `v1.21.0-RC3` (2025-10-11)
 
 - **Dependency**: [on Clojars](https://clojars.org/com.taoensso/sente/versions/1.21.0-RC3)
