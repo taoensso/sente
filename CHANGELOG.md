@@ -13,11 +13,11 @@ Sente v1.21 is a **major release** with many improvements! It includes **breakin
 
 Quick highlights:
 
-- Adds [support](https://github.com/taoensso/sente/issues/470) for **high-speed binary serialization**
-- Adds support for **compression** (WebSockets + Ajax) \[f8a3fad]
+- [Support](https://github.com/taoensso/sente/issues/470) for **binary serialization**, and a new high-speed MessagePack [implementation](https://github.com/taoensso/sente/commit/757ebd26e96762d25ab1153ab1ffbe0063027b16) ([benchmarks](https://github.com/taoensso/sente/wiki/5-Packers#which-to-use))
+- [Support](https://github.com/taoensso/sente/commit/f8a3fad4856a78f341679e5e80ce3bdad7498952) for **binary compression**, and a new gzip [implementation](https://cljdoc.org/d/com.taoensso/sente/CURRENT/api/taoensso.sente.packers.gzip)
 - **Smaller dependency** \[4864926] \[6a7a609]
 - **Improved reliability** under load \[173652d] \[49000db] \[71e7bb0]
-- Pluggable logging via [Trove](https://www.taoensso.com/trove) \[4864926]
+- Pluggable un+structured logging via [Trove](https://www.taoensso.com/trove) \[4864926]
 - Many small fixes and improvements
 
 As always thank you to any contributors! In particular thank you to @rosejn, @edma2, and @pkcsecurity on whose [work](https://github.com/rosejn/msgpack-cljc) Sente's new MessagePack implementation is based 🙏
@@ -28,13 +28,13 @@ No changes (same as RC3).
 
 ## Since `v1.20.0` (2024-12-31)
 
-### Changes
+### Changes (please check!)
 
-- **➤ \[mod] [BREAKING]** [#472] Switch logging: Timbre -> Trove \[4864926]
+- **➤ \[mod] [BREAKING]** [#472] Switch logging: [Timbre](https://www.taoensso.com/timbre) -> [Trove](https://www.taoensso.com/trove) \[4864926]
 - **➤ \[mod] [BREAKING]** Make packers more flexible \[f8a3fad]
 - **➤ \[mod] [BREAKING]** Increase default `:ws-ping-timeout-ms` (5->10 secs) \[147fbdd]
-- \[mod] Drop Clojure v1.10 testing \[648ac31d]
 - \[mod] [#455] Halve given `ws-kalive-ms` \[49000db]
+- \[mod] Drop Clojure v1.10 testing \[648ac31d]
 - \[mod] Make Java WS client optional \[6a7a609]
 - \[mod] [#462] Don't throw by default on Ajax read timeouts \[fb30404]
 - \[mod] Enable WebSocket ping timeout by default \[71e7bb0]
