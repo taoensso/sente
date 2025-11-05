@@ -131,14 +131,9 @@
 
   Object
   (pack-bytes [x ^DataOutput out]
-    (pack-bytes
-      {:msgpack/unpackable
-       {:type (str (type x))
-        :preview
-        (try
-          (let [out (pr-str x)] (subs out 0 (min 32 (count out))))
-          (catch Throwable _ :unprintable))}}
-      out)))
+    (truss/ex-info!
+      (str "Pack failed: unsupported type (" (type x) ")")
+      {:type (type x), :value x})))
 
 ;; Separate for CLJ-1381
 (extend-protocol Packable (class (into-array Byte [])) (pack-bytes [a  ^DataOutput out] (pack-bytes (byte-array a) out)))

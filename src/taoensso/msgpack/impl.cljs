@@ -272,14 +272,10 @@
   (pack-bytes [x out]
     (if (seqable? x)
       (pack-seq x out)
-      (pack-bytes
-        {:msgpack/unpackable
-         {:type (enc/type-name x)
-          :preview
-          (try
-            (let [s (pr-str x)] (subs s 0 (min 32 (count s))))
-            (catch :default _ :unprintable))}}
-        out))))
+      (let [type-name (enc/type-name x)]
+        (truss/ex-info!
+          (str "Pack failed: unsupported type (" type-name ")")
+          {:type type-name, :value x})))))
 
 ;;;; Unpacking
 
