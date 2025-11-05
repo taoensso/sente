@@ -277,7 +277,7 @@
          {:type (enc/type-name x)
           :preview
           (try
-            (let [s (pr-str x)] (subs s 0 (min 16 (count s))))
+            (let [s (pr-str x)] (subs s 0 (min 32 (count s))))
             (catch :default _ :unprintable))}}
         out))))
 
