@@ -133,10 +133,10 @@
   (pack-bytes [x ^DataOutput out]
     (pack-bytes
       {:msgpack/unpackable
-       {:type (type x)
+       {:type (str (type x))
         :preview
         (try
-          (let [out (pr-str x)] (subs out 0 (min 16 (count out))))
+          (let [out (pr-str x)] (subs out 0 (min 32 (count out))))
           (catch Throwable _ :unprintable))}}
       out)))
 
