@@ -65,6 +65,7 @@ Licensed under [EPL 1.0](LICENSE.txt) (same as Clojure).
 
 [Peter Taoussanis]: https://www.taoensso.com
 [sponsor]:          https://www.taoensso.com/sponsor
+[my work]:          https://www.taoensso.com/clojure-libraries
 
 <!-- Project -->
 
