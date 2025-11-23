@@ -18,14 +18,15 @@
 (deftype HttpKitServerChanAdapter []
   i/IServerChanAdapter
   (ring-req->server-ch-resp [sch-adapter ring-req callbacks-map]
-    (let [{:keys [on-open on-close on-msg _on-error]} callbacks-map
+    (let [{:keys [on-open on-close on-msg _on-error pre-ws-handshake]} callbacks-map
           ws? (:websocket? ring-req)]
 
       ;; Note `as-channel` requires http-kit >= v2.4.0
       ;; Returns {:body <http-kit-implementation-channel> ...}:
       (hk/as-channel ring-req
-        {:on-close   (when on-close (fn [sch status-kw] (on-close sch ws? status-kw)))
-         :on-receive (when on-msg   (fn [sch       msg] (on-msg   sch ws? msg)))
-         :on-open    (when on-open  (fn [sch          ] (on-open  sch ws?)))}))))
+        {:on-close         (when on-close (fn [sch status-kw] (on-close sch ws? status-kw)))
+         :on-receive       (when on-msg   (fn [sch       msg] (on-msg   sch ws? msg)))
+         :on-open          (when on-open  (fn [sch          ] (on-open  sch ws?)))
+         :pre-ws-handshake (when pre-ws-handshake pre-ws-handshake)}))))
 
 (defn get-sch-adapter [] (HttpKitServerChanAdapter.))
