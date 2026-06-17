@@ -103,6 +103,124 @@
   (deftest test-packer-gz+transit (test-promise (roundtrip td1 (gz/wrap-packer (tp/get-packer) {:binary? false})) #(is (= td1 %))))
   (deftest test-packer-gz+msgpack (test-promise (roundtrip td1 (gz/wrap-packer (mp/get-packer) {:binary?  true})) #(is (= td1 %)))))
 
+;;;; Security: CSRF & origin checks (server-only)
+
+#?(:clj
+   (deftest test-allow-origin?
+     (testing "allow-origin? (also usable as an origin-based CSRF defense)"
+       (is (true?  (sente/allow-origin? :all                 {:headers {"origin"  "http://site.com"}}))         ":all allows any origin")
+       (is (true?  (sente/allow-origin? #{"http://site.com"} {:headers {"origin"  "http://site.com"}}))         "Exact Origin match")
+       (is (true?  (sente/allow-origin? #{"http://site.com"} {:headers {"referer" "http://site.com/x"}}))        "Referer fallback when no Origin")
+       (is (false? (sente/allow-origin? #{"http://site.com"} {:headers nil}))                                    "No Origin/Referer => reject")
+       (is (false? (sente/allow-origin? #{"http://site.com"} {:headers {"origin"  "http://evil.com"}}))          "Wrong Origin => reject")
+       (is (false? (sente/allow-origin? #{"http://site.com"} {:headers {"referer" "http://evil.com/"}}))         "Wrong Referer => reject")
+       (is (false? (sente/allow-origin? #{"http://site.com"} {:headers {"referer" "http://site.com.evil.com/"}})) "Prefix-spoofed Referer => reject"))))
+
+#?(:clj
+   (deftest test-valid-csrf-token?
+     (testing "valid-csrf-token? (Sente's built-in token-equality check)"
+       (let [tok-fn (fn [_] "secret-tok")]
+         (is (true?  (sente/valid-csrf-token? tok-fn {:params  {:csrf-token    "secret-tok"}})) "Request-param token match")
+         (is (true?  (sente/valid-csrf-token? tok-fn {:headers {"x-csrf-token" "secret-tok"}})) "x-csrf-token header match")
+         (is (true?  (sente/valid-csrf-token? tok-fn {:headers {"x-xsrf-token" "secret-tok"}})) "x-xsrf-token header match")
+         (is (false? (sente/valid-csrf-token? tok-fn {:params  {:csrf-token    "wrong-tok"}}))  "Token mismatch => false")
+         (is (false? (sente/valid-csrf-token? tok-fn {}))                                       "Missing client token => false")
+         (is (false? (sente/valid-csrf-token? (fn [_] nil) {:params {:csrf-token "x"}}))        "Missing reference token => false")
+         (is (false? (sente/valid-csrf-token? nil          {:params {:csrf-token "x"}}))        "Nil csrf-token-fn => false (no NPE)")
+         (is (true?  (sente/valid-csrf-token? (fn [_] :sente/skip-CSRF-check) {}))              "`:sente/skip-CSRF-check` => valid (skip)")))))
+
+#?(:clj
+   ;; Minimal `IServerChanAdapter` for testing request rejection. The non-rejected
+   ;; path returns a sentinel so we can confirm a request reached the adapter.
+   (def ^:private stub-sch-adapter
+     (reify i/IServerChanAdapter
+       (ring-req->server-ch-resp [_ _ring-req _callbacks-map]
+         {:status 200 :body ::reached-adapter}))))
+
+#?(:clj
+   (deftest test-builtin-csrf-check
+     (testing "Built-in (default) token CSRF check, via the handler"
+       (let [post-fn  (fn [opts] (:ajax-post-fn (sente/make-channel-socket-server! stub-sch-adapter opts)))
+             reached? (fn [resp] (= (:body resp) ::reached-adapter))]
+
+         (testing "missing token => rejected (403)"
+           (is (= 403 (:status ((post-fn {}) {})))))
+
+         (testing "matching token => passes"
+           (is (reached? ((post-fn {:csrf-token-fn (fn [_] "tok")})
+                          {:params {:csrf-token "tok"}}))))
+
+         (testing "`:sente/skip-CSRF-check` => CSRF skipped"
+           (is (reached? ((post-fn {:csrf-token-fn (constantly :sente/skip-CSRF-check)}) {}))))))))
+
+#?(:clj
+   (deftest test-reject-fn
+     (testing "`:reject-fn` general rejection hook"
+       (let [post-fn   (fn [opts] (:ajax-post-fn (sente/make-channel-socket-server! stub-sch-adapter opts)))
+             reached?  (fn [resp] (= (:body resp) ::reached-adapter))
+             skip-csrf (constantly :sente/skip-CSRF-check)] ; Disable built-in CSRF
+
+         (testing "non-nil return rejects with that exact response"
+           (let [resp ((post-fn {:reject-fn (fn [_] {:status 429 :body "slow down"})}) {})]
+             (is (= 429         (:status resp)))
+             (is (= "slow down" (:body   resp)))
+             (is (not (reached? resp)))))
+
+         (testing "runs BEFORE built-in checks (can reject what they'd allow)"
+           ;; CSRF disabled => built-ins would pass, but reject-fn still rejects.
+           (let [resp ((post-fn {:csrf-token-fn skip-csrf
+                                 :reject-fn     (fn [_] {:status 403 :body "nope"})})
+                       {})]
+             (is (= "nope" (:body resp)))
+             (is (not (reached? resp)))))
+
+         (testing "nil return falls through to built-in checks (can't relax them)"
+           ;; reject-fn abstains; default CSRF must still reject a token-less request.
+           (is (= 403 (:status ((post-fn {:reject-fn (fn [_] nil)}) {})))))
+
+         (testing "nil return + checks pass => request reaches adapter"
+           (is (reached? ((post-fn {:csrf-token-fn skip-csrf
+                                    :reject-fn     (fn [_] nil)})
+                          {}))))
+
+         (testing "receives the Ring request"
+           (let [seen_ (atom nil)]
+             ((post-fn {:csrf-token-fn skip-csrf
+                        :reject-fn     (fn [req] (reset! seen_ req) nil)})
+              {:foo :bar})
+             (is (= {:foo :bar} @seen_))))))))
+
+#?(:clj
+   (deftest test-allowed-origins-rejection
+     (testing "`:allowed-origins` rejects disallowed origins via bad-origin-fn"
+       (let [post-fn  (fn [opts] (:ajax-post-fn (sente/make-channel-socket-server! stub-sch-adapter opts)))
+             reached? (fn [resp] (= (:body resp) ::reached-adapter))
+             ;; Disable CSRF so we isolate the origin check.
+             base     {:csrf-token-fn   (constantly :sente/skip-CSRF-check)
+                       :allowed-origins #{"http://site.com"}}]
+
+         (testing "allowed origin passes"
+           (is (reached? ((post-fn base) {:headers {"origin" "http://site.com"}}))))
+
+         (testing "disallowed origin rejected (403)"
+           (let [resp ((post-fn base) {:headers {"origin" "http://evil.com"}})]
+             (is (= 403 (:status resp)))
+             (is (not (reached? resp)))))))))
+
+#?(:clj
+   (deftest test-?unauthorized-fn-deprecated
+     (testing "deprecated `:?unauthorized-fn` remains fully functional"
+       (let [post-fn  (fn [opts] (:ajax-post-fn (sente/make-channel-socket-server! stub-sch-adapter opts)))
+             reached? (fn [resp] (= (:body resp) ::reached-adapter))
+             ;; Disable CSRF so we isolate the ?unauthorized-fn behaviour.
+             base     {:csrf-token-fn (constantly :sente/skip-CSRF-check)}]
+
+         (testing "non-nil return rejects"
+           (is (= 401 (:status ((post-fn (assoc base :?unauthorized-fn (fn [_] {:status 401 :body "no"}))) {})))))
+
+         (testing "nil return passes through"
+           (is (reached? ((post-fn (assoc base :?unauthorized-fn (fn [_] nil))) {}))))))))
+
 ;;;; Benching
 
 (defn packed-len [x] #?(:clj (count x), :cljs (if (instance? js/Uint8Array x) (.-length x) (count x))))

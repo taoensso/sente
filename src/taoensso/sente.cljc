@@ -234,9 +234,14 @@
   ^:private default-client-side-ajax-timeout-ms)
 
 (defn allow-origin?
-  "Alpha, subject to change.
-  Returns true iff given Ring request is allowed by `allowed-origins`.
-  `allowed-origins` may be `:all` or #{<origin> ...}."
+  "Returns true iff given Ring request is allowed by `allowed-origins`.
+  `allowed-origins` may be `:all` or #{<origin> ...}.
+
+  Checks the browser-set `Origin` header, falling back to `Referer` as per the
+  OWASP CSRF Prevention Cheat Sheet. Since a same-origin request is by
+  definition not cross-site, this doubles as an origin-based CSRF defense: it's
+  what [[make-channel-socket-server!]]'s `:allowed-origins` uses, and you can also
+  call it directly from a custom `:reject-fn`."
 
   [allowed-origins ring-req]
   (enc/cond
@@ -247,9 +252,7 @@
      origin  (get headers  "origin" :nx)
      have-origin? (not= origin      :nx)]
 
-    (and
-      have-origin?
-      (contains? (set allowed-origins) origin))
+    (and have-origin? (contains? (set allowed-origins) origin))
     true
 
     ;; As per OWASP CSRF Prevention Cheat Sheet
@@ -274,6 +277,43 @@
   (allow-origin? #{"http://site.com"} {:headers {"referer" "http://attacker.com/"}})
   (allow-origin? #{"http://site.com"} {:headers {"referer" "http://site.com.attacker.com/"}}))
 
+(defn valid-csrf-token?
+  "Returns true iff given Ring request has valid CSRF token as per `csrf-token-fn`
+  (see [[make-channel-socket-server!]] `:csrf-token-fn` option).
+
+  Exposed to help write custom `:reject-fn`.
+  To reject a request unless it has either a trusted origin or a valid token:
+
+    (fn [ring-req]
+      (when-not (or (allow-origin?     allowed-origins ring-req)
+                    (valid-csrf-token? csrf-token-fn   ring-req))
+        {:status 403}))"
+
+  [csrf-token-fn ring-req]
+  (if-let [ref-token (when csrf-token-fn (csrf-token-fn ring-req))]
+    (if (= ref-token :sente/skip-CSRF-check)
+      true ; Skip check (treat as valid)
+      (let [csrf-token-from-client
+            (or
+              (get-in ring-req [:params    :csrf-token])
+              (get-in ring-req [:headers "x-csrf-token"])
+              (get-in ring-req [:headers "x-xsrf-token"]))]
+        (boolean
+          (enc/const-str=
+            ref-token
+            csrf-token-from-client))))
+    false ; By default fail if no reference CSRF token
+    ))
+
+(comment
+  (valid-csrf-token? (fn [_] "tok") {:params  {:csrf-token    "tok"}}) ; => true
+  (valid-csrf-token? (fn [_] "tok") {:headers {"x-csrf-token" "tok"}}) ; => true
+  (valid-csrf-token? (fn [_] "tok") {:params  {:csrf-token    "bad"}}) ; => false
+  (valid-csrf-token? (fn [_] "tok") {})                                ; => false (no client token)
+  (valid-csrf-token? (fn [_] nil)   {:params  {:csrf-token    "tok"}}) ; => false (no reference token)
+  (valid-csrf-token? nil            {:params  {:csrf-token    "tok"}}) ; => false (no token provider)
+  (valid-csrf-token? (fn [_] :sente/skip-CSRF-check) {}))              ; => true  (skip)
+
 #?(:clj
    (defn- stream->ba [x]
      (if (instance? java.io.InputStream x)
@@ -293,7 +333,7 @@
 
   Security options:
 
-    :allowed-origins   ; e.g. #{\"http://site.com\" ...}, defaults to :all. ; Alpha
+    :allowed-origins   ; e.g. #{\"http://site.com\" ...}, defaults to :all.
 
     :csrf-token-fn     ; ?(fn [ring-req]) -> CSRF-token for Ajax POSTs and WS handshake.
                        ; nil fn or `:sente/skip-CSRF-check` return val => CSRF check will be
@@ -305,12 +345,29 @@
                        ; must return truthy, otherwise connection requests will be
                        ; rejected with (unauthorized-fn <ring-req>) response.
                        ;
-                       ; May check Authroization HTTP header, etc.
+                       ; May check Authorization HTTP header, etc.
 
-    :?unauthorized-fn  ; An alternative API to `authorized?-fn`+`unauthorized-fn` pair.
-                       ; ?(fn [ring-req)) -> <?rejection-resp>. I.e. when return value
-                       ; is non-nil, connection requests will be rejected with that
-                       ; non-nil value.
+    :reject-fn         ; ?(fn [ring-req]) -> <?rejection-resp>. The general (recommended)
+                       ; hook for REJECTING connection requests for ANY reason. Runs BEFORE
+                       ; all the built-in checks: a non-nil return rejects the request with
+                       ; that Ring response (you choose the status/body/headers), while a
+                       ; nil return falls through to Sente's built-in CSRF/origin/authorized?
+                       ; checks.
+                       ;
+                       ; Use it for custom CSRF (a signed/stateless token, double-submit
+                       ; cookie, Fetch Metadata, Origin/Referer, ...) and for reasons Sente
+                       ; doesn't itself model (rate limiting, IP allow/deny, maintenance, ...).
+                       ; The public [[allow-origin?]] and [[valid-csrf-token?]] helpers are
+                       ; handy for composing checks here.
+                       ;
+                       ; Note this can only ADD rejections; a nil return won't relax a
+                       ; built-in check. To fully OWN (e.g.) CSRF, also disable the built-in
+                       ; token check via `:csrf-token-fn` (-> `:sente/skip-CSRF-check`).
+
+    :?unauthorized-fn  ; DEPRECATED, prefer the more general `:reject-fn` above (still
+                       ; fully supported). An alternative API to the `authorized?-fn` +
+                       ; `unauthorized-fn` pair: ?(fn [ring-req]) -> <?rejection-resp>,
+                       ; rejecting the request with any non-nil return value.
 
   Other common options:
 
@@ -345,7 +402,7 @@
               send-buf-ms-ajax send-buf-ms-ws
               user-id-fn bad-csrf-fn bad-origin-fn csrf-token-fn
               handshake-data-fn packer allowed-origins
-              authorized?-fn unauthorized-fn ?unauthorized-fn
+              authorized?-fn unauthorized-fn ?unauthorized-fn reject-fn
 
               ms-allow-reconnect-before-close-ws
               ms-allow-reconnect-before-close-ajax]
@@ -531,22 +588,7 @@
         (fn [ring-req]
           (if (nil? csrf-token-fn)
             false ; Pass (skip check)
-            (if-let [reference-csrf-token (csrf-token-fn ring-req)]
-              (if (= reference-csrf-token :sente/skip-CSRF-check)
-                false ; Pass (skip check)
-                (let [csrf-token-from-client
-                      (or
-                        (get-in ring-req [:params    :csrf-token])
-                        (get-in ring-req [:headers "x-csrf-token"])
-                        (get-in ring-req [:headers "x-xsrf-token"]))]
-
-                  (not
-                    (enc/const-str=
-                      reference-csrf-token
-                      csrf-token-from-client))))
-
-              true ; By default fail if no CSRF token
-              )))
+            (not (valid-csrf-token? csrf-token-fn ring-req))))
 
         unauthorized?
         (fn [ring-req]
@@ -558,6 +600,11 @@
         possible-rejection-resp
         (fn [ring-req]
           (enc/cond
+            ;; General (recommended) rejection hook, runs before built-in checks.
+            ;; Non-nil return rejects with that resp; nil falls through.
+            :if-some [reject-resp (when-let [rf reject-fn] (rf ring-req))]
+            reject-resp
+
             (bad-csrf?   ring-req)
             (bad-csrf-fn ring-req)
 
@@ -567,6 +614,7 @@
             (unauthorized?   ring-req)
             (unauthorized-fn ring-req)
 
+            ;; DEPRECATED, prefer `reject-fn` (kept for backwards compatibility)
             :if-some [unauthorized-resp (when-let [uf ?unauthorized-fn]
                                           (uf ring-req))]
             unauthorized-resp
