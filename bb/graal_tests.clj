@@ -19,15 +19,15 @@
     (shell command)))
 
 (defn executable [dir name]
-  (-> (fs/glob dir (if (fs/windows?) (str name ".{exe,bat,cmd}") name))
-      first
-      fs/canonicalize
-      str))
+  (some-> (fs/glob dir (if (fs/windows?) (str name ".{exe,bat,cmd}") name))
+          first
+          fs/canonicalize
+          str))
 
 (defn native-image []
   (let [graalvm-home (System/getenv "GRAALVM_HOME")
         bin-dir (str (fs/file graalvm-home "bin"))]
-    (shell (executable bin-dir "gu") "install" "native-image")
+    (when-let [gu (executable bin-dir "gu")] (shell gu "install" "native-image"))
     (shell (executable bin-dir "native-image")
       "--features=clj_easy.graal_build_time.InitClojureClasses"
       "--no-fallback" "-jar" "target/graal-tests.jar" "graal_tests")))

@@ -13,7 +13,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
-      - uses: graalvm/setup-graalvm@v1.5.2
+      - uses: graalvm/setup-graalvm@v1.5.5
         with:
           java-version: ${{ matrix.java }}
           distribution: graalvm-community
@@ -31,6 +31,11 @@ jobs:
           key: deps-${{ runner.os }}-${{ hashFiles('project.clj') }}
           restore-keys: |
             deps-${{ runner.os }}-
+
+      # Pre-initialize MSVC toolchain env
+      - name: Set up MSVC dev environment (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
 
       - name: Run Graal tests
         run: bb graal-tests
