@@ -33,8 +33,8 @@
            (do           writer-opts))))))
 
 #?(:clj
-   (def ^:private transit-writer-fn-proxy
-     (enc/thread-local-proxy
+   (def ^:private ^ThreadLocal tl:transit-writer-fn-proxy
+     (enc/threadlocal
        (fn [fmt opts]
          (let [charset (get-charset fmt)
                opts    (cache-write-handlers opts)
@@ -55,8 +55,8 @@
            (fn [x] (transit/write writer x)))))
      :clj
      (fn [fmt opts]
-       (let [thread-local-transit-writer-fn (.get ^ThreadLocal transit-writer-fn-proxy)]
-         (thread-local-transit-writer-fn fmt opts)))))
+       (let [writer (.get tl:transit-writer-fn-proxy)]
+         (writer fmt opts)))))
 
 (def ^:private get-reader-fn
   "Returns thread-safe (fn [str-to-read])"
