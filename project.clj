@@ -8,17 +8,17 @@
    :url  "https://www.eclipse.org/legal/epl-v10.html"}
 
   :dependencies
-  [[org.clojure/core.async "1.8.741"]
-   [com.taoensso/encore    "3.157.0"]
+  [[org.clojure/core.async "1.9.865"]
+   [com.taoensso/encore    "3.165.0"]
    [com.taoensso/trove     "1.1.0"]]
 
   :test-paths ["test" #_"src"]
 
   :profiles
   {;; :default [:base :system :user :provided :dev]
-   :provided {:dependencies [[org.clojure/clojurescript "1.12.42"]
-                             [org.clojure/clojure       "1.12.2"]]}
-   :c1.12    {:dependencies [[org.clojure/clojure       "1.12.2"]]}
+   :provided {:dependencies [[org.clojure/clojurescript "1.12.145"]
+                             [org.clojure/clojure       "1.12.5"]]}
+   :c1.12    {:dependencies [[org.clojure/clojure       "1.12.5"]]}
    :c1.11    {:dependencies [[org.clojure/clojure       "1.11.1"]]}
 
    :graal-tests
@@ -28,19 +28,19 @@
     :uberjar-name "graal-tests.jar"
     :dependencies
     [[org.clojure/clojure                  "1.11.1"]
-     [com.github.clj-easy/graal-build-time "1.0.5"]]}
+     [com.github.clj-easy/graal-build-time "1.0.6"]]}
 
    :community
    {:dependencies
     [[org.immutant/web               "2.1.10"]
      [nginx-clojure                  "0.6.0"]
-     [aleph                          "0.9.3"]
+     [aleph                          "0.9.9"]
      [macchiato/core                 "0.2.23"] ; 0.2.24 seems to fail?
-     [luminus/ring-undertow-adapter  "1.4.2"]
-     [info.sunng/ring-jetty9-adapter "0.39.0"]
-     [ring/ring-core                            "1.15.3"]
-     [ring/ring-jetty-adapter                   "1.15.3"]
-     [org.ring-clojure/ring-websocket-protocols "1.15.3"]
+     [luminus/ring-undertow-adapter  "1.5.2"]
+     [info.sunng/ring-jetty9-adapter "0.39.4"]
+     [ring/ring-core                            "1.15.4"]
+     [ring/ring-jetty-adapter                   "1.15.4"]
+     [org.ring-clojure/ring-websocket-protocols "1.15.4"]
      [org.java-websocket/Java-WebSocket         "1.6.0"]]
 
     ;; For nginx-clojure on Java 17+,
@@ -59,14 +59,14 @@
      *unchecked-math*     false #_:warn-on-boxed}
 
     :dependencies
-    [[com.cognitect/transit-clj  "1.0.333"]
+    [[com.cognitect/transit-clj  "1.1.357"]
      [com.cognitect/transit-cljs "0.8.280"]
-     [org.clojure/test.check     "1.1.1"]
+     [org.clojure/test.check     "1.1.3"]
      [http-kit                   "2.8.1"]]
 
     :plugins
     [[lein-pprint    "1.3.2"]
-     [lein-ancient   "0.7.0"]
+     [lein-ancient   "1.0.0"]
      [lein-cljsbuild "1.1.8"]]}}
 
   :cljsbuild
