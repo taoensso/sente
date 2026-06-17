@@ -59,9 +59,9 @@ Yes, it's automatic for both Ajax and WebSockets. If the page serving your JavaS
 
 # Security: CSRF protection?
 
-**This is important**. Sente has support, and use is **strongly recommended**. You'll need to use middleware like [ring-anti-forgery](https://github.com/ring-clojure/ring-anti-forgery) or [ring-defaults](https://github.com/ring-clojure/ring-defaults) to generate and check CSRF codes. The `ring-ajax-post` handler should be covered (i.e. protected).
+**This is important**. Sente has support, and use is **strongly recommended**. The default approach uses middleware like [ring-anti-forgery](https://github.com/ring-clojure/ring-anti-forgery) or [ring-defaults](https://github.com/ring-clojure/ring-defaults) to generate and check CSRF tokens. The `ring-ajax-post` handler should be covered (i.e. protected).
 
-Please see one of the [example projects](./3-Example-projects) for a fully-baked example.
+Sente also supports **origin-based** and fully **custom** CSRF validation, plus a general hook for rejecting connections for any reason. See [CSRF & origin protection](./6-CSRF-and-origin-protection) for all the options, and one of the [example projects](./3-Example-projects) for a fully-baked example.
 
 # Pageload: How do I know when Sente is ready client-side?
 
