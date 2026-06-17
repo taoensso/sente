@@ -2,6 +2,33 @@ This project uses [**Break Versioning**](https://www.taoensso.com/break-versioni
 
 ---
 
+# `v1.22.0-RC1` (2026-06-17)
+
+- **Dependency**: [on Clojars](https://clojars.org/com.taoensso/sente/versions/1.22.0-RC1)
+- **Versioning**: [Break Versioning](https://www.taoensso.com/break-versioning)
+
+Sente v1.22 adds a flexible new connection **rejection** hook (`:reject-fn`) plus small Msgpack fixes. Should be a **safe upgrade** for most users (no breaking changes). Please report any problems to the [Slack channel](http://taoensso.com/sente/slack) or [GitHub](https://github.com/taoensso/sente/issues) 🙏
+
+\- [Peter Taoussanis](https://www.taoensso.com)
+
+## Since `v1.21.0` (2025-11-04)
+
+### New
+
+- \[new] Server: add `:reject-fn` to `make-channel-socket-server!` - a single, general hook to reject connection requests for **any** reason (custom CSRF, origin, authorization, rate limiting, IP allow/deny, ...), with full control over the rejection response. Default `nil` => no change. See [CSRF & origin protection](https://github.com/taoensso/sente/wiki/6-CSRF-and-origin-protection) \[2c55ea2]
+- \[new] Expose new public `valid-csrf-token?` helper (Sente's built-in token check), to help compose a custom `:reject-fn` \[2c55ea2]
+- \[new] Promote `allow-origin?` from Alpha to a supported public helper (also usable as an origin-based CSRF defense) \[2c55ea2]
+
+### Changes (please check!)
+
+- \[mod] Msgpack: now throws a clear exception (instead of risking a StackOverflow) when asked to pack an unsupported type \[ec4cfdc] \[ae11490]
+
+### Deprecated
+
+- \[dep] Server: deprecate `:?unauthorized-fn` in favour of the more general `:reject-fn`. Existing options all continue to work exactly as before \[2c55ea2]
+
+---
+
 # `v1.21.0` (2025-11-04)
 
 - **Dependency**: [on Clojars](https://clojars.org/com.taoensso/sente/versions/1.21.0)
