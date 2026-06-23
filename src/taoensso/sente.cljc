@@ -277,6 +277,20 @@
   (allow-origin? #{"http://site.com"} {:headers {"referer" "http://attacker.com/"}})
   (allow-origin? #{"http://site.com"} {:headers {"referer" "http://site.com.attacker.com/"}}))
 
+(def ^:private sente-csrf-token-prefix "sente-csrf-token-")
+
+(defn- sente-csrf-token-pred [s]
+  (when (str/starts-with? s sente-csrf-token-prefix)
+    (subs s (count sente-csrf-token-prefix))))
+
+(defn- ws-csrf-token [ring-req]
+  (let [ws? (= "websocket" (get-in ring-req [:headers "upgrade"]))
+        sec-websocket-protocol (get-in ring-req [:headers "sec-websocket-protocol"])
+        protocol-vals (when (and ws? (string? sec-websocket-protocol))
+                        (-> sec-websocket-protocol
+                            (str/split #", *")))]
+    (some sente-csrf-token-pred protocol-vals)))
+
 (defn valid-csrf-token?
   "Returns true iff given Ring request has valid CSRF token as per `csrf-token-fn`
   (see [[make-channel-socket-server!]] `:csrf-token-fn` option).
@@ -297,7 +311,8 @@
             (or
               (get-in ring-req [:params    :csrf-token])
               (get-in ring-req [:headers "x-csrf-token"])
-              (get-in ring-req [:headers "x-xsrf-token"]))]
+              (get-in ring-req [:headers "x-xsrf-token"])
+              (ws-csrf-token ring-req))]
         (boolean
           (enc/const-str=
             ref-token
@@ -736,6 +751,16 @@
                           :?reply-fn ?reply-fn
                           :uid       uid}))))
 
+                  pre-ws-handshake
+                  (fn [server-ch ring-req]
+                    (if-let [csrf-token (ws-csrf-token ring-req)]
+                      {:do-handshake true
+                       :handshake-extra-headers {"Sec-WebSocket-Protocol"
+                                                 (str sente-csrf-token-prefix csrf-token)}}
+                      {:do-handshake false
+                       :no-handshake-ring-resp {:status 400
+                                                :body "Invalid Sec-WebSocket-Protocol header."}}))
+
                   send-handshake!
                   (fn [server-ch websocket?]
                     (trove/log!
@@ -969,7 +994,8 @@
                  :on-open             on-open
                  :on-msg              on-msg
                  :on-close            on-close
-                 :on-error            on-error}))))))}))
+                 :on-error            on-error
+                 :pre-ws-handshake    pre-ws-handshake}))))))}))
 
 (def ^:dynamic *simulated-bad-conn-rate*
   "Debugging tool. Proportion ∈ℝ[0,1] of connection activities to sabotage."
@@ -1251,7 +1277,8 @@
                   (enc/oget goog/global           "MozWebSocket")
                   (enc/oget @?node-npm-websocket_ "w3cwebsocket"))]
        (delay
-         (let [socket (WebSocket. uri-str)]
+         (let [protocols (or (:sec-websocket-protocol headers) [])
+               socket (WebSocket. uri-str protocols)]
            (doto socket
              (aset "binaryType" binary-type)
              (aset "onerror"    on-error)
@@ -1483,13 +1510,18 @@
                             {:on-error   on-error
                              :on-message on-message
                              :on-close   on-close
-                             :headers    headers
+                             :headers    (update headers :sec-websocket-protocol
+                                           (fn [x]
+                                             (let [csrf-token (str sente-csrf-token-prefix
+                                                                   (get-client-csrf-token-str :dynamic (:csrf-token @state_)))]
+                                               (cond
+                                                 (string? x) [x csrf-token]
+                                                 (coll? x) (conj x csrf-token)
+                                                 :else csrf-token))))
                              :uri-str
                              (enc/merge-url-with-query-string url
                                (merge params ; 1st (don't clobber impl.):
-                                 {:client-id  client-id
-                                  :csrf-token (get-client-csrf-token-str :dynamic
-                                                (:csrf-token @state_))}))}))
+                                 {:client-id  client-id}))}))
 
                         (catch :any t
                           (trove/log! {:level :error, :id :sente.client/ws-constructor-error, :error t}))))]
