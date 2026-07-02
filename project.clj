@@ -9,7 +9,7 @@
 
   :dependencies
   [[org.clojure/core.async "1.9.865"]
-   [com.taoensso/encore    "3.165.0"]
+   [com.taoensso/encore    "3.168.0"]
    [com.taoensso/trove     "1.1.0"]]
 
   :test-paths ["test" #_"src"]
@@ -37,10 +37,10 @@
      [aleph                          "0.9.9"]
      [macchiato/core                 "0.2.23"] ; 0.2.24 seems to fail?
      [luminus/ring-undertow-adapter  "1.5.2"]
-     [info.sunng/ring-jetty9-adapter "0.39.4"]
-     [ring/ring-core                            "1.15.4"]
-     [ring/ring-jetty-adapter                   "1.15.4"]
-     [org.ring-clojure/ring-websocket-protocols "1.15.4"]
+     [info.sunng/ring-jetty9-adapter "0.40.1"]
+     [ring/ring-core                            "1.15.5"]
+     [ring/ring-jetty-adapter                   "1.15.5"]
+     [org.ring-clojure/ring-websocket-protocols "1.15.5"]
      [org.java-websocket/Java-WebSocket         "1.6.0"]]
 
     ;; For nginx-clojure on Java 17+,
