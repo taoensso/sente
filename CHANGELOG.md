@@ -2,14 +2,21 @@ This project uses [**Break Versioning**](https://www.taoensso.com/break-versioni
 
 ---
 
-# `v1.22.0-RC1` (2026-06-17)
+# `v1.22.0` (2026-07-02)
 
-- **Dependency**: [on Clojars](https://clojars.org/com.taoensso/sente/versions/1.22.0-RC1)
+- **Dependency**: [on Clojars](https://clojars.org/com.taoensso/sente/versions/1.22.0)
 - **Versioning**: [Break Versioning](https://www.taoensso.com/break-versioning)
 
 Sente v1.22 adds a flexible new connection **rejection** hook (`:reject-fn`) plus small Msgpack fixes. Should be a **safe upgrade** for most users (no breaking changes). Please report any problems to the [Slack channel](http://taoensso.com/sente/slack) or [GitHub](https://github.com/taoensso/sente/issues) 🙏
 
 \- [Peter Taoussanis](https://www.taoensso.com)
+
+## Since `v1.22.0-RC1` (2026-06-17)
+
+No behavioural changes (same as RC1), only docs/dependency maintenance.
+
+- \[doc] Update README \[9807bbae]
+- \[nop] Bump deps \[d314148b]
 
 ## Since `v1.21.0` (2025-11-04)
 

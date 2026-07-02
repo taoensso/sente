@@ -1,5 +1,5 @@
 <a href="https://www.taoensso.com/clojure" title="More stuff by @ptaoussanis at www.taoensso.com"><img src="https://www.taoensso.com/open-source.png" alt="Taoensso open source" width="340"/></a>  
-[**API**][cljdoc] | [**Wiki**][GitHub wiki] | [Slack][] | Latest release: [v1.21.0](../../releases/tag/v1.21.0) (2025-11-04) or [v1.22.0-RC1](../../releases/tag/v1.22.0-RC1) (2026-06-17)
+[**API**][cljdoc] | [**Wiki**][GitHub wiki] | [Slack][] | Latest release: [v1.22.0](../../releases/tag/v1.22.0) (2026-07-02)
 
 # Sente
 
@@ -53,7 +53,7 @@ You can [help support][sponsor] continued work on this project and [others][my w
 
 ## License
 
-Copyright &copy; 2012-2025 [Peter Taoussanis][].  
+Copyright &copy; 2012-2026 [Peter Taoussanis][].
 Licensed under [EPL 1.0](LICENSE.txt) (same as Clojure).
 
 <!-- Common -->
