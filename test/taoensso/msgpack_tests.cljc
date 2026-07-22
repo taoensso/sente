@@ -194,6 +194,12 @@
          (is (= js/Number.MAX_SAFE_INTEGER (mp/unpack safe-max)))
          (is (thrown? js/RangeError (mp/unpack unsafe)))))))
 
+(deftest malformed-uuid
+  (is (thrown? #?(:clj Exception :cljs js/Error)
+        (mp/unpack (encoded-bytes [0xd4 0x09 0x78]))))
+  (is (thrown? #?(:clj Exception :cljs js/Error) ; Non-canonical "1-2-3-4-5"
+        (mp/unpack (encoded-bytes [0xc7 0x09 0x09 0x31 0x2d 0x32 0x2d 0x33 0x2d 0x34 0x2d 0x35])))))
+
 (deftest bounded-unpacking
   (is (thrown? #?(:clj Exception :cljs js/Error)
         (mp/unpack (encoded-bytes [0x91 0x91 0xc0]) {:max-nesting-depth 1})))

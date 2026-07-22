@@ -391,8 +391,14 @@
           {:cache-idx cache-idx, :cached-key-count (count cache)})))))
 
 (c/extend-packable 9 java.util.UUID
-  (pack   [u]  (.getBytes (str u)                            StandardCharsets/UTF_8))
-  (unpack [ba] (java.util.UUID/fromString (String. ^bytes ba StandardCharsets/UTF_8))))
+  (pack   [u] (.getBytes (str u) StandardCharsets/UTF_8))
+  (unpack [ba]
+    ;; Match Cljs strictness, `UUID/fromString` is lenient
+    ;; (accepts non-canonical forms like "1-2-3-4-5")
+    (let [s (String. ^bytes ba StandardCharsets/UTF_8)]
+      (if (re-matches #"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}" s)
+        (java.util.UUID/fromString s)
+        (truss/ex-info! "Invalid MessagePack UUID extension" {:value s})))))
 
 #_ ; Unfortunately no simple equivalent for Cljs
 (c/extend-packable 9 java.util.UUID

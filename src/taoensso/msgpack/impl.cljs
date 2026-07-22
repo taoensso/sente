@@ -534,7 +534,11 @@
 
 (c/extend-packable 9 UUID
   (pack   [u]             (.encode text-encoder (str u)))
-  (unpack [^js u8s] (uuid (.decode text-decoder ^js u8s))))
+  (unpack [^js u8s]
+    (let [s (.decode text-decoder ^js u8s)]
+      (if (re-matches #"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}" s)
+        (uuid s)
+        (truss/ex-info! "Invalid MessagePack UUID extension" {:value s})))))
 
 ;;;;
 
