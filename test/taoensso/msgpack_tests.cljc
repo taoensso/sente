@@ -172,7 +172,12 @@
          "this-is-a-cachable-key" 2
          {:this-is-a-cachable-key 3
           :this/is-a-cachable-key 4} 5
-         ["complex key" #{:a :b :c}] 6})])])
+         ["complex key" #{:a :b :c}] 6})
+
+      (testing "Invalid reference"
+        (is (thrown? #?(:clj Exception :cljs js/Error)
+              (mp/unpack
+                (encoded-bytes [0x81 0xd4 0x08 0x00 0x01])))))])])
 
 #?(:cljs
    (deftest unsafe-i64

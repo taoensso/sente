@@ -523,7 +523,12 @@
 
 (c/extend-packable 8 nil nil ; Cached key
   (unpack [u8s]
-    (CachedKey. (get @c/*key-cache_* (aget ^js u8s 0)))))
+    (let [cache-idx (aget ^js u8s 0)
+          cache     (when c/*key-cache_* @c/*key-cache_*)]
+      (if (contains? cache cache-idx)
+        (CachedKey. (get cache cache-idx))
+        (truss/ex-info! "Invalid MessagePack cached-key reference"
+          {:cache-idx cache-idx, :cached-key-count (count cache)})))))
 
 (c/extend-packable 9 UUID
   (pack   [u]             (.encode text-encoder (str u)))
