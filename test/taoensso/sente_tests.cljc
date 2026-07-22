@@ -154,6 +154,61 @@
            (is (reached? ((post-fn {:csrf-token-fn (constantly :sente/skip-CSRF-check)}) {}))))))))
 
 #?(:clj
+   (deftest test-async-ring-handlers
+     (testing "Three-arity Ring handlers settle exactly once"
+       (let [invoke
+             (fn [handler ring-req]
+               (let [responses_ (atom [])
+                     errors_    (atom [])
+                     returned   (handler ring-req #(swap! responses_ conj %) #(swap! errors_ conj %))]
+                 {:returned returned, :responses @responses_, :errors @errors_}))
+
+             opts {:csrf-token-fn (constantly :sente/skip-CSRF-check)}]
+
+         (testing "a synchronously returned adapter response is submitted"
+           (let [response {:status 202, :body ::returned}
+                 adapter
+                 (reify i/IServerChanAdapter
+                   (ring-req->server-ch-resp [_ _ring-req _callbacks] response))
+                 handler (:ajax-post-fn (sente/make-channel-socket-server! adapter opts))]
+
+             (is (= {:returned nil, :responses [response], :errors []}
+                   (invoke handler {})))
+             (is (= response (handler {})))))
+
+         (testing "an adapter callback wins over a returned response"
+           (let [callback-response {:status 202, :body ::callback}
+                 return-response   {:status 203, :body ::returned}
+                 adapter
+                 (reify i/IServerChanAdapter
+                   (ring-req->server-ch-resp [_ _ring-req callbacks]
+                     ((:ring-async-resp-fn callbacks) callback-response)
+                     return-response))
+                 handler (:ajax-post-fn (sente/make-channel-socket-server! adapter opts))]
+
+             (is (= {:returned nil, :responses [callback-response], :errors []}
+                   (invoke handler {})))))
+
+         (testing "an immediate rejection is submitted"
+           (let [response {:status 429, :body "slow down"}
+                 server
+                 (sente/make-channel-socket-server! stub-sch-adapter
+                   (assoc opts :reject-fn (constantly response)))]
+
+             (is (= {:returned nil, :responses [response], :errors []}
+                   (invoke (:ajax-get-or-ws-handshake-fn server)
+                     {:params {:client-id "client-1"}})))))
+
+         (testing "a synchronous exception is raised"
+           (let [server  (sente/make-channel-socket-server! stub-sch-adapter opts)
+                 result  (invoke (:ajax-get-or-ws-handshake-fn server) {})
+                 [error] (:errors result)]
+
+             (is (nil? (:returned result)))
+             (is (empty? (:responses result)))
+             (is (instance? Throwable error))))))))
+
+#?(:clj
    (deftest test-nil-lp-timeout
      (testing "A nil server long-poll timeout disables the timeout"
        (is

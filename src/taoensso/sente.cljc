@@ -322,6 +322,30 @@
          (.toByteArray            out))
        x)))
 
+(defn- call-ring-handler
+  [ring-async-resp-fn ring-async-raise-fn handler-fn]
+  (if-not ring-async-resp-fn
+    (handler-fn nil nil)
+    (let [settled?_ (atom false)
+          settle!
+          (fn [f x]
+            (when (compare-and-set! settled?_ false true)
+              (f x)))
+
+          respond! (fn [response] (settle! ring-async-resp-fn response))
+          raise!   (if ring-async-raise-fn
+                     (fn [error] (settle! ring-async-raise-fn error))
+                     (fn [error] (throw error)))]
+
+      (truss/try*
+        (when-some [response (handler-fn respond! raise!)]
+          (respond! response))
+        nil
+        (catch :all t
+          (if @settled?_
+            (throw t)
+            (do (raise! t) nil)))))))
+
 (defn make-channel-socket-server!
   "Takes a web server adapter[1] and returns a map with keys:
 
@@ -639,74 +663,78 @@
      (fn ring-handler
        ([ring-req] (ring-handler ring-req nil nil))
        ([ring-req ?ring-async-resp-fn ?ring-async-raise-fn]
-        (enc/cond
-          :if-let [resp (possible-rejection-resp ring-req)] resp
-          :else
-          (i/ring-req->server-ch-resp web-server-ch-adapter ring-req
-            {:ring-async-resp-fn  ?ring-async-resp-fn
-             :ring-async-raise-fn ?ring-async-raise-fn
-             :on-open
-             (fn [server-ch websocket?]
-               (enc/cond
-                 :do (assert (not websocket?))
+        (call-ring-handler ?ring-async-resp-fn ?ring-async-raise-fn
+          (fn [?ring-async-resp-fn ?ring-async-raise-fn]
+            (enc/cond
+              :if-let [resp (possible-rejection-resp ring-req)] resp
+              :else
+              (i/ring-req->server-ch-resp web-server-ch-adapter ring-req
+                {:ring-async-resp-fn  ?ring-async-resp-fn
+                 :ring-async-raise-fn ?ring-async-raise-fn
+                 :on-open
+                 (fn [server-ch websocket?]
+                   (enc/cond
+                     :do (assert (not websocket?))
 
-                 :let
-                 [params    (get ring-req :params)
-                  client-id (get params   :client-id)
-                  binary?   (get params   :binary?)
-                  packed
-                  (if-not binary?
-                    (do        (get params   :ppstr)) ; Expect form-urlencoded
-                    (let [body (get ring-req :body)]  ; Expect `InputStream` bytes
-                      #?(:clj (stream->ba body), :cljs body)))]
+                     :let
+                     [params    (get ring-req :params)
+                      client-id (get params   :client-id)
+                      binary?   (get params   :binary?)
+                      packed
+                      (if-not binary?
+                        (do        (get params   :ppstr)) ; Expect form-urlencoded
+                        (let [body (get ring-req :body)]  ; Expect `InputStream` bytes
+                          #?(:clj (stream->ba body), :cljs body)))]
 
-                 :do
-                 (on-unpacked packer websocket? packed
-                   (fn [error] (throw error))
-                   (fn [[ev-clj has-cb?]]
-                     (let [replied?_ (atom false)
-                           reply-fn
-                           (fn [arb-reply-clj]
-                             (when (compare-and-set! replied?_ false true)
-                               (trove/log!
-                                 {:level :debug,
-                                  :id    :sente.server/send-reply
-                                  :data  {:uid (user-id-fn ring-req client-id)
-                                          :cid                      client-id
-                                          :ws?   websocket?
-                                          :reply arb-reply-clj}})
+                     :do
+                     (on-unpacked packer websocket? packed
+                       (fn [error] (throw error))
+                       (fn [[ev-clj has-cb?]]
+                         (let [replied?_ (atom false)
+                               reply-fn
+                               (fn [arb-reply-clj]
+                                 (when (compare-and-set! replied?_ false true)
+                                   (trove/log!
+                                     {:level :debug,
+                                      :id    :sente.server/send-reply
+                                      :data  {:uid (user-id-fn ring-req client-id)
+                                              :cid                      client-id
+                                              :ws?   websocket?
+                                              :reply arb-reply-clj}})
 
-                               (when (i/sch-open? server-ch)
-                                 (on-packed packer websocket? arb-reply-clj nil
-                                   (fn [error] (throw error))
-                                   (fn [packed] (i/sch-send! server-ch websocket? packed)))
-                                 true)))]
+                                   (when (i/sch-open? server-ch)
+                                     (on-packed packer websocket? arb-reply-clj nil
+                                       (fn [error] (throw error))
+                                       (fn [packed] (i/sch-send! server-ch websocket? packed)))
+                                     true)))]
 
-                       (put-server-event-msg>ch-recv! ch-recv
-                         (enc/merge ev-msg-const
-                           {:ring-req  ring-req
-                            :client-id client-id ; For user's convenience (not used by Sente)
-                            :event     ev-clj
-                            :uid       (user-id-fn ring-req client-id)
-                            :?reply-fn (when has-cb? reply-fn)}))
+                           (put-server-event-msg>ch-recv! ch-recv
+                             (enc/merge ev-msg-const
+                               {:ring-req  ring-req
+                                :client-id client-id ; For user's convenience (not used by Sente)
+                                :event     ev-clj
+                                :uid       (user-id-fn ring-req client-id)
+                                :?reply-fn (when has-cb? reply-fn)}))
 
-                       (if has-cb?
-                         (when-let [ms lp-timeout-ms]
-                           (timers/call-after ms (fn [] (reply-fn :chsk/timeout))))
-                         (do                            (reply-fn :chsk/dummy-cb-200))))))
+                           (if has-cb?
+                             (when-let [ms lp-timeout-ms]
+                               (timers/call-after ms (fn [] (reply-fn :chsk/timeout))))
+                             (do                            (reply-fn :chsk/dummy-cb-200))))))
 
-                 :then nil))}))))
+                     :then nil))}))))))
 
      ;; Ajax handshake/poll, or WebSocket handshake
      :ajax-get-or-ws-handshake-fn
      (fn ring-handler
        ([ring-req] (ring-handler ring-req nil nil))
        ([ring-req ?ring-async-resp-fn ?ring-async-raise-fn]
-        (let [;; ?ws-key  (get-in ring-req [:headers "sec-websocket-key"])
-              conn-id     (enc/uuid-str 6) ; 1 per ws/ajax rreq, equiv to server-ch identity
-              params      (get ring-req :params)
-              client-id   (get params   :client-id)
-              uid         (user-id-fn ring-req client-id)]
+        (call-ring-handler ?ring-async-resp-fn ?ring-async-raise-fn
+          (fn [?ring-async-resp-fn ?ring-async-raise-fn]
+            (let [;; ?ws-key  (get-in ring-req [:headers "sec-websocket-key"])
+                  conn-id     (enc/uuid-str 6) ; 1 per ws/ajax rreq, equiv to server-ch identity
+                  params      (get ring-req :params)
+                  client-id   (get params   :client-id)
+                  uid         (user-id-fn ring-req client-id)]
 
           (enc/cond
             (str/blank? client-id)
@@ -976,7 +1004,7 @@
                  :on-open             on-open
                  :on-msg              on-msg
                  :on-close            on-close
-                 :on-error            on-error}))))))}))
+                 :on-error            on-error}))))))))}))
 
 (def ^:dynamic *simulated-bad-conn-rate*
   "Debugging tool. Proportion ∈ℝ[0,1] of connection activities to sabotage."
