@@ -34,16 +34,20 @@
   "Transforms an Express req+resp to a ~standard Ring req map.
   `base-ring-req` is a partial Ring req map used to pass in route info."
   [base-ring-req exp-req exp-resp]
-  (let [query-params (obj->map (.-query exp-req)) ; From `express`
-        form-params  (obj->map (.-body  exp-req)) ; From `body-parser`
+  (let [body         (.-body exp-req)             ; From `body-parser`
+        binary-body? (or (instance? js/ArrayBuffer body)
+                         (js/ArrayBuffer.isView body))
+        query-params (obj->map (.-query exp-req)) ; From `express`
+        form-params  (when-not binary-body? (obj->map body))
         params (merge query-params form-params)
         ring-req
         (merge base-ring-req
-          {:response     exp-resp
-           :body         exp-req
-           :query-params query-params
-           :form-params  form-params
-           :params       params})]
+          {:response             exp-resp
+           :body                 exp-req ; Backwards compatibility
+           ::sente/ajax-body     body
+           :query-params         query-params
+           :form-params          form-params
+           :params               params})]
 
     (trove/log! {:level :trace, :id :sente.server.express/exp-req->ring-req, :data {:ring-req ring-req}})
     ring-req))

@@ -5,18 +5,28 @@
    [taoensso.sente.server-adapters.community.express :as express]
    [taoensso.sente.server-adapters.community.generic-node :as generic-node]))
 
-(deftest csrf-policy
-  (testing "The Express adapter delegates CSRF validation to upstream middleware"
+(deftest express-adapter
+  (testing "Express defaults and request conversion"
     (let [server-opts_ (atom nil)
+          ring-req_    (atom nil)
           make-server
           (fn [_adapter opts]
             (reset! server-opts_ opts)
-            {:ajax-get-or-ws-handshake-fn (fn [_ring-req])
-             :ajax-post-fn                (fn [_ring-req])})]
+            {:ajax-get-or-ws-handshake-fn #(reset! ring-req_ %)
+             :ajax-post-fn                #(reset! ring-req_ %)})]
 
       (with-redefs [sente/make-channel-socket-server! make-server
                     generic-node/get-sch-adapter          (fn [] ::adapter)]
-        (express/make-express-channel-socket-server!)
+        (let [server (express/make-express-channel-socket-server!)]
+          (testing "raw request bodies are preserved for binary packers"
+            (let [body (js/Uint8Array. #js [0 1 2])
+                  req  #js {:query #js {}, :body body}]
+              ((:ajax-post-fn server)
+               req #js {})
+              (is (identical? req  (:body @ring-req_)))
+              (is (identical? body (:taoensso.sente/ajax-body @ring-req_)))
+              (is (empty? (:form-params @ring-req_))))))
+
         (is (= :sente/skip-CSRF-check
               ((:csrf-token-fn @server-opts_) nil)))
 

@@ -18,7 +18,9 @@
    [taoensso.encore :as enc]
 
    ;; :cljs cannot compile taoensso.sente under :nodejs target
+   #?(:clj [ring.core.protocols :as ring-protocols])
    #?(:clj [taoensso.sente :as sente])
+   #?(:clj [taoensso.sente.server-adapters.community.jetty :as jetty])
 
    [taoensso.sente.interfaces      :as i]
    [taoensso.sente.packers.edn     :as ep]
@@ -261,6 +263,26 @@
                (do (Thread/sleep 10) (recur (dec attempts)))
 
                :else false)))))))
+
+#?(:clj
+   (deftest test-jetty-ajax-binary-response
+     (testing "The Jetty Ajax adapter writes text and binary responses"
+       (let [write-response
+             (fn [response]
+               (let [ch
+                     (jetty/->SenteJettyAjaxChannel
+                       {} (promise) (atom true) nil nil)
+                     out (java.io.ByteArrayOutputStream.)]
+
+                 (i/sch-send! ch false response)
+                 @(ring-protocols/write-body-to-stream ch nil out)
+                 (.toByteArray out)))]
+
+         (is (= [0 1 -1]
+               (vec (write-response (byte-array [0 1 -1])))))
+         (is (= "text"
+               (String. ^bytes (write-response "text")
+                 java.nio.charset.StandardCharsets/UTF_8)))))))
 
 #?(:clj
    (deftest test-reject-fn

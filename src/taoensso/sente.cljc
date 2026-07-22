@@ -683,7 +683,7 @@
                       packed
                       (if-not binary?
                         (do        (get params   :ppstr)) ; Expect form-urlencoded
-                        (let [body (get ring-req :body)]  ; Expect `InputStream` bytes
+                        (let [body (get ring-req ::ajax-body (:body ring-req))] ; Expect `InputStream` bytes
                           #?(:clj (stream->ba body), :cljs body)))]
 
                      :do

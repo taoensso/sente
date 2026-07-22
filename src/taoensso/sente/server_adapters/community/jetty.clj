@@ -94,7 +94,12 @@
     ;; Ref. <https://github.com/ring-clojure/ring/issues/254#issuecomment-236048380>
     (future
       (try
-        (.write output-stream (.getBytes ^String (ajax-read! body) java.nio.charset.StandardCharsets/UTF_8))
+        (let [response (ajax-read! body)
+              ^bytes ba
+              (if (bytes? response)
+                response
+                (.getBytes ^String response java.nio.charset.StandardCharsets/UTF_8))]
+          (.write output-stream ba))
         (.flush output-stream)
         (catch Throwable t
           (trove/log! {:level :error, :id :sente.server.jetty/write-body-to-stream-error, :error t}))
