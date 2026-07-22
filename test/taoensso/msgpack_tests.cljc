@@ -83,6 +83,9 @@
    (rt? "float64" (double 0.0) (double 2.5) (double 3) 1e-46 1e39 3M)
    #?(:clj
       (is (thrown? Exception (mp/pack 9007199254740993M))))
+   #?(:cljs
+      (testing "Negative zero"
+        (is (js/Object.is (- 0) (rt (- 0))))))
 
    (rt? "Keywords" :foo :foo/bar)
    (rt? "Symbols"  'foo 'foo/bar)

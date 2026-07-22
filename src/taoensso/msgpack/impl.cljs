@@ -211,7 +211,10 @@
       (do (write-u8 out 0xca) (write-f32 out n))
       (do (write-u8 out 0xcb) (write-f64 out n)))))
 
-(defn- pack-num  [n out] (if (integer? n) (pack-int n out) (pack-dbl n out)))
+(defn- pack-num [n out]
+  (if (and (integer? n) (not (js/Object.is n (- 0))))
+    (pack-int n out)
+    (pack-dbl n out)))
 (defn- pack-coll [c out] (reduce (fn [_ el] (pack-bytes el out)) nil c))
 (defn- pack-seq  [s out]
   (let [len (count s)]
