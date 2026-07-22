@@ -97,6 +97,10 @@
      (apply str (repeat 65535 \x))
      (apply str (repeat 65536 \x)))
 
+   (testing "UTF-8 BOM is string content"
+     (is (= (str \uFEFF "a")
+           (mp/unpack (encoded-bytes [0xa4 0xef 0xbb 0xbf 0x61])))))
+
    (testing "Colls"
      [(rt? "Empty"     [] () #{} {})
       (rt? "Non-empty" [1 "2" 3 nil :x [] {}] '(1 "2" 3 nil :x [] {}) #{1 "2" 3 nil :x [] {}} {:a "a", "b" "b", 123 456, nil :x, [] {}})

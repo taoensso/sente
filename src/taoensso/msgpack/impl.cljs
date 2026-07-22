@@ -53,7 +53,10 @@
 (def ^:private ^:const max-safe-int js/Number.MAX_SAFE_INTEGER)
 (def ^:private ^:const min-safe-int (- max-safe-int))
 
-(def ^:private text-decoder (js/TextDecoder. "utf-8"))
+(def ^:private text-decoder
+  ;; Match JVM decoding: preserve an initial BOM as content and replace
+  ;; malformed UTF-8 rather than throwing.
+  (js/TextDecoder. "utf-8" #js {:fatal false, :ignoreBOM true}))
 (def ^:private text-encoder (js/TextEncoder.))
 
 (declare ensure-readable!)
