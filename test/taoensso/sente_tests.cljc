@@ -18,6 +18,7 @@
    [taoensso.encore :as enc]
 
    ;; :cljs cannot compile taoensso.sente under :nodejs target
+   #?(:clj [clojure.core.async              :as async])
    #?(:clj [ring.core.protocols              :as ring-protocols])
    #?(:clj [taoensso.sente                :as sente])
    #?(:clj [taoensso.sente.java-ws-client :as java-ws])
@@ -353,6 +354,89 @@
          (is (= "text"
                (String. ^bytes (write-response "text")
                  java.nio.charset.StandardCharsets/UTF_8)))))))
+
+#?(:clj
+   (deftest test-superseded-websocket-messages
+     (testing "A superseded WebSocket cannot deliver messages, including after async unpacking"
+       (let [base-packer         (ep/get-packer)
+             deferred-unpack-cb_ (atom nil)
+             packer
+             (reify i/IPacker2
+               (pack [_ ws? clj cb-fn]
+                 (i/pack base-packer ws? clj cb-fn))
+               (unpack [_ ws? packed cb-fn]
+                 (if (= packed ::deferred-message)
+                   (reset! deferred-unpack-cb_ cb-fn)
+                   (i/unpack base-packer ws? packed cb-fn))))
+
+             callbacks_ (atom [])
+             ws-constructor
+             (fn [callbacks]
+               (swap! callbacks_ conj callbacks)
+               (delay
+                 (reify i/IClientWebSocket
+                   (cws-raw   [_] nil)
+                   (cws-send  [_ _data] true)
+                   (cws-close [_ _code _reason _clean?] true))))
+
+             client
+             (sente/make-channel-socket-client! "/chsk" nil
+               {:type :ws, :protocol :http, :host "localhost"
+                :packer packer, :ws-constructor ws-constructor
+                :ws-kalive-ms nil})
+
+             chsk      (:chsk client)
+             state_    (:state client)
+             recv-ch   (:ch-recv client)
+             pack
+             (fn [value]
+               (let [packed_ (atom nil)]
+                 (i/pack base-packer true value #(reset! packed_ (:value %)))
+                 @packed_))]
+
+         (try
+           (let [old-callbacks (first @callbacks_)]
+             ((:on-message old-callbacks)
+              (pack [[:chsk/handshake [:user-1 nil nil]] nil]))
+             (is (:open? @state_))
+
+             ;; Begin unpacking while the old socket still owns the connection.
+             ((:on-message old-callbacks) ::deferred-message)
+             (is (some? @deferred-unpack-cb_))
+
+             (sente/chsk-reconnect! chsk)
+             (is (= 2 (count @callbacks_)))
+             (let [new-callbacks (second @callbacks_)]
+               ((:on-message new-callbacks)
+                (pack [[:chsk/handshake [:user-1 nil nil]] nil]))
+               (is (:open? @state_)))
+
+             ;; Complete that unpack after replacement, and also deliver a new
+             ;; message directly through the old socket callback.
+             (@deferred-unpack-cb_ {:value [[[::stale-async 1]] nil]})
+             ((:on-message old-callbacks)
+              (pack [[[::stale-direct 2]] nil]))
+
+             ;; The current socket should remain able to deliver normally.
+             ((:on-message (second @callbacks_))
+              (pack [[[::current 3]] nil]))
+
+             (let [timeout-ch (async/timeout 200)
+                   events
+                   (loop [events []]
+                     (let [[event-msg ch] (async/alts!! [recv-ch timeout-ch])]
+                       (if (= ch timeout-ch)
+                         events
+                         (recur (conj events (:event event-msg))))))
+
+                   events (set events)]
+
+               (is (contains? events [::current 3]))
+               (is (not (contains? events [::stale-async 1])))
+               (is (not (contains? events [::stale-direct 2])))))
+
+           (finally
+             (sente/chsk-disconnect! chsk)))))))
 
 #?(:clj
    (deftest test-reject-fn

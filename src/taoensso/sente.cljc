@@ -1496,27 +1496,33 @@
 
                     on-message
                     (fn #?(:cljs [ws-ev] :clj [packed])
-                      (reset! udt-last-comms_ (enc/now-udt))
-                      (on-unpacked packer true #?(:clj packed :cljs (enc/oget ws-ev "data"))
-                        (fn [error] (throw error))
-                        (fn [[arb-msg-clj ?cb-uuid]] ; Receives both pushes (ev-clj) & cb replies (arb-reply-clj)
-                          (or
-                            (when (and (own-socket?) (handshake? arb-msg-clj))
-                              (receive-handshake! :ws chsk arb-msg-clj)
-                              (reset! retry-count_ 0)
-                              :done/did-handshake)
+                      (when (own-socket?)
+                        (reset! udt-last-comms_ (enc/now-udt))
+                        (on-unpacked packer true #?(:clj packed :cljs (enc/oget ws-ev "data"))
+                          (fn [error]
+                            (when (own-socket?) (throw error)))
 
-                            (when (= arb-msg-clj :chsk/ws-ping)
-                              (-chsk-send! chsk                 [:chsk/ws-pong] {:flush? true})
-                              #_(async/put! (get chs :internal) [:chsk/ws-ping]) ; Would be better, but breaking
-                              (async/put!   (get chs :<server)  [:chsk/ws-ping]) ; Odd choice for back compatibility
-                              :done/sent-pong)
+                          ;; An async unpack may finish after this socket has
+                          ;; already been superseded, so recheck ownership here.
+                          (fn [[arb-msg-clj ?cb-uuid]] ; Receives both pushes (ev-clj) & cb replies (arb-reply-clj)
+                            (when (own-socket?)
+                              (or
+                                (when (handshake? arb-msg-clj)
+                                  (receive-handshake! :ws chsk arb-msg-clj)
+                                  (reset! retry-count_ 0)
+                                  :done/did-handshake)
 
-                            (if-let   [cb-uuid ?cb-uuid]
-                              (if-let [cb-fn (pull-unused-cb-fn! cbs-waiting_ cb-uuid)]
-                                (cb-fn arb-msg-clj)
-                                (trove/log! {:level :warn, :id :sente.client/reply-without-cb, :data {:reply arb-msg-clj}}))
-                              (receive-buffered-evs! chs arb-msg-clj))))))
+                                (when (= arb-msg-clj :chsk/ws-ping)
+                                  (-chsk-send! chsk                 [:chsk/ws-pong] {:flush? true})
+                                  #_(async/put! (get chs :internal) [:chsk/ws-ping]) ; Would be better, but breaking
+                                  (async/put!   (get chs :<server)  [:chsk/ws-ping]) ; Odd choice for back compatibility
+                                  :done/sent-pong)
+
+                                (if-let   [cb-uuid ?cb-uuid]
+                                  (if-let [cb-fn (pull-unused-cb-fn! cbs-waiting_ cb-uuid)]
+                                    (cb-fn arb-msg-clj)
+                                    (trove/log! {:level :warn, :id :sente.client/reply-without-cb, :data {:reply arb-msg-clj}}))
+                                  (receive-buffered-evs! chs arb-msg-clj))))))))
 
                     on-close
                     ;; Fires repeatedly (on each connection attempt) while server down
@@ -1699,54 +1705,67 @@
 
          :let
          [{?timeout-ms :timeout-ms :keys [flush?]} opts
-          ?cb-uuid   (when ?cb-fn :ajax)
-          csrf-token (get-client-csrf-token-str :dynamic (get @state_ :csrf-token))]
+          ?cb-uuid     (when ?cb-fn :ajax)
+          this-conn-id @conn-id_
+          own-conn?    (fn [] (= @conn-id_ this-conn-id))
+          closed-cb!   (fn [] (when ?cb-fn (?cb-fn :chsk/closed)))
+          csrf-token   (get-client-csrf-token-str :dynamic (get @state_ :csrf-token))]
 
          :do (assert-send-args ev ?timeout-ms ?cb-fn)
          :do
          (on-packed packer false ev ?cb-uuid
-           (fn [error] (throw error))
+           (fn [error]
+             (if (own-conn?) (throw error) (closed-cb!)))
            (fn [packed]
-             (let [packed-bin (binary-val packed)]
-               (ajax-call url
-                 (enc/merge ajax-opts
-                   {:method     :post
-                    :timeout-ms (or ?timeout-ms (get ajax-opts :timeout-ms) default-client-side-ajax-timeout-ms)
-                    :resp-type  (if   packed-bin :bin/array-buffer :text)
-                    :body             packed-bin
-                    :params
-                    (conj
-                      {:udt (enc/now-udt), :client-id client-id}
-                      (if packed-bin
-                        {:binary? true}
-                        {:ppstr   packed}))
+             (if-not (own-conn?)
+               (closed-cb!)
+               (let [packed-bin (binary-val packed)]
+                 (ajax-call url
+                   (enc/merge ajax-opts
+                     {:method     :post
+                      :timeout-ms (or ?timeout-ms (get ajax-opts :timeout-ms) default-client-side-ajax-timeout-ms)
+                      :resp-type  (if   packed-bin :bin/array-buffer :text)
+                      :body             packed-bin
+                      :params
+                      (conj
+                        {:udt (enc/now-udt), :client-id client-id}
+                        (if packed-bin
+                          {:binary? true}
+                          {:ppstr   packed}))
 
-                    :headers
-                    (enc/assoc-some (get ajax-opts :headers)
-                      {"X-CSRF-Token" csrf-token
-                       "Content-Type" (when packed-bin "application/octet-stream")})})
+                      :headers
+                      (enc/assoc-some (get ajax-opts :headers)
+                        {"X-CSRF-Token" csrf-token
+                         "Content-Type" (when packed-bin "application/octet-stream")})})
 
-                 (fn ajax-cb [{:keys [?error ?content]}]
-                   (enc/cond
-                     (= ?error :timeout) (when ?cb-fn (?cb-fn :chsk/timeout))
-                     ?error
-                     (do
-                       (swap-chsk-state! chsk #(chsk-state->closed % :unexpected))
-                       (when ?cb-fn (?cb-fn :chsk/error)))
+                   (fn ajax-cb [{:keys [?error ?content]}]
+                     (if-not (own-conn?)
+                       (closed-cb!)
+                       (enc/cond
+                         (= ?error :timeout) (when ?cb-fn (?cb-fn :chsk/timeout))
+                         ?error
+                         (do
+                           (swap-chsk-state! chsk #(chsk-state->closed % :unexpected))
+                           (when ?cb-fn (?cb-fn :chsk/error)))
 
-                     :if-let [bad-resp-type? (if packed-bin (not (binary-val ?content)) (= "" ?content))]
-                     (when ?cb-fn (?cb-fn :chsk/error))
+                         :if-let [bad-resp-type? (if packed-bin (not (binary-val ?content)) (= "" ?content))]
+                         (when ?cb-fn (?cb-fn :chsk/error))
 
-                     :do
-                     (on-unpacked packer false ?content
-                       (fn [error] (throw error))
-                       (fn [[arb-reply-clj _]]
-                         (if-let [cb-fn ?cb-fn]
-                           (cb-fn      arb-reply-clj)
-                           (when (not= arb-reply-clj :chsk/dummy-cb-200)
-                             (trove/log! {:level :warn, :id :sente.client/reply-without-cb, :data {:reply arb-reply-clj}})))))
+                         :do
+                         (on-unpacked packer false ?content
+                           (fn [error]
+                             (if (own-conn?) (throw error) (closed-cb!)))
+                           (fn [[arb-reply-clj _]]
+                             (if-not (own-conn?)
+                               (closed-cb!)
+                               (if-let [cb-fn ?cb-fn]
+                                 (cb-fn      arb-reply-clj)
+                                 (when (not= arb-reply-clj :chsk/dummy-cb-200)
+                                   (trove/log! {:level :warn, :id :sente.client/reply-without-cb, :data {:reply arb-reply-clj}}))))))
 
-                     :do (swap-chsk-state! chsk #(assoc % :open? true))))))))
+                         :do
+                         (when (own-conn?)
+                           (swap-chsk-state! chsk #(assoc % :open? true)))))))))))
 
          :then true))
 
@@ -1769,39 +1788,48 @@
                    (on-packed packer false :chsk/dummy-packer-test nil
                      (fn [error]  (retry-fn))
                      (fn [packed]
-                       (trove/log! {:level :trace, :id :sente.client/ajax-poll})
-                       (reset! curr-xhr_
-                         (ajax-call url
-                           (enc/merge ajax-opts
-                             {:method     :get
-                              :xhr-cb-fn  (fn [xhr] (reset! curr-xhr_ xhr))
-                              :timeout-ms (or (get ajax-opts :timeout-ms) default-client-side-ajax-timeout-ms)
-                              :resp-type  (if (binary-val packed) :bin/array-buffer :text)
-                              :headers
-                              (let [csrf-token (get-client-csrf-token-str :dynamic (get @state_ :csrf-token))]
-                                (assoc (get ajax-opts :headers) "X-CSRF-Token" csrf-token))
+                       (when (own-conn?)
+                         (trove/log! {:level :trace, :id :sente.client/ajax-poll})
+                         (let [xhr
+                               (ajax-call url
+                                 (enc/merge ajax-opts
+                                   {:method     :get
+                                    :xhr-cb-fn
+                                    (fn [xhr]
+                                      (when (own-conn?) (reset! curr-xhr_ xhr)))
+                                    :timeout-ms (or (get ajax-opts :timeout-ms) default-client-side-ajax-timeout-ms)
+                                    :resp-type  (if (binary-val packed) :bin/array-buffer :text)
+                                    :headers
+                                    (let [csrf-token (get-client-csrf-token-str :dynamic (get @state_ :csrf-token))]
+                                      (assoc (get ajax-opts :headers) "X-CSRF-Token" csrf-token))
 
-                              :params
-                              (enc/assoc-when params
-                                {:udt        (enc/now-udt)
-                                 :client-id  client-id
-                                 :handshake? (when-not (get @state_ :open?) 1)})})
+                                    :params
+                                    (enc/assoc-when params
+                                      {:udt        (enc/now-udt)
+                                       :client-id  client-id
+                                       :handshake? (when-not (get @state_ :open?) 1)})})
 
-                           (fn ajax-cb [{:keys [?error ?content]}]
-                             (enc/cond
-                               (= ?error :timeout) (poll-fn 0)
-                               ?error              (retry-fn)
-                               :do
-                               (on-unpacked packer false ?content
-                                 (fn [error] (retry-fn))
-                                 (fn [[ev-clj _]] ; Ajax long-poller only for events only, never cb replies
-                                   (let [handshake? (handshake? ev-clj)]
-                                     (when handshake? (receive-handshake! :ajax chsk ev-clj))
-                                     (swap-chsk-state! chsk #(assoc % :open? true))
-                                     (poll-fn 0) ; Repoll asap
+                                 (fn ajax-cb [{:keys [?error ?content]}]
+                                   (when (own-conn?)
+                                     (enc/cond
+                                       (= ?error :timeout) (poll-fn 0)
+                                       ?error              (retry-fn)
+                                       :do
+                                       (on-unpacked packer false ?content
+                                         (fn [error] (retry-fn))
+                                         ;; An async unpack may finish after a
+                                         ;; reconnect or explicit disconnect.
+                                         (fn [[ev-clj _]] ; Ajax long-poller only for events only, never cb replies
+                                           (when (own-conn?)
+                                             (let [handshake? (handshake? ev-clj)]
+                                               (when handshake? (receive-handshake! :ajax chsk ev-clj))
+                                               (swap-chsk-state! chsk #(assoc % :open? true))
+                                               (poll-fn 0) ; Repoll asap
 
-                                     (when-not (or handshake? (= ev-clj :chsk/timeout))
-                                       (receive-buffered-evs! chs ev-clj))))))))))))))]
+                                               (when-not (or handshake? (= ev-clj :chsk/timeout))
+                                                 (receive-buffered-evs! chs ev-clj))))))))))]
+
+                           (when (own-conn?) (reset! curr-xhr_ xhr)))))))))]
 
          (poll-fn 0)
          chsk))))
