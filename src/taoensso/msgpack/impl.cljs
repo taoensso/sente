@@ -577,7 +577,12 @@
                *max-collection-items* max-collection-items
                *max-nesting-depth* max-nesting-depth
                *nesting-depth* 0]
-       (unpack-1 (in-stream* in))))))
+       (let [in    (in-stream* in)
+             value (unpack-1 in)]
+         (when (pos? (remaining in))
+           (truss/ex-info! "Trailing data after MessagePack value"
+             {:trailing-bytes (remaining in)}))
+         value)))))
 (defn pack
   ([clj    ] (let [out (out-stream  1024)] (pack-bytes clj out) @out))
   ([clj out] (let [out (out-stream* out)]  (pack-bytes clj out)  out)))

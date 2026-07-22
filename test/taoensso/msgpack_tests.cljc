@@ -204,6 +204,8 @@
 (deftest bounded-unpacking
   (is (thrown? #?(:clj Exception :cljs js/Error)
         (mp/unpack (encoded-bytes [0x91 0x91 0xc0]) {:max-nesting-depth 1})))
+  (is (thrown? #?(:clj Exception :cljs js/Error)
+        (mp/unpack (encoded-bytes [0xc0 0xc3]))))
 
   (testing "Declared lengths cannot allocate or loop beyond available input"
     (is (thrown? #?(:clj Exception :cljs js/Error)

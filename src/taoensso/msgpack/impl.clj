@@ -450,7 +450,11 @@
          (let [bais (ByteArrayInputStream. ^bytes in)
                din  (DataInputStream. bais)]
            (binding [*remaining-input-bytes-fn* #(.available bais)]
-             (unpack-1 din)))
+             (let [value (unpack-1 din)]
+               (when (pos? (.available bais))
+                 (truss/ex-info! "Trailing data after MessagePack value"
+                   {:trailing-bytes (.available bais)}))
+               value)))
          (if (instance? DataInput in)
            (unpack-1 in)
            (truss/ex-info! "Unexpected unpack `input` type"
