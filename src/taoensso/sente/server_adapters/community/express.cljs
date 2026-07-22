@@ -49,13 +49,22 @@
     ring-req))
 
 (defn- default-csrf-token-fn
-  "Generates a CSRF token using the `csurf` middleware."
-  [ring-req]
-  (.csrfToken (:body ring-req)))
+  "Delegates CSRF validation to the `csurf` middleware that runs before Sente.
+
+  `req.csrfToken()` generates a fresh token, so it cannot provide the stable
+  reference token required by Sente's equality check."
+  [_ring-req]
+  :sente/skip-CSRF-check)
 
 (defn make-express-channel-socket-server!
   "A customized `make-channel-socket-server!` that uses Node.js with
-  Express as the web server."
+  Express as the web server.
+
+  The default CSRF policy relies on upstream `csurf` validation. Since `csurf`
+  commonly ignores GET requests, WebSocket handshakes must also be protected by
+  configuring `csurf` to check GET or by setting Sente's `:allowed-origins` to
+  the application's trusted origins. A custom `:csrf-token-fn` in `opts`
+  replaces this default."
   [& [opts]]
   (let [default-opts {:csrf-token-fn default-csrf-token-fn}
         chsk (sente/make-channel-socket-server!
