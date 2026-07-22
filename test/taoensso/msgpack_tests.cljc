@@ -159,7 +159,9 @@
                (mp/pack (c/->PackableExt 1.5 (ubytes 1)))))])])
 
    #?(:clj  (is (rt? "Timestamps" (java.time.Instant/now) (java.util.Date.) (java.util.Date. -1))))
-   #?(:cljs (is (rt? "Timestamps" (js/Date.))))
+   #?(:cljs
+      [(is (rt? "Timestamps" (js/Date.)))
+       (is (thrown? js/Error (mp/pack (js/Date. js/NaN))))])
 
    (rt? "UUID" #uuid "66d96ab4-9834-40db-a3cd-42b361503ab9")
 

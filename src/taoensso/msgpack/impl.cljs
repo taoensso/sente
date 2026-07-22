@@ -497,6 +497,8 @@
 (c/extend-packable -1 js/Date
   (pack [d]
     (let [millis   (.getTime d)
+          _        (when (js/Number.isNaN millis)
+                     (truss/ex-info! "Cannot pack invalid JavaScript Date" {}))
           secs     (js/Math.floor (/ millis 1000))
           nanos    (* (- millis (* secs 1000)) 1000000)
           ^js ab   (js/ArrayBuffer. 12)
