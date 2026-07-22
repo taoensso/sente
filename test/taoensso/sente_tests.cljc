@@ -528,8 +528,8 @@
                  java.nio.charset.StandardCharsets/UTF_8)))))))
 
 #?(:clj
-   (deftest test-superseded-websocket-messages
-     (testing "A superseded WebSocket cannot deliver messages, including after async unpacking"
+   (deftest test-superseded-server-websocket-messages
+     (testing "A superseded server WebSocket cannot deliver messages"
        (let [base-packer         (ep/get-packer)
              deferred-unpack-cb_ (atom nil)
              packer
@@ -541,15 +541,86 @@
                    (reset! deferred-unpack-cb_ cb-fn)
                    (i/unpack base-packer ws? packed cb-fn))))
 
+             conns_ (atom [])
+             adapter
+             (reify i/IServerChanAdapter
+               (ring-req->server-ch-resp [_ _ring-req callbacks]
+                 (let [sch
+                       (reify i/IServerChan
+                         (sch-open?  [_] true)
+                         (sch-close! [_] true)
+                         (sch-send!  [_ _websocket? _msg] true))]
+                   (swap! conns_ conj [callbacks sch])
+                   ((:on-open callbacks) sch true)
+                   {:status 101})))
+
+             server
+             (sente/make-channel-socket-server! adapter
+               {:csrf-token-fn (constantly :sente/skip-CSRF-check)
+                :packer packer, :ws-kalive-ms nil})
+             handler (:ajax-get-or-ws-handshake-fn server)
+             request {:params {:client-id "client-1"}
+                      :session {:uid :user-1}}
+             pack
+             (fn [value]
+               (let [packed_ (atom nil)]
+                 (i/pack base-packer true value #(reset! packed_ (:value %)))
+                 @packed_))]
+
+         (handler request)
+         (let [[old-callbacks old-sch] (first @conns_)]
+           ((:on-msg old-callbacks) old-sch true ::deferred-message)
+           (is (some? @deferred-unpack-cb_))
+
+           (handler request)
+           (let [[new-callbacks new-sch] (second @conns_)]
+             (@deferred-unpack-cb_ {:value [[::stale-async 1] nil]})
+             ((:on-msg old-callbacks) old-sch true
+              (pack [[::stale-direct 2] nil]))
+             ((:on-msg new-callbacks) new-sch true
+              (pack [[::current 3] nil])))
+
+           (let [timeout-ch (async/timeout 200)
+                 events
+                 (loop [events []]
+                   (let [[event-msg ch]
+                         (async/alts!! [(:ch-recv server) timeout-ch])]
+                     (if (= ch timeout-ch)
+                       (set events)
+                       (recur (conj events (:event event-msg))))))]
+             (is (contains? events [::current 3]))
+             (is (not (contains? events [::stale-async 1])))
+             (is (not (contains? events [::stale-direct 2])))))))))
+
+#?(:clj
+   (deftest test-superseded-websocket-messages
+     (testing "A superseded WebSocket cannot send or deliver delayed messages"
+       (let [base-packer         (ep/get-packer)
+             deferred-pack-cb_   (atom nil)
+             deferred-unpack-cb_ (atom nil)
+             packer
+             (reify i/IPacker2
+               (pack [_ ws? clj cb-fn]
+                 (if (= (ffirst clj) ::stale-send)
+                   (reset! deferred-pack-cb_ cb-fn)
+                   (i/pack base-packer ws? clj cb-fn)))
+               (unpack [_ ws? packed cb-fn]
+                 (if (= packed ::deferred-message)
+                   (reset! deferred-unpack-cb_ cb-fn)
+                   (i/unpack base-packer ws? packed cb-fn))))
+
              callbacks_ (atom [])
+             sent_      (atom [])
              ws-constructor
              (fn [callbacks]
-               (swap! callbacks_ conj callbacks)
-               (delay
-                 (reify i/IClientWebSocket
-                   (cws-raw   [_] nil)
-                   (cws-send  [_ _data] true)
-                   (cws-close [_ _code _reason _clean?] true))))
+               (let [idx (count @callbacks_)]
+                 (swap! callbacks_ conj callbacks)
+                 (swap! sent_ conj [])
+                 (delay
+                   (reify i/IClientWebSocket
+                     (cws-raw   [_] nil)
+                     (cws-send  [_ data] (swap! sent_ update idx conj data) true)
+                     (cws-close [_ _code _reason _clean?] true)))))
 
              client
              (sente/make-channel-socket-client! "/chsk" nil
@@ -560,6 +631,7 @@
              chsk      (:chsk client)
              state_    (:state client)
              recv-ch   (:ch-recv client)
+             stale-send-result_ (atom nil)
              pack
              (fn [value]
                (let [packed_ (atom nil)]
@@ -576,6 +648,10 @@
              ((:on-message old-callbacks) ::deferred-message)
              (is (some? @deferred-unpack-cb_))
 
+             (sente/chsk-send! chsk [::stale-send 4] 1000
+               #(reset! stale-send-result_ %))
+             (is (some? @deferred-pack-cb_))
+
              (sente/chsk-reconnect! chsk)
              (is (= 2 (count @callbacks_)))
              (let [new-callbacks (second @callbacks_)]
@@ -588,6 +664,7 @@
              (@deferred-unpack-cb_ {:value [[[::stale-async 1]] nil]})
              ((:on-message old-callbacks)
               (pack [[[::stale-direct 2]] nil]))
+             (@deferred-pack-cb_ {:value ::stale-packed})
 
              ;; The current socket should remain able to deliver normally.
              ((:on-message (second @callbacks_))
@@ -605,7 +682,102 @@
 
                (is (contains? events [::current 3]))
                (is (not (contains? events [::stale-async 1])))
-               (is (not (contains? events [::stale-direct 2])))))
+               (is (not (contains? events [::stale-direct 2])))
+               (is (= :chsk/closed @stale-send-result_))
+               (is (every? empty? @sent_))))
+
+           (finally
+             (sente/chsk-disconnect! chsk)))))))
+
+#?(:clj
+   (deftest test-async-packer-ordering
+     (testing "Async pack and unpack completion cannot reorder WebSocket messages"
+       (let [base-packer  (ep/get-packer)
+             pack-cbs_    (atom {})
+             unpack-cbs_  (atom {})
+             packer
+             (reify i/IPacker2
+               (pack [_ ws? value cb-fn]
+                 (let [event-id (ffirst value)]
+                   (if (#{::send-first ::send-second} event-id)
+                     (swap! pack-cbs_ assoc event-id cb-fn)
+                     (i/pack base-packer ws? value cb-fn))))
+               (unpack [_ ws? packed cb-fn]
+                 (if (#{::wire-first ::wire-second} packed)
+                   (swap! unpack-cbs_ assoc packed cb-fn)
+                   (i/unpack base-packer ws? packed cb-fn))))
+
+             sent_      (atom [])
+             callbacks_ (atom nil)
+             ws-constructor
+             (fn [callbacks]
+               (reset! callbacks_ callbacks)
+               (delay
+                 (reify i/IClientWebSocket
+                   (cws-raw   [_] nil)
+                   (cws-send  [_ data] (swap! sent_ conj data) true)
+                   (cws-close [_ _code _reason _clean?] true))))
+
+             client
+             (sente/make-channel-socket-client! "/chsk" nil
+               {:type :ws, :protocol :http, :host "localhost"
+                :packer packer, :ws-constructor ws-constructor
+                :ws-kalive-ms nil})
+
+             chsk    (:chsk client)
+             recv-ch (:ch-recv client)
+             pack
+             (fn [value]
+               (let [packed_ (atom nil)]
+                 (i/pack base-packer true value #(reset! packed_ (:value %)))
+                 @packed_))
+
+             receive-event? (fn [[id]] (contains? #{::receive-first ::receive-second} id))
+             drain-events!
+             (fn []
+               ;; Return pending `::receive-*` events, ignoring
+               ;; handshake/state events that may arrive late under CI load
+               (let [timeout-ch (async/timeout 25)]
+                 (loop [events []]
+                   (let [[event-msg ch] (async/alts!! [recv-ch timeout-ch])]
+                     (if (= ch timeout-ch)
+                       events
+                       (recur (cond-> events
+                                (receive-event? (:event event-msg))
+                                (conj (:event event-msg)))))))))]
+
+         (try
+           ((:on-message @callbacks_)
+            (pack [[:chsk/handshake [:user-1 nil nil]] nil]))
+           (drain-events!) ; Discard handshake and state notifications.
+
+           (sente/chsk-send! chsk [::send-first 1])
+           (sente/chsk-send! chsk [::send-second 2])
+           ((get @pack-cbs_ ::send-second) {:value ::packed-second})
+           (is (empty? @sent_))
+           ((get @pack-cbs_ ::send-first) {:value ::packed-first})
+           (is (= [::packed-first ::packed-second] @sent_))
+
+           ((:on-message @callbacks_) ::wire-first)
+           ((:on-message @callbacks_) ::wire-second)
+           ((get @unpack-cbs_ ::wire-second)
+            {:value [[[::receive-second 2]] nil]})
+           (is (empty? (drain-events!)))
+           ((get @unpack-cbs_ ::wire-first)
+            {:value [[[::receive-first 1]] nil]})
+
+           (let [timeout-ch (async/timeout *timeout-msecs*)
+                 events
+                 (loop [events []]
+                   (if (= 2 (count events))
+                     events
+                     (let [[event-msg ch] (async/alts!! [recv-ch timeout-ch])]
+                       (if (= ch timeout-ch)
+                         events
+                         (recur (cond-> events
+                                  (receive-event? (:event event-msg))
+                                  (conj (:event event-msg))))))))]
+             (is (= [[::receive-first 1] [::receive-second 2]] events)))
 
            (finally
              (sente/chsk-disconnect! chsk)))))))

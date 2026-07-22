@@ -69,13 +69,13 @@
   Both text and binary encoding is supported, allowing for a wide
   range of serialization and compression possibilities.
 
-  Packers must implement this protocol and call given `cb-fn` with
-  either `{:value _}` or `{:error _}`:
+  Packers must implement this protocol and call given `cb-fn` exactly
+  once with either `{:value _}` or `{:error _}`:
 
     `pack`
            Input: arbitrary Clojure/Script value
-      On success: call (cb-fn {:value ∈ #{<platform-string> <platform-bytes}})
-        On error: call (cb-fn {:value ∈ #{<platform-error>}})
+      On success: call (cb-fn {:value ∈ #{<platform-string> <platform-bytes>}})
+        On error: call (cb-fn {:error <platform-error>})
 
     `unpack`:
             Input: packed value ∈ #{<platform-string> <platform-bytes>}

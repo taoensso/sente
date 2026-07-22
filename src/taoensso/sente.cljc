@@ -183,47 +183,88 @@
 (def ^:no-doc edn-packer (edn-packer/get-packer))
 (defn-     coerce-packer [x] (if (= x :edn) edn-packer (truss/have [:satisfies? i/IPacker2] x)))
 
-(defn- on-packed [packer ws? clj ?cb-uuid error-fn value-fn]
+(defn- make-callback-orderer []
+  (let [next-id! (enc/counter)
+        state_   (atom {:next-id 0, :pending {}})]
+    (fn order-callback [callback]
+      (let [id      (next-id!)
+            called?_ (atom false)]
+        (fn [& args]
+          (when (compare-and-set! called?_ false true)
+            (let [ready
+                  (swap-in! state_ []
+                    (fn [{:keys [next-id pending]}]
+                      (loop [next-id next-id
+                             pending (assoc pending id #(apply callback args))
+                             ready   []]
+                        (if-let [task (get pending next-id)]
+                          (recur (inc next-id) (dissoc pending next-id) (conj ready task))
+                          (swapped {:next-id next-id, :pending pending} ready)))))
+
+                  error_ (atom nil)]
+              ;; A failed callback must not prevent later ready callbacks from
+              ;; being released, otherwise this orderer would remain wedged.
+              (doseq [task ready]
+                (truss/try*
+                  (task)
+                  (catch :all t (compare-and-set! error_ nil t))))
+              (when-let [error @error_]
+                (throw error)))))))))
+
+(defn- make-callback-orderer-stripes [n]
+  (let [orderers (vec (repeatedly n make-callback-orderer))]
+    (fn [key]
+      (get orderers (mod (hash key) n)))))
+
+(defn- on-packed [order-callback packer ws? clj ?cb-uuid error-fn value-fn]
   (let [error-fn*
         (fn [e]
           (trove/log!
             {:level :error, :id :sente.packer/pack-failure, :error e,
              :data {:ws? ws?, :given {:value clj, :type (type clj)}}})
 
-          (when error-fn (error-fn e)))]
+          (when error-fn (error-fn e)))
 
-    (truss/try*
-      (i/pack packer ws? [clj ?cb-uuid] ; Note wrapping to add ?cb-uuid
-        (fn cb-fn [{:keys [error value]}] ; May be called sync or async
+        cb-fn
+        (fn [{:keys [error value]}] ; May be called sync or async
           (truss/try*
             (if error (error-fn* error) (value-fn value))
-            (catch :all t (truss/ex-info! "Error after packing" {} t)))))
+            (catch :all t (truss/ex-info! "Error after packing" {} t))))
+
+        cb-fn (if order-callback (order-callback cb-fn) cb-fn)]
+
+    (truss/try*
+      (i/pack packer ws? [clj ?cb-uuid] cb-fn) ; Note wrapping to add ?cb-uuid
 
       (catch :all t
         (if (= (ex-message t) "Error after packing")
           (throw (ex-cause t)) ; Was sync
-          (error-fn*       t))))))
+          (cb-fn {:error t}))))))
 
-(defn- on-unpacked [packer ws? packed error-fn value-fn]
+(defn- on-unpacked [order-callback packer ws? packed error-fn value-fn]
   (let [error-fn*
         (fn [e]
           (trove/log!
             {:level :error, :id :sente.packer/unpack-failure, :error e,
              :data {:ws? ws?, :given {:value packed, :type (type packed)}}})
 
-          (when error-fn (error-fn e)))]
+          (when error-fn (error-fn e)))
 
-    (truss/try*
-      (i/unpack packer ws? packed
-        (fn cb-fn [{:keys [error value]}] ; May be called sync or async
+        cb-fn
+        (fn [{:keys [error value]}] ; May be called sync or async
           (truss/try*
             (if error (error-fn* error) (value-fn value))
-            (catch :all t (truss/ex-info! "Error after unpacking" {} t)))))
+            (catch :all t (truss/ex-info! "Error after unpacking" {} t))))
+
+        cb-fn (if order-callback (order-callback cb-fn) cb-fn)]
+
+    (truss/try*
+      (i/unpack packer ws? packed cb-fn)
 
       (catch :all t
         (if (= (ex-message t) "Error after unpacking")
           (throw (ex-cause t)) ; Was sync
-          (error-fn*       t))))))
+          (cb-fn {:error t}))))))
 
 ;;;; Server API
 
@@ -513,6 +554,8 @@
         conns_          (atom {:ws  {} :ajax  {}}) ; {<uid> {<client-id> [<?sch> <udt-last-activity> <conn-id>]}}
         send-buffers_   (atom {:ws  {} :ajax  {}}) ; {<uid> [<buffered-evs> <#{ev-uuids}>]}
         connected-uids_ (atom {:ws #{} :ajax #{} :any #{}}) ; Public
+        push-pack-orderer-for  (make-callback-orderer-stripes 256)
+        ajax-unpack-orderer-for (make-callback-orderer-stripes 256)
 
         connect-uid!?
         (fn [conn-type uid] {:pre [(truss/have? uid)]}
@@ -589,7 +632,8 @@
                       (truss/have? vector? buffered-evs)
                       (truss/have? set?    ev-uuids)
 
-                      (on-packed packer (= conn-type :ws) buffered-evs nil
+                      (on-packed (push-pack-orderer-for [conn-type uid])
+                        packer (= conn-type :ws) buffered-evs nil
                         (fn [error] (throw error))
                         (fn [packed]
                           (send-buffered-server-evs>clients! conn-type
@@ -716,7 +760,9 @@
                           #?(:clj (stream->ba body), :cljs body)))]
 
                      :do
-                     (on-unpacked packer websocket? packed
+                     (on-unpacked
+                       (ajax-unpack-orderer-for [(user-id-fn ring-req client-id) client-id])
+                       packer websocket? packed
                        (fn [error] (throw error))
                        (fn [[ev-clj has-cb?]]
                          (let [replied?_ (atom false)
@@ -732,7 +778,7 @@
                                               :reply arb-reply-clj}})
 
                                    (when (i/sch-open? server-ch)
-                                     (on-packed packer websocket? arb-reply-clj nil
+                                     (on-packed nil packer websocket? arb-reply-clj nil
                                        (fn [error] (throw error))
                                        (fn [packed] (i/sch-send! server-ch websocket? packed)))
                                      true)))]
@@ -782,7 +828,25 @@
             :if-let [resp (possible-rejection-resp ring-req)] resp
 
             :else
-            (let [receive-event-msg! ; Partial
+            (let [pack-order-callback   (make-callback-orderer)
+                  unpack-order-callback (make-callback-orderer)
+
+                  own-conn?
+                  (fn [server-ch websocket?]
+                    (let [[sch _ conn-id*]
+                          (get-in @conns_
+                            [(if websocket? :ws :ajax) uid client-id])]
+                      (and (= conn-id conn-id*)
+                           (identical? sch server-ch))))
+
+                  own-handshake?
+                  (fn [server-ch websocket?]
+                    (if websocket?
+                      (own-conn? server-ch true)
+                      (= conn-id
+                        (get-in @conns_ [:ajax uid client-id 2]))))
+
+                  receive-event-msg! ; Partial
                   (fn self
                     ([event          ] (self event nil))
                     ([event ?reply-fn]
@@ -800,10 +864,12 @@
                       {:level :debug, :id :sente.server/send-handshake,
                        :data {:uid uid, :cid client-id, :ws? websocket?}})
 
-                    (on-packed packer websocket?
+                    (on-packed pack-order-callback packer websocket?
                       [:chsk/handshake [uid nil (handshake-data-fn ring-req)]] nil
                       (fn [error] (throw error))
-                      (fn [packed] (i/sch-send! server-ch websocket? packed))))
+                      (fn [packed]
+                        (when (own-handshake? server-ch websocket?)
+                          (i/sch-send! server-ch websocket? packed)))))
 
                   on-error
                   (fn [server-ch websocket? error]
@@ -814,42 +880,51 @@
                   on-msg
                   (fn [server-ch websocket? packed]
                     (assert websocket?)
-                    (swap-in! conns_ [:ws uid client-id]
-                      (fn [[?sch _udt conn-id]]
-                        (when conn-id [?sch (enc/now-udt) conn-id])))
+                    (when (own-conn? server-ch true)
+                      (swap-in! conns_ [:ws uid client-id]
+                        (fn [[?sch _udt conn-id* :as entry]]
+                          (if (= conn-id conn-id*)
+                            [?sch (enc/now-udt) conn-id*]
+                            entry)))
 
-                    (on-unpacked packer websocket? packed
-                      (fn [error] (throw error))
-                      (fn   [[ev-clj ?cb-uuid]]
-                        (case ev-clj
-                          [:chsk/ws-pong] (receive-event-msg! ev-clj nil)
-                          [:chsk/ws-ping]
-                          (do
-                            ;; Auto reply to ping
-                            (when-let [cb-uuid ?cb-uuid]
-                              (trove/log!
-                                {:level :debug, :id :sente.server/send-ws-pong,
-                                 :data {:uid uid, :cid client-id}})
-
-                              (on-packed packer websocket? "pong" cb-uuid
-                                (fn [error] (throw error))
-                                (fn [packed] (i/sch-send! server-ch websocket? packed))))
-
-                            (receive-event-msg! ev-clj nil))
-
-                          ;; else
-                          (receive-event-msg! ev-clj
-                            (when-let [cb-uuid ?cb-uuid]
-                              (fn reply-fn [arb-reply-clj]
-                                (when (i/sch-open? server-ch)
+                      (on-unpacked unpack-order-callback packer websocket? packed
+                        (fn [error]
+                          (when (own-conn? server-ch true) (throw error)))
+                        (fn [[ev-clj ?cb-uuid]]
+                          (when (own-conn? server-ch true)
+                            (case ev-clj
+                              [:chsk/ws-pong] (receive-event-msg! ev-clj nil)
+                              [:chsk/ws-ping]
+                              (do
+                                ;; Auto reply to ping
+                                (when-let [cb-uuid ?cb-uuid]
                                   (trove/log!
-                                    {:level :debug, :id :sente.server/send-reply,
-                                     :data {:uid uid, :cid client-id, :ws? websocket?, :reply arb-reply-clj}})
+                                    {:level :debug, :id :sente.server/send-ws-pong,
+                                     :data {:uid uid, :cid client-id}})
 
-                                  (on-packed packer websocket? arb-reply-clj cb-uuid
+                                  (on-packed pack-order-callback packer websocket? "pong" cb-uuid
                                     (fn [error] (throw error))
-                                    (fn [packed] (i/sch-send! server-ch websocket? packed)))
-                                  true))))))))
+                                    (fn [packed]
+                                      (when (own-conn? server-ch true)
+                                        (i/sch-send! server-ch websocket? packed)))))
+
+                                (receive-event-msg! ev-clj nil))
+
+                              ;; else
+                              (receive-event-msg! ev-clj
+                                (when-let [cb-uuid ?cb-uuid]
+                                  (fn reply-fn [arb-reply-clj]
+                                    (when (and (own-conn? server-ch true) (i/sch-open? server-ch))
+                                      (trove/log!
+                                        {:level :debug, :id :sente.server/send-reply,
+                                         :data {:uid uid, :cid client-id, :ws? websocket?, :reply arb-reply-clj}})
+
+                                      (on-packed pack-order-callback packer websocket? arb-reply-clj cb-uuid
+                                        (fn [error] (throw error))
+                                        (fn [packed]
+                                          (when (own-conn? server-ch true)
+                                            (i/sch-send! server-ch websocket? packed))))
+                                      true))))))))))
 
                   on-close
                   (fn [server-ch websocket? _status]
@@ -960,9 +1035,11 @@
                                                   ;; If conn has gone bad, attempting to send a ping will usu.
                                                   ;; immediately trigger the conn's `:on-close`, i.e. shouldn't
                                                   ;; usually need to wait for a missed pong
-                                                  (on-packed packer websocket? :chsk/ws-ping nil
+                                                  (on-packed pack-order-callback packer websocket? :chsk/ws-ping nil
                                                     (fn [error] (throw error))
-                                                    (fn [packed] (i/sch-send! server-ch websocket? packed)))
+                                                    (fn [packed]
+                                                      (when (own-conn? server-ch true)
+                                                        (i/sch-send! server-ch websocket? packed))))
 
                                                   (if ws-ping-timeout-ms
                                                     {:recur? true, :udt udt-t1, :ms-timeout ws-ping-timeout-ms, :expecting-pong? true}
@@ -986,8 +1063,8 @@
 
                           ;; The handshake send may have synchronously closed or
                           ;; superseded this connection.
-                          (when-let [[sch _ conn-id*] (get-in @conns_ [:ws uid client-id])]
-                            (when (and sch (= conn-id conn-id*) (i/sch-open? sch))
+                          (when-let [[sch] (get-in @conns_ [:ws uid client-id])]
+                            (when (and (own-conn? server-ch true) (i/sch-open? sch))
                               (when (connect-uid!? :ws uid)
                                 (trove/log! {:level :debug, :id :sente.server/uidport-open, :data {:uid uid, :cid client-id}})
                                 (receive-event-msg! [:chsk/uidport-open uid]))))))
@@ -1020,9 +1097,11 @@
                                   (when-let [[_?sch _udt conn-id*] (get-in @conns_ [:ajax uid client-id])]
                                     (when (= conn-id conn-id*)
                                       (trove/log! {:level :trace, :id :sente.server/ajax-poll-timeout, :data {:uid uid, :cid client-id}})
-                                      (on-packed packer websocket? :chsk/timeout nil
+                                      (on-packed pack-order-callback packer websocket? :chsk/timeout nil
                                         (fn [error] (throw error))
-                                        (fn [packed] (i/sch-send! server-ch websocket? packed))))))))
+                                        (fn [packed]
+                                          (when (own-conn? server-ch false)
+                                            (i/sch-send! server-ch websocket? packed)))))))))
 
                             (when (connect-uid!? :ajax uid)
                               (trove/log! {:level :debug, :id :sente.server/uidport-open, :data {:uid uid, :cid client-id, :ws? websocket?}})
@@ -1387,6 +1466,7 @@
    cbs-waiting_ ; {<cb-uuid> <fn> ...}
    socket_ ; ?[<socket> <socket-id>]
    udt-last-comms_
+   pack-order-callback
    ws-constructor
    legacy-ws-csrf-token-in-url?]
 
@@ -1421,38 +1501,49 @@
 
       :let
       [{?timeout-ms :timeout-ms :keys [flush?]} opts
-       ?cb-uuid (when ?cb-fn (enc/nanoid 10))]
+       ?cb-uuid      (when ?cb-fn (enc/nanoid 10))
+       this-conn-id  @conn-id_
+       this-socket-id (second @socket_)
+       own-socket?
+       (fn []
+         (and (get @state_ :open?)
+              (= @conn-id_ this-conn-id)
+              (= (second @socket_) this-socket-id)))
+       closed-cb! (fn [] (when ?cb-fn (?cb-fn :chsk/closed)))]
 
       :do (assert-send-args ev ?timeout-ms ?cb-fn)
       :do
-      (on-packed packer true ev ?cb-uuid
-        (fn [error] (throw error))
+      (on-packed pack-order-callback packer true ev ?cb-uuid
+        (fn [error]
+          (if (own-socket?) (throw error) (closed-cb!)))
         (fn [packed]
-
-          (when-let [cb-uuid ?cb-uuid]
-            (reset-in! cbs-waiting_ [cb-uuid] (truss/have ?cb-fn))
-            (when-let [ms ?timeout-ms]
-              (timers/call-after ms
-                (fn []
-                  (when-let [cb-fn* (pull-unused-cb-fn! cbs-waiting_ ?cb-uuid)]
-                    (cb-fn* :chsk/timeout))))))
-
-          (or
-            (when-let [[s _sid] @socket_]
-              (truss/try*
-                (i/cws-send s packed)
-                (reset! udt-last-comms_ (enc/now-udt))
-                true
-                (catch :all t
-                  (trove/log! {:level :error, :id :sente.client/send-error, :error t}))))
-
+          (if-not (own-socket?)
+            (closed-cb!)
             (do
               (when-let [cb-uuid ?cb-uuid]
-                (let    [cb-fn* (or (pull-unused-cb-fn! cbs-waiting_ cb-uuid)
-                                    (truss/have ?cb-fn))]
-                  (cb-fn* :chsk/error)))
+                (reset-in! cbs-waiting_ [cb-uuid] (truss/have ?cb-fn))
+                (when-let [ms ?timeout-ms]
+                  (timers/call-after ms
+                    (fn []
+                      (when-let [cb-fn* (pull-unused-cb-fn! cbs-waiting_ ?cb-uuid)]
+                        (cb-fn* :chsk/timeout))))))
 
-              (-chsk-reconnect! chsk :ws-error)))))
+              (or
+                (when-let [[s _sid] @socket_]
+                  (truss/try*
+                    (i/cws-send s packed)
+                    (reset! udt-last-comms_ (enc/now-udt))
+                    true
+                    (catch :all t
+                      (trove/log! {:level :error, :id :sente.client/send-error, :error t}))))
+
+                (do
+                  (when-let [cb-uuid ?cb-uuid]
+                    (let    [cb-fn* (or (pull-unused-cb-fn! cbs-waiting_ cb-uuid)
+                                        (truss/have ?cb-fn))]
+                      (cb-fn* :chsk/error)))
+
+                  (-chsk-reconnect! chsk :ws-error)))))))
 
       :then true))
 
@@ -1466,6 +1557,7 @@
               (let [;; ID for the particular candidate socket to be returned from
                     ;; this particular connect-fn call
                     this-socket-id (enc/uuid-str)
+                    unpack-order-callback (make-callback-orderer)
                     own-socket?
                     (fn []
                       (when-let [[_s sid] @socket_]
@@ -1498,7 +1590,8 @@
                     (fn #?(:cljs [ws-ev] :clj [packed])
                       (when (own-socket?)
                         (reset! udt-last-comms_ (enc/now-udt))
-                        (on-unpacked packer true #?(:clj packed :cljs (enc/oget ws-ev "data"))
+                        (on-unpacked unpack-order-callback
+                          packer true #?(:clj packed :cljs (enc/oget ws-ev "data"))
                           (fn [error]
                             (when (own-socket?) (throw error)))
 
@@ -1656,7 +1749,8 @@
        :ever-opened?_   (atom false)
        :cbs-waiting_    (atom {})
        :socket_         (atom nil)
-       :udt-last-comms_ (atom nil)}
+       :udt-last-comms_ (atom nil)
+       :pack-order-callback (make-callback-orderer)}
       opts)))
 
 (def ^:private default-client-side-ajax-timeout-ms
@@ -1682,7 +1776,8 @@
      [client-id chs params packer url state_
       conn-id_ ever-opened?_
       backoff-ms-fn
-      ajax-opts curr-xhr_]
+      ajax-opts curr-xhr_
+      pack-order-callback unpack-order-callback]
 
      IChSocket
      (-chsk-disconnect! [chsk reason]
@@ -1713,7 +1808,7 @@
 
          :do (assert-send-args ev ?timeout-ms ?cb-fn)
          :do
-         (on-packed packer false ev ?cb-uuid
+         (on-packed pack-order-callback packer false ev ?cb-uuid
            (fn [error]
              (if (own-conn?) (throw error) (closed-cb!)))
            (fn [packed]
@@ -1752,7 +1847,7 @@
                          (when ?cb-fn (?cb-fn :chsk/error))
 
                          :do
-                         (on-unpacked packer false ?content
+                         (on-unpacked unpack-order-callback packer false ?content
                            (fn [error]
                              (if (own-conn?) (throw error) (closed-cb!)))
                            (fn [[arb-reply-clj _]]
@@ -1785,7 +1880,7 @@
                                (fn connect-fn [] (poll-fn retry-count*))
                                (do                        retry-count*)))))]
 
-                   (on-packed packer false :chsk/dummy-packer-test nil
+                   (on-packed nil packer false :chsk/dummy-packer-test nil
                      (fn [error]  (retry-fn))
                      (fn [packed]
                        (when (own-conn?)
@@ -1815,7 +1910,7 @@
                                        (= ?error :timeout) (poll-fn 0)
                                        ?error              (retry-fn)
                                        :do
-                                       (on-unpacked packer false ?content
+                                       (on-unpacked unpack-order-callback packer false ?content
                                          (fn [error] (retry-fn))
                                          ;; An async unpack may finish after a
                                          ;; reconnect or explicit disconnect.
@@ -1841,7 +1936,9 @@
          {:state_        (atom {:type :ajax :open? false :ever-opened? false :csrf-token csrf-token})
           :conn-id_      (atom nil)
           :ever-opened?_ (atom false)
-          :curr-xhr_     (atom nil)}
+          :curr-xhr_     (atom nil)
+          :pack-order-callback   (make-callback-orderer)
+          :unpack-order-callback (make-callback-orderer)}
          opts))))
 
 #?(:cljs
