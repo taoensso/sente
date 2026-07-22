@@ -123,6 +123,10 @@
           ^bytes ba (.-ba-content x)
           len       (alength ba)]
 
+      (when-not (and (integer? byte-id) (<= -128 byte-id 127))
+        (truss/ex-info! "Invalid MessagePack extension type id"
+          {:byte-id byte-id, :expected "signed byte (-128..127)"}))
+
       (case len
         1  (.writeByte out 0xd4)
         2  (.writeByte out 0xd5)

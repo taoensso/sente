@@ -136,7 +136,20 @@
       (is (let [ub (ubytes    16)] (eq ub (:ba-content (rt (c/->PackableExt 106 ub))))))
       (is (let [ub (ubytes   255)] (eq ub (:ba-content (rt (c/->PackableExt 106 ub))))))
       (is (let [ub (ubytes   256)] (eq ub (:ba-content (rt (c/->PackableExt 106 ub))))))
-      (is (let [ub (ubytes 65536)] (eq ub (:ba-content (rt (c/->PackableExt 106 ub))))))])
+      (is (let [ub (ubytes 65536)] (eq ub (:ba-content (rt (c/->PackableExt 106 ub))))))
+
+      (testing "type ids must be signed bytes"
+        [(doseq [byte-id [-128 127]]
+           (let [ub     (ubytes 1)
+                 result (rt (c/->PackableExt byte-id ub))]
+             (is (= byte-id (:byte-id result)))
+             (is (eq ub (:ba-content result)))))
+         (is (thrown? #?(:clj Exception :cljs js/Error)
+               (mp/pack (c/->PackableExt -129 (ubytes 1)))))
+         (is (thrown? #?(:clj Exception :cljs js/Error)
+               (mp/pack (c/->PackableExt  128 (ubytes 1)))))
+         (is (thrown? #?(:clj Exception :cljs js/Error)
+               (mp/pack (c/->PackableExt 1.5 (ubytes 1)))))])])
 
    #?(:clj  (is (rt? "Timestamps" (java.time.Instant/now) (java.util.Date.) (java.util.Date. -1))))
    #?(:cljs (is (rt? "Timestamps" (js/Date.))))

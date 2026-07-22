@@ -266,6 +266,10 @@
           u8s-content (.-ba-content x)
           len (.-byteLength u8s-content)]
 
+      (when-not (and (integer? byte-id) (<= -128 byte-id 127))
+        (truss/ex-info! "Invalid MessagePack extension type id"
+          {:byte-id byte-id, :expected "signed byte (-128..127)"}))
+
       (case len
         1  (write-u8 out 0xd4)
         2  (write-u8 out 0xd5)
