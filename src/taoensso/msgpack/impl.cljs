@@ -248,6 +248,9 @@
       (<= len 0xffff)     (do (write-u8 out 0xde) (write-u16 out len)  (pack-kvs m out))
       (<= len 0xffffffff) (do (write-u8 out 0xdf) (write-u32 out len)  (pack-kvs m out)))))
 
+(defn- pack-set-bytes [s]
+  (let [out (out-stream 1024)] (pack-seq s out) @out))
+
 (declare pack)
 
 (extend-protocol Packable
@@ -291,8 +294,11 @@
 
   default
   (pack-bytes [x out]
-    (if (seqable? x)
-      (pack-seq x out)
+    (cond
+      (map? x)     (pack-map x out)
+      (set? x)     (pack-bytes (PackableExt. 4 (pack-set-bytes x)) out)
+      (seqable? x) (pack-seq x out)
+      :else
       (let [type-name (enc/type-name x)]
         (truss/ex-info!
           (str "Pack failed: unsupported type (" type-name ")")
@@ -442,7 +448,7 @@
       (let [in (in-stream ^js u8s)] (/ (unpack-1 in) (unpack-1 in))))))
 
 (c/extend-packable 4 PersistentHashSet
-  (pack   [s] (let [out (out-stream 1024)] (pack-seq s out) @out))
+  (pack   [s] (pack-set-bytes s))
   (unpack [^js u8s]
     (let [in (in-stream u8s)]
       (let    [byte-id (read-u8 in)]

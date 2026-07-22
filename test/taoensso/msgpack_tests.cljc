@@ -104,6 +104,7 @@
    (testing "Colls"
      [(rt? "Empty"     [] () #{} {})
       (rt? "Non-empty" [1 "2" 3 nil :x [] {}] '(1 "2" 3 nil :x [] {}) #{1 "2" 3 nil :x [] {}} {:a "a", "b" "b", 123 456, nil :x, [] {}})
+      #?(:cljs (rt? "Sorted" (sorted-map :a 1 :b 2) (sorted-set 1 2)))
       (let [c (range 0 (inc   256))] (rt? "size8"  c (vec c) (set c) (zipmap c c)))
       (let [c (range 0 (inc 65535))] (rt? "size16" c (vec c) (set c) (zipmap c c)))
       (let [c (range 0 (inc 65536))] (rt? "size32" c (vec c) (set c) (zipmap c c)))])
