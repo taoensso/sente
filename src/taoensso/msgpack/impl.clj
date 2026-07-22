@@ -313,6 +313,11 @@
           0xdd (unpack-n #{} (read-u32 in)            in)
           (do  (unpack-n #{} (bit-and 2r1111 byte-id) in)))))))
 
+(defn- ensure-array-width! [^bytes ba width]
+  (when-not (zero? (mod (alength ba) width))
+    (truss/ex-info! "Invalid MessagePack typed-array extension length"
+      {:byte-length (alength ba), :byte-width width})))
+
 (c/extend-packable 5 (class (int-array 0))
   (pack  [ia]
     (let [ba (byte-array (* 4 (alength ^ints ia)))
@@ -322,6 +327,7 @@
       (.array bb)))
 
   (unpack [ba]
+    (ensure-array-width! ba 4)
     (let  [bb (doto (ByteBuffer/wrap ba) (.order ByteOrder/BIG_ENDIAN))
            ib (.asIntBuffer bb)
            ia (int-array (.remaining ib))]
@@ -337,6 +343,7 @@
       (.array bb)))
 
   (unpack [ba]
+    (ensure-array-width! ba 4)
     (let  [bb (doto (ByteBuffer/wrap ba) (.order ByteOrder/BIG_ENDIAN))
            fb (.asFloatBuffer bb)
            fa (float-array (.remaining fb))]
@@ -352,6 +359,7 @@
       (.array bb)))
 
   (unpack [ba]
+    (ensure-array-width! ba 8)
     (let  [bb (doto (ByteBuffer/wrap ba) (.order ByteOrder/BIG_ENDIAN))
            db (.asDoubleBuffer bb)
            da (double-array (.remaining db))]

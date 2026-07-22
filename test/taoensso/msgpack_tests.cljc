@@ -212,6 +212,10 @@
     (is (thrown? #?(:clj Exception :cljs js/Error)
           (mp/unpack (encoded-bytes [0x92 0xc0 0xc0]) {:max-collection-items 1})))))
 
+#?(:clj
+   (deftest malformed-typed-array
+     (is (thrown? Exception (mp/unpack (encoded-bytes [0xd4 0x05 0x00]))))))
+
 #?(:cljs
    (defmethod test/report [:cljs.test/default :end-run-tests] [m]
      (when-not (test/successful? m)
