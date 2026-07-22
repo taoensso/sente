@@ -154,6 +154,14 @@
            (is (reached? ((post-fn {:csrf-token-fn (constantly :sente/skip-CSRF-check)}) {}))))))))
 
 #?(:clj
+   (deftest test-nil-lp-timeout
+     (testing "A nil server long-poll timeout disables the timeout"
+       (is
+         (map?
+           (sente/make-channel-socket-server! stub-sch-adapter
+             {:lp-timeout-ms nil}))))))
+
+#?(:clj
    (deftest test-reject-fn
      (testing "`:reject-fn` general rejection hook"
        (let [post-fn   (fn [opts] (:ajax-post-fn (sente/make-channel-socket-server! stub-sch-adapter opts)))

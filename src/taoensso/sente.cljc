@@ -440,7 +440,7 @@
   (truss/have? #(satisfies? i/IServerChanAdapter %) web-server-ch-adapter)
 
   (let [max-ms default-client-side-ajax-timeout-ms]
-    (when (>= lp-timeout-ms max-ms)
+    (when (and lp-timeout-ms (>= lp-timeout-ms max-ms))
       (truss/ex-info!
         (str ":lp-timeout-ms must be < " max-ms)
         {:lp-timeout-ms lp-timeout-ms
