@@ -92,7 +92,7 @@
   #?(:clj  (:import [org.java_websocket.client WebSocketClient])))
 
 (enc/assert-min-encore-version [3 62 1])
-(def sente-version "Useful for identifying client/server mismatch" [1 19 2])
+(def sente-version "Useful for identifying client/server mismatch" [1 19 3])
 
 #?(:cljs (def ^:private node-target? (= *target* "nodejs")))
 
@@ -1997,7 +1997,7 @@
             :packer    packer
             :ws-kalive-ms       ws-kalive-ms
             :ws-ping-timeout-ms ws-ping-timeout-ms
-            :ws-constructor     default-client-ws-constructor}
+            :ws-constructor     ws-constructor}
 
            ws-chsk-opts
            (merge common-chsk-opts
