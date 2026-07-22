@@ -863,10 +863,13 @@
                       ;; WebSocket handshake
                       (do
                         (trove/log! {:level :debug, :id :sente.server/ws-open, :data {:uid uid, :cid client-id}})
-                        (send-handshake! server-ch websocket?)
                         (let [[_ udt-open]
                               (swap-in! conns_ [:ws uid client-id]
                                 (fn [_] [server-ch (enc/now-udt) conn-id]))]
+
+                          ;; Register before sending: some adapters may invoke
+                          ;; `on-close` synchronously when this send fails.
+                          (send-handshake! server-ch websocket?)
 
                           ;; Server-side loop to detect broken conns, Ref. #230
                           (when ws-kalive-ms
@@ -923,9 +926,13 @@
 
                               (loop-fn udt-open ws-kalive-ms false)))
 
-                          (when (connect-uid!? :ws uid)
-                            (trove/log! {:level :debug, :id :sente.server/uidport-open, :data {:uid uid, :cid client-id}})
-                            (receive-event-msg! [:chsk/uidport-open uid]))))
+                          ;; The handshake send may have synchronously closed or
+                          ;; superseded this connection.
+                          (when-let [[sch _ conn-id*] (get-in @conns_ [:ws uid client-id])]
+                            (when (and sch (= conn-id conn-id*) (i/sch-open? sch))
+                              (when (connect-uid!? :ws uid)
+                                (trove/log! {:level :debug, :id :sente.server/uidport-open, :data {:uid uid, :cid client-id}})
+                                (receive-event-msg! [:chsk/uidport-open uid]))))))
 
                       ;; Ajax handshake/poll
                       (let [send-handshake?

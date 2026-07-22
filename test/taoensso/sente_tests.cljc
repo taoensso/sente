@@ -162,6 +162,52 @@
              {:lp-timeout-ms nil}))))))
 
 #?(:clj
+   (deftest test-sync-close-during-ws-handshake
+     (testing "A synchronous close during the handshake doesn't leave a stale connection"
+       (let [adapter
+             (reify i/IServerChanAdapter
+               (ring-req->server-ch-resp [_ _ring-req callbacks]
+                 (let [open?_ (atom true)
+                       sch
+                       (reify i/IServerChan
+                         (sch-open?  [_] @open?_)
+                         (sch-close! [this]
+                           (when (compare-and-set! open?_ true false)
+                             ((:on-close callbacks) this true :closed)
+                             true))
+                         (sch-send! [this _websocket? _msg]
+                           (when (compare-and-set! open?_ true false)
+                             ((:on-close callbacks) this true :send-failed))
+                           false))]
+
+                   ((:on-open callbacks) sch true)
+                   {:status 101})))
+
+             server
+             (sente/make-channel-socket-server! adapter
+               {:csrf-token-fn (constantly :sente/skip-CSRF-check)
+                :ws-kalive-ms nil
+                :ms-allow-reconnect-before-close-ws 10})
+
+             conns_ (get-in server [:private :conns_])]
+
+         ((:ajax-get-or-ws-handshake-fn server)
+          {:params {:client-id "client-1"}
+           :session {:uid :user-1}})
+
+         (is
+           (loop [attempts 100]
+             (cond
+               (and (= {:ws {} :ajax {}} @conns_)
+                    (= {:ws #{} :ajax #{} :any #{}} @(:connected-uids server)))
+               true
+
+               (pos? attempts)
+               (do (Thread/sleep 10) (recur (dec attempts)))
+
+               :else false)))))))
+
+#?(:clj
    (deftest test-reject-fn
      (testing "`:reject-fn` general rejection hook"
        (let [post-fn   (fn [opts] (:ajax-post-fn (sente/make-channel-socket-server! stub-sch-adapter opts)))
