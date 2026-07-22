@@ -26,6 +26,10 @@
       `:on-error` - (fn [sch websocket? error])
         Currently unused.
 
+      `:ws-protocol` - first client-requested WebSocket subprotocol, or nil.
+        WebSocket adapters must select a non-nil value in the upgrade
+        response.
+
        Note: all `sch` (\"server channel\") args provided above MUST implement
        the `IServerChan` protocol.
 

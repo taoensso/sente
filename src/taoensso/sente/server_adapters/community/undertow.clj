@@ -7,6 +7,7 @@
     [taoensso.trove :as trove])
   (:import
     [io.undertow.websockets.core WebSocketChannel]
+    [io.undertow.websockets.core.protocol.version13 Hybi13Handshake]
     [io.undertow.server HttpServerExchange]
     [io.undertow.websockets
      WebSocketConnectionCallback
@@ -22,19 +23,37 @@
     (websocket/send msg sch)
     (i/sch-open?        sch)))
 
+(deftype SenteUndertowWsResponse [callback ws-protocol])
+
 (extend-protocol response/RespondBody
-  WebSocketConnectionCallback
+  SenteUndertowWsResponse
   (respond [body ^HttpServerExchange exchange]
-    (let [handler (WebSocketProtocolHandshakeHandler. body)]
+    (let [^WebSocketConnectionCallback callback
+          (.-callback ^SenteUndertowWsResponse body)
+
+          protocol (.-ws-protocol ^SenteUndertowWsResponse body)
+          ^java.util.Collection handshakes
+          (when protocol
+            [(Hybi13Handshake. #{protocol} false)])
+
+          ^WebSocketProtocolHandshakeHandler
+          handler
+          (if handshakes
+            (WebSocketProtocolHandshakeHandler.
+              handshakes callback)
+            (WebSocketProtocolHandshakeHandler.
+              callback))]
       (.handleRequest handler exchange))))
 
 (defn- ws-ch
-  [ring-req {:keys [on-open on-close on-msg on-error]} _adapter-opts]
-  (websocket/ws-callback
-    {:on-open          (when on-open  (fn [{:keys [channel]}]         (on-open  channel true)))
-     :on-error         (when on-error (fn [{:keys [channel error]}]   (on-error channel true error)))
-     :on-message       (when on-msg   (fn [{:keys [channel data]}]    (on-msg   channel true data)))
-     :on-close-message (when on-close (fn [{:keys [channel message]}] (on-close channel true message)))}))
+  [ring-req {:keys [on-open on-close on-msg on-error ws-protocol]} _adapter-opts]
+  (SenteUndertowWsResponse.
+    (websocket/ws-callback
+      {:on-open          (when on-open  (fn [{:keys [channel]}]         (on-open  channel true)))
+       :on-error         (when on-error (fn [{:keys [channel error]}]   (on-error channel true error)))
+       :on-message       (when on-msg   (fn [{:keys [channel data]}]    (on-msg   channel true data)))
+       :on-close-message (when on-close (fn [{:keys [channel message]}] (on-close channel true message)))})
+    ws-protocol))
 
 ;;;; Ajax
 

@@ -26,8 +26,10 @@
 (deftype AlephAsyncNetworkChannelAdapter [opts]
   i/IServerChanAdapter
   (ring-req->server-ch-resp [sch-adapter ring-req callbacks-map]
-    (let [{:keys [on-open on-close on-msg _on-error]} callbacks-map
-          ws? (websocket-req? ring-req)]
+    (let [{:keys [on-open on-close on-msg _on-error ws-protocol]} callbacks-map
+          ws? (websocket-req? ring-req)
+          opts (cond-> opts ws-protocol
+                 (assoc-in [:headers "Sec-WebSocket-Protocol"] ws-protocol))]
       (if-let [s (and ws? (try @(aleph/websocket-connection ring-req opts)
                                (catch Exception e nil)))]
         (do

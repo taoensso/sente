@@ -20,6 +20,7 @@
    ;; :cljs cannot compile taoensso.sente under :nodejs target
    #?(:clj [ring.core.protocols :as ring-protocols])
    #?(:clj [taoensso.sente :as sente])
+   #?(:clj [taoensso.sente.server-adapters.http-kit :as http-kit])
    #?(:clj [taoensso.sente.server-adapters.community.jetty :as jetty])
 
    [taoensso.sente.interfaces      :as i]
@@ -125,6 +126,9 @@
          (is (true?  (sente/valid-csrf-token? tok-fn {:params  {:csrf-token    "secret-tok"}})) "Request-param token match")
          (is (true?  (sente/valid-csrf-token? tok-fn {:headers {"x-csrf-token" "secret-tok"}})) "x-csrf-token header match")
          (is (true?  (sente/valid-csrf-token? tok-fn {:headers {"x-xsrf-token" "secret-tok"}})) "x-xsrf-token header match")
+         (is (true?  (sente/valid-csrf-token? tok-fn
+                       {:headers {"sec-websocket-protocol" "chat, sente-csrf-v1.secret-tok"}}))
+           "WebSocket subprotocol token match")
          (is (false? (sente/valid-csrf-token? tok-fn {:params  {:csrf-token    "wrong-tok"}}))  "Token mismatch => false")
          (is (false? (sente/valid-csrf-token? tok-fn {}))                                       "Missing client token => false")
          (is (false? (sente/valid-csrf-token? (fn [_] nil) {:params {:csrf-token "x"}}))        "Missing reference token => false")
@@ -263,6 +267,53 @@
                (do (Thread/sleep 10) (recur (dec attempts)))
 
                :else false)))))))
+
+#?(:clj
+   (deftest test-websocket-csrf-transport
+     (testing "WebSocket CSRF tokens stay out of request URLs"
+       (let [constructor-opts_ (atom nil)
+             ws-constructor
+             (fn [opts]
+               (reset! constructor-opts_ opts)
+               (delay
+                 (reify i/IClientWebSocket
+                   (cws-raw   [_] nil)
+                   (cws-send  [_ _data] true)
+                   (cws-close [_ _code _reason _clean?] true))))
+             client
+             (sente/make-channel-socket-client! "/chsk" "secret/tok"
+               {:type :ws, :protocol :http, :host "localhost"
+                :legacy-ws-csrf-token-in-url? false
+                :headers {"X-App" "yes"}
+                :ws-constructor ws-constructor
+                :ws-kalive-ms nil})]
+         (try
+           (let [{:keys [uri-str headers protocols]} @constructor-opts_]
+             (is (not (str/includes? uri-str "csrf")))
+             (is (= "secret/tok" (get headers "X-CSRF-Token")))
+             (is (= "yes" (get headers "X-App")))
+             (is (nil? protocols)))
+           (finally
+             (sente/chsk-disconnect! (:chsk client))))))
+
+     (testing "The server selects the first requested subprotocol"
+       (let [callbacks_ (atom nil)
+             adapter
+             (reify i/IServerChanAdapter
+               (ring-req->server-ch-resp [_ _ring-req callbacks]
+                 (reset! callbacks_ callbacks)
+                 {:status 101}))
+             server
+             (sente/make-channel-socket-server! adapter
+               {:csrf-token-fn (constantly "secret/tok")})]
+         ((:ajax-get-or-ws-handshake-fn server)
+          {:params {:client-id "client-1"}
+           :headers {"sec-websocket-protocol"
+                     "chat, sente-csrf-v1.secret%2Ftok"}})
+         (is (= "chat" (:ws-protocol @callbacks_)))))
+
+     (testing "The http-kit adapter remains available"
+       (is (satisfies? i/IServerChanAdapter (http-kit/get-sch-adapter))))))
 
 #?(:clj
    (deftest test-jetty-ajax-binary-response

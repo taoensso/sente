@@ -277,6 +277,34 @@
   (allow-origin? #{"http://site.com"} {:headers {"referer" "http://attacker.com/"}})
   (allow-origin? #{"http://site.com"} {:headers {"referer" "http://site.com.attacker.com/"}}))
 
+(def ^:private csrf-ws-protocol-prefix "sente-csrf-v1.")
+
+(defn- csrf-token->ws-protocol [token]
+  (when token
+    ;; "(" and ")" are legal in URLs (so preserved by Cljs `url-encode`)
+    ;; but illegal in `Sec-WebSocket-Protocol` tokens
+    (str csrf-ws-protocol-prefix
+      (-> (enc/url-encode token)
+        (str/replace "(" "%28")
+        (str/replace ")" "%29")))))
+
+(defn- ring-req->ws-protocols [ring-req]
+  (when-let [header (get-in ring-req [:headers "sec-websocket-protocol"])]
+    (when (string? header)
+      (str/split header #"\s*,\s*"))))
+
+(defn- ring-req->csrf-ws-protocol [ring-req]
+  (some
+    (fn [protocol]
+      (when (str/starts-with? protocol csrf-ws-protocol-prefix)
+        protocol))
+    (ring-req->ws-protocols ring-req)))
+
+(defn- ring-req->csrf-ws-token [ring-req]
+  (when-let [protocol (ring-req->csrf-ws-protocol ring-req)]
+    (truss/catching
+      (enc/url-decode (subs protocol (count csrf-ws-protocol-prefix))))))
+
 (defn valid-csrf-token?
   "Returns true iff given Ring request has valid CSRF token as per `csrf-token-fn`
   (see [[make-channel-socket-server!]] `:csrf-token-fn` option).
@@ -297,7 +325,8 @@
             (or
               (get-in ring-req [:params    :csrf-token])
               (get-in ring-req [:headers "x-csrf-token"])
-              (get-in ring-req [:headers "x-xsrf-token"]))]
+              (get-in ring-req [:headers "x-xsrf-token"])
+              (ring-req->csrf-ws-token ring-req))]
         (boolean
           (enc/const-str=
             ref-token
@@ -734,7 +763,8 @@
                   conn-id     (enc/uuid-str 6) ; 1 per ws/ajax rreq, equiv to server-ch identity
                   params      (get ring-req :params)
                   client-id   (get params   :client-id)
-                  uid         (user-id-fn ring-req client-id)]
+                  uid         (user-id-fn ring-req client-id)
+                  ws-protocol (first (ring-req->ws-protocols ring-req))]
 
           (enc/cond
             (str/blank? client-id)
@@ -1004,7 +1034,8 @@
                  :on-open             on-open
                  :on-msg              on-msg
                  :on-close            on-close
-                 :on-error            on-error}))))))))}))
+                 :on-error            on-error
+                 :ws-protocol         ws-protocol}))))))))}))
 
 (def ^:dynamic *simulated-bad-conn-rate*
   "Debugging tool. Proportion ∈ℝ[0,1] of connection activities to sabotage."
@@ -1277,7 +1308,7 @@
    (defn- make-client-ws
      "Returns nil or a delay that can be dereffed to get a connected JS
      `ClientWebSocket`."
-     [{:keys [uri-str headers on-error on-message on-close binary-type]
+     [{:as opts :keys [uri-str protocols on-error on-message on-close binary-type]
        :or   {binary-type "arraybuffer"}}]
 
      (when-let [WebSocket
@@ -1286,7 +1317,10 @@
                   (enc/oget goog/global           "MozWebSocket")
                   (enc/oget @?node-npm-websocket_ "w3cwebsocket"))]
        (delay
-         (let [socket (WebSocket. uri-str)]
+         (let [socket
+               (if (and (::use-ws-protocols? opts) (seq protocols))
+                 (WebSocket. uri-str (clj->js protocols))
+                 (WebSocket. uri-str))]
            (doto socket
              (aset "binaryType" binary-type)
              (aset "onerror"    on-error)
@@ -1353,7 +1387,8 @@
    cbs-waiting_ ; {<cb-uuid> <fn> ...}
    socket_ ; ?[<socket> <socket-id>]
    udt-last-comms_
-   ws-constructor]
+   ws-constructor
+   legacy-ws-csrf-token-in-url?]
 
   IChSocket
   (-chsk-disconnect! [chsk reason]
@@ -1510,21 +1545,50 @@
 
                           (retry-fn))))
 
+                    csrf-token
+                    (get-client-csrf-token-str :dynamic (:csrf-token @state_))
+
+                    csrf-ws-protocol
+                    (when-not legacy-ws-csrf-token-in-url?
+                      (csrf-token->ws-protocol csrf-token))
+
+                    ws-headers
+                    (cond-> headers
+                      (and csrf-token (not legacy-ws-csrf-token-in-url?))
+                      (assoc "X-CSRF-Token" csrf-token))
+
+                    ws-protocols
+                    (when-not legacy-ws-csrf-token-in-url?
+                      #?(:clj (:protocols ws-opts)
+                         :cljs
+                         (let [configured (:protocols ws-opts)
+                               configured (cond
+                                            (string? configured) [configured]
+                                            (sequential? configured) configured
+                                            :else nil)]
+                           (vec
+                             (distinct
+                               (cond-> (vec configured)
+                                 csrf-ws-protocol (conj csrf-ws-protocol)))))))
+
                     ?new-socket_
                     (when ws-constructor
                       (truss/try*
                         (ws-constructor
                           (merge ws-opts
+                            (when-not legacy-ws-csrf-token-in-url?
+                              {:protocols ws-protocols
+                               ::use-ws-protocols? true})
                             {:on-error   on-error
                              :on-message on-message
                              :on-close   on-close
-                             :headers    headers
+                             :headers    ws-headers
                              :uri-str
                              (enc/merge-url-with-query-string url
                                (merge params ; 1st (don't clobber impl.):
-                                 {:client-id  client-id
-                                  :csrf-token (get-client-csrf-token-str :dynamic
-                                                (:csrf-token @state_))}))}))
+                                 {:client-id client-id}
+                                 (when legacy-ws-csrf-token-in-url?
+                                   {:csrf-token csrf-token})))}))
 
                         (catch :any t
                           (trove/log! {:level :error, :id :sente.client/ws-constructor-error, :error t}))))]
@@ -1854,14 +1918,21 @@
        :ws-kalive-ms       ; Max msecs to allow WebSocket inactivity before client sends ping to server.
        :ws-ping-timeout-ms ; Max msecs to wait for ws-kalive ping response before concluding conn is broken.
 
-       :ws-constructor ; Advanced, (fn [{:keys [uri-str headers on-message on-error on-close]}]
+       :legacy-ws-csrf-token-in-url? ; Send WebSocket CSRF token in URL? (default true).
+                                     ; Set false only when server adapters select
+                                     ; `:ws-protocol` and custom browser constructors
+                                     ; pass `:protocols`. WARNING: true exposes the
+                                     ; token in request URLs.
+
+       :ws-constructor ; Advanced, (fn [{:keys [uri-str headers protocols on-message on-error on-close]}]
                        ; => nil or delay that can be dereffed to get a connected `ClientWebSocket`."
 
      [path ?csrf-token-or-fn &
       [{:as   opts
         :keys [type protocol host port params headers recv-buf-or-n packer
                ws-constructor ws-kalive-ms ws-ping-timeout-ms ws-opts
-               client-id ajax-opts wrap-recv-evs? backoff-ms-fn]
+               client-id ajax-opts wrap-recv-evs? backoff-ms-fn
+               legacy-ws-csrf-token-in-url?]
 
         :or   {type           :auto
                recv-buf-or-n  (async/sliding-buffer 2048) ; Mostly for buffered-evs
@@ -1873,6 +1944,7 @@
 
                ws-kalive-ms       20000
                ws-ping-timeout-ms 5000
+               legacy-ws-csrf-token-in-url? true
                ws-constructor     #?(:cljs make-client-ws :clj nil)}}]]
 
      (truss/have? [:in #{:ajax :ws :auto}] type)
@@ -1939,7 +2011,8 @@
            (merge common-chsk-opts
              {:url           ws-url
               :backoff-ms-fn backoff-ms-fn
-              :ws-opts       ws-opts})
+              :ws-opts       ws-opts
+              :legacy-ws-csrf-token-in-url? legacy-ws-csrf-token-in-url?})
 
            ajax-chsk-opts
            (merge common-chsk-opts

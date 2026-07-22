@@ -2,9 +2,13 @@
   ;; `^:no-doc` needed to prevent broken cljdoc build
   {:author "Zhang Yuexiang (@xfeep)"}
   (:require
+   [clojure.string :as str]
    [taoensso.encore :as enc]
    [taoensso.sente.interfaces :as i]
-   [nginx.clojure.core :as ncc]))
+   [nginx.clojure.core :as ncc])
+
+  (:import
+   [nginx.clojure NginxRequest NginxSimpleHandler]))
 
 (def ^:dynamic *max-message-size*
   nginx.clojure.WholeMessageAdapter/DEFAULT_MAX_MESSAGE_SIZE)
@@ -23,8 +27,24 @@
 (deftype NginxServerChanAdapter []
   i/IServerChanAdapter
   (ring-req->server-ch-resp [sch-adapter ring-req callbacks-map]
-    (let [{:keys [on-open on-close on-msg _on-error]} callbacks-map
+    (let [{:keys [on-open on-close on-msg _on-error ws-protocol]} callbacks-map
+          ^NginxRequest native-req ring-req
           sch (ncc/hijack! ring-req true)
+          ws-request?
+          (= "websocket"
+            (some-> (get-in ring-req [:headers "upgrade"]) str/lower-case))
+
+          ^java.util.Map protocol-headers
+          (when (and ws-request? ws-protocol)
+            (java.util.Collections/singletonMap
+              "Sec-WebSocket-Protocol" ws-protocol))
+
+          _
+          (when protocol-headers
+            ;; Native upgrade generates the rest of the 101 response after this.
+            (.prepareHeaders ^NginxSimpleHandler (.handler native-req)
+              native-req 101 (.entrySet protocol-headers)))
+
           ws? (ncc/websocket-upgrade! sch false)]
 
       ;; Returns {:status 200 :body <nginx-clojure-implementation-channel>}:

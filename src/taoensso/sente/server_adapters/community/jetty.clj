@@ -41,10 +41,10 @@
       true))
 
 (defn- respond-ws
-  [{:keys [websocket-subprotocols]}
-   {:keys [on-close on-error on-msg on-open]}]
+  [_ring-req
+   {:keys [on-close on-error on-msg on-open ws-protocol]}]
 
-  {:ring.websocket/protocol (first websocket-subprotocols)
+  {:ring.websocket/protocol ws-protocol
    :ring.websocket/listener
    (reify ws.protocols/Listener
      (on-close   [_ sch status _] (on-close sch true status))

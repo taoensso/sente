@@ -16,18 +16,21 @@
 (deftype ImmutantServerChanAdapter []
   i/IServerChanAdapter
   (ring-req->server-ch-resp [sch-adapter ring-req callbacks-map]
-    (let [{:keys [on-open on-close on-msg on-error]} callbacks-map
+    (let [{:keys [on-open on-close on-msg on-error ws-protocol]} callbacks-map
           ws? (:websocket? ring-req)]
 
       ;; Returns {:body <immutant-implementation-channel> ...}:
-      (imm/as-channel ring-req
-        :timeout     0 ; Deprecated, Ref. https://goo.gl/t4RolO
-        :on-open     (when on-open  (fn [sch          ] (on-open  sch ws?)))
-        :on-error    (when on-error (fn [sch throwable] (on-error sch ws? throwable)))
-        :on-message  (when on-msg   (fn [sch msg      ] (on-msg   sch ws? msg)))
-        :on-close    (when on-close
-                       (fn [sch {:keys [code reason] :as status-map}]
-                         (on-close sch ws? status-map)))))))
+      (cond->
+        (imm/as-channel ring-req
+          :timeout     0 ; Deprecated, Ref. https://goo.gl/t4RolO
+          :on-open     (when on-open  (fn [sch          ] (on-open  sch ws?)))
+          :on-error    (when on-error (fn [sch throwable] (on-error sch ws? throwable)))
+          :on-message  (when on-msg   (fn [sch msg      ] (on-msg   sch ws? msg)))
+          :on-close    (when on-close
+                         (fn [sch {:keys [code reason] :as status-map}]
+                           (on-close sch ws? status-map))))
+        ws-protocol
+        (assoc-in [:headers "Sec-WebSocket-Protocol"] ws-protocol)))))
 
 (defn get-sch-adapter
   "Returns a Sente `ServerChan` adapter for `Immutant` v2+,
