@@ -760,7 +760,7 @@
         (call-ring-handler ?ring-async-resp-fn ?ring-async-raise-fn
           (fn [?ring-async-resp-fn ?ring-async-raise-fn]
             (let [;; ?ws-key  (get-in ring-req [:headers "sec-websocket-key"])
-                  conn-id     (enc/uuid-str 6) ; 1 per ws/ajax rreq, equiv to server-ch identity
+                  conn-id     (enc/nanoid 10) ; 1 per ws/ajax rreq, equiv to server-ch identity
                   params      (get ring-req :params)
                   client-id   (get params   :client-id)
                   uid         (user-id-fn ring-req client-id)
@@ -1421,7 +1421,7 @@
 
       :let
       [{?timeout-ms :timeout-ms :keys [flush?]} opts
-       ?cb-uuid (when ?cb-fn (enc/uuid-str 6))]
+       ?cb-uuid (when ?cb-fn (enc/nanoid 10))]
 
       :do (assert-send-args ev ?timeout-ms ?cb-fn)
       :do
