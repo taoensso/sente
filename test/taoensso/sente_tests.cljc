@@ -18,8 +18,9 @@
    [taoensso.encore :as enc]
 
    ;; :cljs cannot compile taoensso.sente under :nodejs target
-   #?(:clj [ring.core.protocols :as ring-protocols])
-   #?(:clj [taoensso.sente :as sente])
+   #?(:clj [ring.core.protocols              :as ring-protocols])
+   #?(:clj [taoensso.sente                :as sente])
+   #?(:clj [taoensso.sente.java-ws-client :as java-ws])
    #?(:clj [taoensso.sente.server-adapters.http-kit :as http-kit])
    #?(:clj [taoensso.sente.server-adapters.community.jetty :as jetty])
 
@@ -267,6 +268,24 @@
                (do (Thread/sleep 10) (recur (dec attempts)))
 
                :else false)))))))
+
+#?(:clj
+   (deftest test-java-ws-binary-message
+     (testing "The Java WebSocket client forwards binary frames as independent byte arrays"
+       (let [received_ (atom nil)
+             ws-client
+             (#'java-ws/make-ws-client
+              "ws://localhost/test" nil
+              (fn [_]) #(reset! received_ %) (fn [_ _ _]))
+
+             source (byte-array [0 1 2 3])
+             bb     (doto (java.nio.ByteBuffer/wrap source) (.position 1))]
+
+         (.onMessage ws-client bb)
+         (aset-byte source 1 (byte 9))
+
+         (is (= [1 2 3] (vec @received_)))
+         (is (= 1 (.position bb)))))))
 
 #?(:clj
    (deftest test-websocket-csrf-transport
