@@ -68,7 +68,7 @@
       (rt? "uint8"  0x80 0xf0 0xff)
       (rt? "uint16" 0x100 0x2000 0xffff)
       (rt? "uint32" 0x10000 0x200000 0xffffffff)
-      (rt? "uint64" 0x100000000 0x200000000000 #_0xffffffffffffffff)
+      (rt? "uint64" 0x100000000 0x200000000000 #?(:clj 0xffffffffffffffffN))
 
       (rt? "int8"  -33 -100 -128)
       (rt? "int16" -129 -2000 -32768)
@@ -188,11 +188,15 @@
        (let [safe-max
              (js/Uint8Array.
                #js [0xd3 0x00 0x1f 0xff 0xff 0xff 0xff 0xff 0xff])
+             safe-u64
+             (js/Uint8Array.
+               #js [0xcf 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x01])
              unsafe
              (js/Uint8Array.
                #js [0xd3 0x00 0x20 0x00 0x00 0x00 0x00 0x00 0x01])]
 
          (is (= js/Number.MAX_SAFE_INTEGER (mp/unpack safe-max)))
+         (is (= 1 (mp/unpack safe-u64)))
          (is (thrown? js/RangeError (mp/unpack unsafe)))))))
 
 (deftest malformed-uuid

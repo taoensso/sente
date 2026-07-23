@@ -64,6 +64,13 @@
       :else                     (do (.writeByte out 0xcf) (.writeLong  out (unchecked-long n))) ; uint64
       )))
 
+(def ^:private ^BigInteger max-u64 (biginteger 0xffffffffffffffffN))
+(defn- pack-big-int [^BigInteger n ^DataOutput out]
+  (cond
+    (<= Long/MIN_VALUE n Long/MAX_VALUE) (pack-int (.longValue n) out)
+    (<= 0 n max-u64) (do (.writeByte out 0xcf) (.writeLong out (.longValue n)))
+    :else (truss/ex-info! "Integer outside MessagePack 64-bit range" {:value n})))
+
 (defn- pack-coll [c ^DataOutput out] (reduce (fn [_ el] (pack-bytes el out)) nil c))
 (defn- pack-seq  [s ^DataOutput out]
   (let [len (count s)]
@@ -103,8 +110,8 @@
   java.lang.Short             (pack-bytes [n ^DataOutput out] (pack-int n out))
   java.lang.Integer           (pack-bytes [n ^DataOutput out] (pack-int n out))
   java.lang.Long              (pack-bytes [n ^DataOutput out] (pack-int n out))
-  java.math.BigInteger        (pack-bytes [n ^DataOutput out] (pack-int (.longValueExact                n)  out)) ; i64 range, or throw
-  clojure.lang.BigInt         (pack-bytes [n ^DataOutput out] (pack-int (.longValueExact (.toBigInteger n)) out)) ; ''
+  java.math.BigInteger        (pack-bytes [n ^DataOutput out] (pack-big-int                n  out))
+  clojure.lang.BigInt         (pack-bytes [n ^DataOutput out] (pack-big-int (.toBigInteger n) out))
   ;;
   java.lang.Float             (pack-bytes [f ^DataOutput out] (do (.writeByte out 0xca) (.writeFloat  out f)))
   java.lang.Double            (pack-bytes [d ^DataOutput out] (do (.writeByte out 0xcb) (.writeDouble out d)))
