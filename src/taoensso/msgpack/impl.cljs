@@ -429,6 +429,9 @@
 
 ;;;; Built-in extensions
 
+(defn- ensure-ext! [valid? data]
+  (when-not valid? (truss/ex-info! "Invalid MessagePack extension" data)))
+
 (c/extend-packable 0 Keyword
   (pack   [k]       (.encode text-encoder (.substring (str k) 1)))
   (unpack [^js u8s] (keyword (.decode text-decoder ^js u8s))))
@@ -439,23 +442,51 @@
 
 (c/extend-packable 2 nil ; Char
   nil
-  (unpack [^js u8s] (.decode text-decoder ^js u8s)))
+  (unpack [^js u8s]
+    (let [s (.decode text-decoder ^js u8s)]
+      (ensure-ext! (= (count s) 1) {:type :character, :value s})
+      s)))
+
+(defn- int-format-at?
+  "Is the encoded value starting at `idx` in an integer wire format?
+  Needed since JS numbers can't distinguish e.g. float64 1.0 from int 1."
+  [^js u8s idx]
+  (when (< idx (.-byteLength u8s))
+    (let [b (aget u8s idx)]
+      (or (<= b 0x7f) (>= b 0xe0) (<= 0xcc b 0xd3)))))
 
 (c/extend-packable 3 nil ; Ratio
   nil
   (unpack [^js u8s]
     (binding [*nesting-depth* (next-nesting-depth!)]
-      (let [in (in-stream ^js u8s)] (/ (unpack-1 in) (unpack-1 in))))))
+      (let [in (in-stream ^js u8s)
+            _ (ensure-ext! (int-format-at? u8s 0) {:type :ratio})
+            numerator (unpack-1 in)
+            _ (ensure-ext! (int-format-at? u8s (- (.-byteLength ^js u8s) (remaining in)))
+                {:type :ratio})
+            denominator (unpack-1 in)
+            _ (ensure-ext!
+                (and (integer? numerator)
+                     (integer? denominator)
+                     (not (zero? denominator)))
+                {:type :ratio, :numerator numerator, :denominator denominator})
+            v (/ numerator denominator)]
+        (ensure-ext! (zero? (remaining in)) {:type :ratio})
+        v))))
 
 (c/extend-packable 4 PersistentHashSet
   (pack   [s] (pack-set-bytes s))
   (unpack [^js u8s]
     (let [in (in-stream u8s)]
-      (let    [byte-id (read-u8 in)]
-        (case  byte-id
-          0xdc (unpack-n #{} (read-u16 in)            in)
-          0xdd (unpack-n #{} (read-u32 in)            in)
-          (do  (unpack-n #{} (bit-and 2r1111 byte-id) in)))))))
+      (let [byte-id (read-u8 in)
+            v (case byte-id
+                0xdc (unpack-n #{} (read-u16 in) in)
+                0xdd (unpack-n #{} (read-u32 in) in)
+                (if (= (bit-and byte-id 0xf0) 0x90)
+                  (unpack-n #{} (bit-and byte-id 0x0f) in)
+                  (truss/ex-info! "Invalid MessagePack set extension" {:byte-id byte-id})))]
+        (ensure-ext! (zero? (remaining in)) {:type :set})
+        v))))
 
 (defn- typed-array-bytes
   [^js a byte-width write-fn]
@@ -516,6 +547,8 @@
       (js/Uint8Array. ab)))
 
   (unpack [u8s]
+    (ensure-ext! (= (.-byteLength ^js u8s) 12)
+      {:type :timestamp, :byte-length (.-byteLength ^js u8s)})
     (let [^js u8s                u8s
           ab       (.-buffer     u8s)
           off      (.-byteOffset u8s)
@@ -527,10 +560,16 @@
           long-s   (goog.math.Long. lo hi)
           secs     (.toNumber long-s)
           millis   (+ (* secs 1000) (/ nanos 1000000))]
-      (js/Date. millis))))
+      (ensure-ext! (<= nanos 999999999) {:type :timestamp, :nanoseconds nanos})
+      (let [date (js/Date. millis)]
+        (ensure-ext! (not (js/Number.isNaN (.getTime date)))
+          {:type :timestamp, :epoch-seconds (.toString long-s)})
+        date))))
 
 (c/extend-packable 8 nil nil ; Cached key
   (unpack [u8s]
+    (ensure-ext! (= (.-byteLength ^js u8s) 1)
+      {:type :cached-key, :byte-length (.-byteLength ^js u8s)})
     (let [cache-idx (aget ^js u8s 0)
           cache     (when c/*key-cache_* @c/*key-cache_*)]
       (if (contains? cache cache-idx)

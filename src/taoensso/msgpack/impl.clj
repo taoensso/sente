@@ -281,6 +281,9 @@
 
 ;;;; Built-in extensions
 
+(defn- ensure-ext! [valid? data]
+  (when-not valid? (truss/ex-info! "Invalid MessagePack extension" data)))
+
 (c/extend-packable 0 clojure.lang.Keyword
   (pack   [k]  (.getBytes (.substring (str k) 1) StandardCharsets/UTF_8))
   (unpack [ba] (keyword (String. ^bytes ba       StandardCharsets/UTF_8))))
@@ -291,7 +294,10 @@
 
 (c/extend-packable 2 java.lang.Character
   (pack   [c]  (.getBytes (str c)          StandardCharsets/UTF_8))
-  (unpack [ba] (.charAt (String. ^bytes ba StandardCharsets/UTF_8) 0)))
+  (unpack [ba]
+    (let [s (String. ^bytes ba StandardCharsets/UTF_8)]
+      (ensure-ext! (= (.length s) 1) {:type :character, :value s})
+      (.charAt s 0))))
 
 (c/extend-packable 3 clojure.lang.Ratio
   (pack [r]
@@ -301,17 +307,31 @@
 
   (unpack [ba]
     (binding [*nesting-depth* (next-nesting-depth!)]
-      (with-in [in ba] (/ (unpack-1 in) (unpack-1 in))))))
+      (with-in [in ba]
+        (let [numerator   (unpack-1 in)
+              denominator (unpack-1 in)
+              _ (ensure-ext!
+                  (and (integer? numerator)
+                       (integer? denominator)
+                       (not (zero? denominator)))
+                  {:type :ratio, :numerator numerator, :denominator denominator})
+              v (/ numerator denominator)]
+          (ensure-ext! (zero? (*remaining-input-bytes-fn*)) {:type :ratio})
+          v)))))
 
 (c/extend-packable 4 clojure.lang.IPersistentSet
   (pack   [s]  (with-out [out 128] (pack-seq s out)))
   (unpack [ba]
     (with-in [in ba]
-      (let    [byte-id (.readUnsignedByte in)]
-        (case  byte-id
-          0xdc (unpack-n #{} (read-u16 in)            in)
-          0xdd (unpack-n #{} (read-u32 in)            in)
-          (do  (unpack-n #{} (bit-and 2r1111 byte-id) in)))))))
+      (let [byte-id (.readUnsignedByte in)
+            v (case byte-id
+                0xdc (unpack-n #{} (read-u16 in) in)
+                0xdd (unpack-n #{} (read-u32 in) in)
+                (if (= (bit-and byte-id 0xf0) 0x90)
+                  (unpack-n #{} (bit-and byte-id 0x0f) in)
+                  (truss/ex-info! "Invalid MessagePack set extension" {:byte-id byte-id})))]
+        (ensure-ext! (zero? (*remaining-input-bytes-fn*)) {:type :set})
+        v))))
 
 (defn- ensure-array-width! [^bytes ba width]
   (when-not (zero? (mod (alength ba) width))
@@ -376,13 +396,16 @@
 (c/extend-packable -1 java.time.Instant
   (pack   [i] (instant->ba i))
   (unpack [ba]
+    (ensure-ext! (= (alength ^bytes ba) 12) {:type :timestamp, :byte-length (alength ^bytes ba)})
     (let  [bb (ByteBuffer/wrap ba)
            nanos (.getInt  bb)
            secs  (.getLong bb)]
+      (ensure-ext! (<= 0 nanos 999999999) {:type :timestamp, :nanoseconds nanos})
       (java.time.Instant/ofEpochSecond secs nanos))))
 
 (c/extend-packable 8 nil nil ; Cached key
   (unpack [ba]
+    (ensure-ext! (= (alength ^bytes ba) 1) {:type :cached-key, :byte-length (alength ^bytes ba)})
     (let [cache-idx (bit-and 0xff (aget ^bytes ba 0))
           cache     (when c/*key-cache_* @c/*key-cache_*)]
       (if (contains? cache cache-idx)
