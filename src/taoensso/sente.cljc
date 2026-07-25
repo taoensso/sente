@@ -281,7 +281,7 @@
   Checks the browser-set `Origin` header, falling back to `Referer` as per the
   OWASP CSRF Prevention Cheat Sheet. Since a same-origin request is by
   definition not cross-site, this doubles as an origin-based CSRF defense: it's
-  what [[make-channel-socket-server!]]'s `:allowed-origins` uses, and you can also
+  what `make-channel-socket-server!`'s `:allowed-origins` uses, and you can also
   call it directly from a custom `:reject-fn`."
 
   [allowed-origins ring-req]
@@ -348,7 +348,7 @@
 
 (defn valid-csrf-token?
   "Returns true iff given Ring request has valid CSRF token as per `csrf-token-fn`
-  (see [[make-channel-socket-server!]] `:csrf-token-fn` option).
+  (see `make-channel-socket-server!` `:csrf-token-fn` option).
 
   Exposed to help write custom `:reject-fn`.
   To reject a request unless it has either a trusted origin or a valid token:
@@ -451,7 +451,7 @@
                        ; Use it for custom CSRF (a signed/stateless token, double-submit
                        ; cookie, Fetch Metadata, Origin/Referer, ...) and for reasons Sente
                        ; doesn't itself model (rate limiting, IP allow/deny, maintenance, ...).
-                       ; The public [[allow-origin?]] and [[valid-csrf-token?]] helpers are
+                       ; The public `allow-origin?` and `valid-csrf-token?` helpers are
                        ; handy for composing checks here.
                        ;
                        ; Note this can only ADD rejections; a nil return won't relax a
