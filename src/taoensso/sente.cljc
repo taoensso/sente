@@ -122,7 +122,8 @@
   throws a validation exception."
   [x]
   (when-let [errs (validate-event x)]
-    (truss/ex-info! "Invalid event" {:given x :errors errs})))
+    (truss/ex-info! "Invalid event" {:given x :errors errs}))
+  x)
 
 (defn event? "Valid [ev-id ?ev-data] form?" [x] (nil? (validate-event x)))
 (defn as-event [x]

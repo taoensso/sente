@@ -106,6 +106,7 @@
       (is (contains? (sente/validate-event given) error)))
     (is (sente/event? event))
     (is (not (sente/event? [:event])))
+    (is (identical? event (sente/assert-event event)))
     (is (thrown? #?(:clj Exception :cljs js/Error)
           (sente/assert-event [:event])))
     (is (= event (sente/as-event event)))
