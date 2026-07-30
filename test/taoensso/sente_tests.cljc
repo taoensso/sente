@@ -1,13 +1,8 @@
 (ns taoensso.sente-tests
-  "Due to the complexity of automated browser tests, Sente has
-  traditionally been tested manually. Before each release, a suite
-  of checks have been done against the reference example project.
+  "Automated unit, regression, and JVM integration tests for Sente.
 
-  In the hope of eventually doing more of this work automatically,
-  the current namespace provides a groundwork for future automated
-  tests.
-
-  PRs very welcome if you'd like to contribute to this effort!"
+  Browser-specific behaviour is still checked manually against the
+  reference example project."
 
   (:require
    [clojure.test                     :as test :refer [deftest testing is]]
@@ -17,10 +12,12 @@
    [clojure.string  :as str]
    [taoensso.encore :as enc]
 
-   ;; :cljs cannot compile taoensso.sente under :nodejs target
    #?(:clj [clojure.core.async              :as async])
+   #?(:clj [org.httpkit.server              :as hk])
    #?(:clj [ring.core.protocols              :as ring-protocols])
-   #?(:clj [taoensso.sente                :as sente])
+   #?(:clj [ring.middleware.keyword-params   :as ring-keyword-params])
+   #?(:clj [ring.middleware.params           :as ring-params])
+   [taoensso.sente                         :as sente]
    #?(:clj [taoensso.sente.java-ws-client :as java-ws])
    #?(:clj [taoensso.sente.server-adapters.http-kit :as http-kit])
    #?(:clj [taoensso.sente.server-adapters.community.jetty :as jetty])
@@ -289,33 +286,133 @@
          (is (= 1 (.position bb)))))))
 
 #?(:clj
-   (deftest test-websocket-csrf-transport
-     (testing "WebSocket CSRF tokens stay out of request URLs"
-       (let [constructor-opts_ (atom nil)
-             ws-constructor
-             (fn [opts]
-               (reset! constructor-opts_ opts)
-               (delay
-                 (reify i/IClientWebSocket
-                   (cws-raw   [_] nil)
-                   (cws-send  [_ _data] true)
-                   (cws-close [_ _code _reason _clean?] true))))
+   (deftest test-websocket-roundtrip
+     (testing "The default query-token WebSocket supports requests, replies, and pushes"
+       (let [uid              ::test-user
+             server-received (promise)
+             client-reply    (promise)
+             server
+             (sente/make-channel-socket-server!
+               (http-kit/get-sch-adapter)
+               {:csrf-token-fn (constantly "secret-token")
+                :user-id-fn    (constantly uid)
+                :ws-kalive-ms  nil})
+             stop-router!
+             (sente/start-server-chsk-router!
+               (:ch-recv server)
+               (fn [{:keys [event ?reply-fn]}]
+                 (when (= event [::request {:value 1}])
+                   (deliver server-received event)
+                   (?reply-fn {:value 2}))))
+             ring-handler
+             (ring-params/wrap-params
+               (ring-keyword-params/wrap-keyword-params
+                 (fn [ring-req]
+                   (if (= (:uri ring-req) "/chsk")
+                     ((:ajax-get-or-ws-handshake-fn server) ring-req)
+                     {:status 404}))))
+             http-server
+             (hk/run-server ring-handler {:port 0, :legacy-return-value? false})
              client
-             (sente/make-channel-socket-client! "/chsk" "secret/tok"
+             (sente/make-channel-socket-client!
+               "/chsk" "secret-token"
                {:type :ws, :protocol :http, :host "localhost"
-                :legacy-ws-csrf-token-in-url? false
-                :headers {"X-App" "yes"}
-                :ws-constructor ws-constructor
+                :port (hk/server-port http-server)
+                :ws-constructor java-ws/make-client-ws
                 :ws-kalive-ms nil})]
          (try
-           (let [{:keys [uri-str headers protocols]} @constructor-opts_]
-             (is (not (str/includes? uri-str "csrf")))
-             (is (= "secret/tok" (get headers "X-CSRF-Token")))
-             (is (= "yes" (get headers "X-App")))
-             (is (nil? protocols)))
-           (finally
-             (sente/chsk-disconnect! (:chsk client))))))
+           (let [opened?
+                 (loop [attempts (quot *timeout-msecs* 10)]
+                   (cond
+                     (:open? @(:state client)) true
+                     (pos? attempts) (do (Thread/sleep 10) (recur (dec attempts)))
+                     :else false))]
+             (is opened? "Client completed the WebSocket handshake")
 
+             (when opened?
+               ((:send-fn client) [::request {:value 1}] *timeout-msecs*
+                #(deliver client-reply %))
+               (is (= [::request {:value 1}]
+                     (deref server-received *timeout-msecs* :timeout)))
+               (is (= {:value 2}
+                     (deref client-reply *timeout-msecs* :timeout)))
+
+               ((:send-fn server) uid [::push {:value 3}])
+               (is (= [::push {:value 3}]
+                     (loop [timeout-ch (async/timeout *timeout-msecs*)]
+                       (let [[event-msg ch]
+                             (async/alts!! [(:ch-recv client) timeout-ch])]
+                         (cond
+                           (= ch timeout-ch) :timeout
+                           (= (:event event-msg) [::push {:value 3}]) (:event event-msg)
+                           :else (recur timeout-ch))))))))
+
+           (finally
+             (sente/chsk-disconnect! (:chsk client))
+             (stop-router!)
+             (hk/server-stop! http-server {:timeout 100})))))))
+
+(deftest test-websocket-client-csrf-transport
+  (let [capture-opts
+        (fn [opts]
+          (let [constructor-opts_ (atom nil)
+                ws-constructor
+                (fn [opts]
+                  (reset! constructor-opts_ opts)
+                  (delay
+                    (reify i/IClientWebSocket
+                      (cws-raw   [_] nil)
+                      (cws-send  [_ _data] true)
+                      (cws-close [_ _code _reason _clean?] true))))
+                client
+                (sente/make-channel-socket-client! "/chsk" "secret/tok"
+                  (merge
+                    {:type :ws, :protocol :http, :host "localhost"
+                     :headers {"X-App" "yes"}
+                     :ws-constructor ws-constructor
+                     :ws-kalive-ms nil}
+                    opts))]
+            [@constructor-opts_ client]))]
+
+    (testing "Opt-in secure WebSocket CSRF transport"
+      (let [[{:keys [uri-str headers protocols] :as constructor-opts} client]
+            (capture-opts {:legacy-ws-csrf-token-in-url? false})]
+        (try
+          (is (not (str/includes? uri-str "csrf")))
+          (is (= "secret/tok" (get headers "X-CSRF-Token")))
+          (is (= "yes" (get headers "X-App")))
+          (is (= #?(:clj  nil
+                   :cljs ["sente-csrf-v1.secret%2Ftok"])
+                protocols))
+          (is (true? (:taoensso.sente/use-ws-protocols? constructor-opts)))
+          (finally
+            (sente/chsk-disconnect! (:chsk client))))))
+
+    (testing "Default legacy WebSocket CSRF transport"
+      (let [[{:keys [uri-str headers] :as constructor-opts} client]
+            (capture-opts nil)]
+        (try
+          (is (str/includes? uri-str "csrf-token=secret%2Ftok"))
+          (is (nil? (get headers "X-CSRF-Token")))
+          (is (= "yes" (get headers "X-App")))
+          (is (not (contains? constructor-opts :protocols)))
+          (is (not (contains? constructor-opts
+                     :taoensso.sente/use-ws-protocols?)))
+          (finally
+            (sente/chsk-disconnect! (:chsk client))))))
+
+    (testing "Legacy transport preserves custom constructor protocols"
+      (let [[{:keys [protocols] :as constructor-opts} client]
+            (capture-opts {:ws-opts {:protocols "chat"}})]
+        (try
+          (is (= "chat" protocols))
+          (is (not (contains? constructor-opts
+                     :taoensso.sente/use-ws-protocols?)))
+          (finally
+            (sente/chsk-disconnect! (:chsk client))))))))
+
+#?(:clj
+   (deftest test-websocket-server-csrf-transport
      (testing "The server selects the first requested subprotocol"
        (let [callbacks_ (atom nil)
              adapter
@@ -332,8 +429,41 @@
                      "chat, sente-csrf-v1.secret%2Ftok"}})
          (is (= "chat" (:ws-protocol @callbacks_)))))
 
-     (testing "The http-kit adapter remains available"
-       (is (satisfies? i/IServerChanAdapter (http-kit/get-sch-adapter))))))
+     (testing "The http-kit adapter returns the selected subprotocol"
+       (let [server
+             (sente/make-channel-socket-server!
+               (http-kit/get-sch-adapter)
+               {:csrf-token-fn (constantly "secret-token")
+                :ws-kalive-ms nil})
+             ring-handler
+             (ring-params/wrap-params
+               (ring-keyword-params/wrap-keyword-params
+                 (:ajax-get-or-ws-handshake-fn server)))
+             http-server
+             (hk/run-server ring-handler {:port 0, :legacy-return-value? false})]
+         (try
+           (with-open [socket (java.net.Socket. "localhost" (int (hk/server-port http-server)))
+                       writer (java.io.BufferedWriter.
+                                (java.io.OutputStreamWriter. (.getOutputStream socket)))
+                       reader (java.io.BufferedReader.
+                                (java.io.InputStreamReader. (.getInputStream socket)))]
+             (doseq [line
+                     ["GET /chsk?client-id=client-1 HTTP/1.1"
+                      "Host: localhost"
+                      "Upgrade: websocket"
+                      "Connection: Upgrade"
+                      "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ=="
+                      "Sec-WebSocket-Version: 13"
+                      "Sec-WebSocket-Protocol: chat, sente-csrf-v1.secret-token"
+                      ""]]
+               (.write writer (str line "\r\n")))
+             (.flush writer)
+             (let [headers (doall (take-while seq (line-seq reader)))]
+               (is (= "HTTP/1.1 101 Switching Protocols" (first headers)))
+               (is (some #{"sec-websocket-protocol: chat"}
+                     (map str/lower-case headers)))))
+           (finally
+             (hk/server-stop! http-server {:timeout 100})))))))
 
 #?(:clj
    (deftest test-jetty-ajax-binary-response
