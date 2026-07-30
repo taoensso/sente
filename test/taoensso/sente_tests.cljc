@@ -14,6 +14,7 @@
 
    #?(:clj  [clojure.core.async :as async]
       :cljs [cljs.core.async    :as async])
+   #?(:clj [org.httpkit.client              :as hk-client])
    #?(:clj [org.httpkit.server              :as hk])
    #?(:clj [ring.core.protocols              :as ring-protocols])
    #?(:clj [ring.middleware.keyword-params   :as ring-keyword-params])
@@ -1026,6 +1027,46 @@
                (stop-router!)
                (hk/server-stop! http-server {:timeout 100}))))))))
 
+#?(:clj
+   (deftest test-http-kit-ajax-push
+     (testing "The http-kit adapter completes an Ajax handshake and push"
+       (let [uid ::http-kit-user
+             packer (ep/get-packer)
+             server
+             (sente/make-channel-socket-server!
+               (http-kit/get-sch-adapter)
+               {:csrf-token-fn (constantly :sente/skip-CSRF-check)
+                :user-id-fn    (constantly uid)
+                :packer packer, :lp-timeout-ms nil})
+             ring-handler
+             (ring-params/wrap-params
+               (ring-keyword-params/wrap-keyword-params
+                 (:ajax-get-or-ws-handshake-fn server)))
+             http-server
+             (hk/run-server ring-handler {:port 0, :legacy-return-value? false})
+             url (str "http://localhost:" (hk/server-port http-server) "/chsk")
+             get!
+             (fn [params]
+               (hk-client/get url
+                 {:query-params params, :as :text
+                  :timeout *timeout-msecs*}))]
+         (try
+           (let [response @(get! {:client-id "client-1", :handshake? 1})]
+             (is (= 200 (:status response)))
+             (is (= [[:chsk/handshake [uid nil nil]] nil]
+                   (unpack-sync packer false (:body response)))))
+
+           (let [poll-response (get! {:client-id "client-1"})]
+             (is (await-pred #(contains? (:ajax @(:connected-uids server)) uid)))
+             ((:send-fn server) uid [::http-kit-push 1] {:flush? true})
+             (let [response (deref poll-response *timeout-msecs* :timeout)]
+               (is (= 200 (:status response)))
+               (is (= [[[::http-kit-push 1]] nil]
+                     (unpack-sync packer false (:body response))))))
+
+           (finally
+             (hk/server-stop! http-server {:timeout 100})))))))
+
 (deftest test-websocket-client-csrf-transport
   (let [capture-opts
         (fn [opts]
@@ -1614,13 +1655,3 @@
   (deftest bench-packer-gz+edn     (test-promise (bench1 td1 (gz/wrap-packer (ep/get-packer) {:binary? false})) (>benched :edn+gz)))
   (deftest bench-packer-gz+transit (test-promise (bench1 td1 (gz/wrap-packer (tp/get-packer) {:binary? false})) (>benched :transit+gz)))
   (deftest bench-packer-gz+msgpack (test-promise (bench1 td1 (gz/wrap-packer (mp/get-packer) {:binary?  true})) (>benched :msgpack+gz))))
-
-;;;;
-
-#?(:cljs
-   (defmethod test/report [:cljs.test/default :end-run-tests] [m]
-     (when-not (test/successful? m)
-       ;; Trigger non-zero `lein test-cljs` exit code for CI
-       (throw (ex-info "ClojureScript tests failed" {})))))
-
-#?(:cljs (test/run-tests))

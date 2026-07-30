@@ -243,13 +243,6 @@
                     0x00 0x00 0x00 0x00 0x00 0x03]]]
     (is (thrown? #?(:clj Exception :cljs js/Error) (mp/unpack (encoded-bytes encoded))))))
 
-#?(:cljs
-   (defmethod test/report [:cljs.test/default :end-run-tests] [m]
-     (when-not (test/successful? m)
-       (throw (ex-info "ClojureScript tests failed" {})))))
-
-#?(:cljs (test/run-tests))
-
 ;;;; test.check
 
 #?(:clj
