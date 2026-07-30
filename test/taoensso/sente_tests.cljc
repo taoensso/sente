@@ -196,6 +196,42 @@
        (i/unpack packer websocket? value #(deliver result %))
        (:value (deref result *timeout-msecs* {:error :timeout})))))
 
+#?(:cljs
+   (defn- pack-now [packer websocket? value]
+     (let [result_ (atom ::pending)]
+       (i/pack packer websocket? value #(reset! result_ (:value %)))
+       @result_)))
+
+#?(:clj
+   (defn- recording-sch-adapter [connections_]
+     (reify i/IServerChanAdapter
+       (ring-req->server-ch-resp [_ ring-req callbacks]
+         (let [websocket? (:websocket? ring-req)
+               open?_     (atom true)
+               send?_     (atom true)
+               attempts_  (atom [])
+               sent_      (atom [])
+               sch
+               (reify i/IServerChan
+                 (sch-open? [_] @open?_)
+                 (sch-close! [this]
+                   (when (compare-and-set! open?_ true false)
+                     (when-let [on-close (:on-close callbacks)]
+                       (on-close this websocket? :closed))
+                     true))
+                 (sch-send! [this _websocket? msg]
+                   (swap! attempts_ conj msg)
+                   (when (and @open?_ @send?_)
+                     (swap! sent_ conj msg)
+                     (when-not websocket? (i/sch-close! this))
+                     true)))
+               conn
+               {:ring-req ring-req, :sch sch, :open?_ open?_, :send?_ send?_
+                :attempts_ attempts_, :sent_ sent_}]
+           (swap! connections_ conj conn)
+           ((:on-open callbacks) sch websocket?)
+           {:status (if websocket? 101 200)})))))
+
 #?(:clj
    (defn- await-pred [pred]
      (loop [attempts (quot *timeout-msecs* 10)]
@@ -402,6 +438,112 @@
                        events))))))))))
 
 #?(:clj
+   (deftest test-server-push-fan-out
+     (testing "Server pushes batch in order and fan out only to the requested UID"
+       (let [connections_ (atom [])
+             adapter      (recording-sch-adapter connections_)
+             packer       (ep/get-packer)
+             server
+             (sente/make-channel-socket-server! adapter
+               {:csrf-token-fn (constantly :sente/skip-CSRF-check)
+                :user-id-fn    (fn [ring-req & _] (get-in ring-req [:session :uid]))
+                :packer packer, :ws-kalive-ms nil
+                :send-buf-ms-ws 60000, :send-buf-ms-ajax 60000})
+             connect!
+             (fn [uid client-id]
+               ((:ajax-get-or-ws-handshake-fn server)
+                {:websocket? true
+                 :params {:client-id client-id}
+                 :session {:uid uid}})
+               (peek @connections_))
+             conn-a1 (connect! ::user-a "a1")
+             conn-a2 (connect! ::user-a "a2")
+             conn-b  (connect! ::user-b "b1")]
+
+         (doseq [conn @connections_]
+           (reset! (:attempts_ conn) [])
+           (reset! (:sent_ conn) []))
+
+         (reset! (:send?_ conn-a2) false)
+         ((:send-fn server) ::user-a [::push 1])
+         ((:send-fn server) ::user-a [::push 2] {:flush? true})
+
+         (is (= [[[::push 1] [::push 2]] nil]
+               (unpack-sync packer true (first @(:sent_ conn-a1)))))
+         (is (seq @(:attempts_ conn-a2)))
+         (is (empty? @(:sent_ conn-a2)))
+         (is (empty? @(:attempts_ conn-b)))))))
+
+#?(:clj
+   (deftest test-server-ajax-flow
+     (doseq [[packer-id packer binary?]
+             [[:text   (ep/get-packer) false]
+              [:binary (mp/get-packer) true]]]
+       (testing (str "Ajax handshake, poll, push, and POST with " (name packer-id))
+         (let [uid          ::ajax-user
+               connections_ (atom [])
+               server
+               (sente/make-channel-socket-server!
+                 (recording-sch-adapter connections_)
+                 {:csrf-token-fn (constantly :sente/skip-CSRF-check)
+                  :user-id-fn    (constantly uid)
+                  :packer packer, :lp-timeout-ms nil
+                  :send-buf-ms-ajax 60000, :send-buf-ms-ws 60000})
+               get-handler  (:ajax-get-or-ws-handshake-fn server)
+               post-handler (:ajax-post-fn server)
+               request
+               (fn [params]
+                 {:params (merge {:client-id "client-1"} params)})
+               post!
+               (fn [event has-cb?]
+                 (let [packed (pack-sync packer false [event has-cb?])]
+                   (post-handler
+                     (if binary?
+                       (assoc (request {:binary? true})
+                         :body ::legacy-express-request
+                         ::sente/ajax-body
+                         (java.io.ByteArrayInputStream. ^bytes packed))
+                       (request {:ppstr packed})))
+                   (peek @connections_)))
+               take-event!
+               (fn [expected]
+                 (loop []
+                   (let [[event-msg ch]
+                         (async/alts!! [(:ch-recv server)
+                                        (async/timeout *timeout-msecs*)])]
+                     (cond
+                       (nil? event-msg) :timeout
+                       (= (:event event-msg) expected) event-msg
+                       :else (recur)))))]
+
+           (get-handler (request {:handshake? true}))
+           (let [handshake-conn (first @connections_)]
+             (is (= [[:chsk/handshake [uid nil nil]] nil]
+                   (unpack-sync packer false (first @(:sent_ handshake-conn))))))
+
+           (get-handler (request {}))
+           (let [poll-conn (second @connections_)]
+             (is @(:open?_ poll-conn))
+             (is (empty? @(:sent_ poll-conn)))
+
+             ((:send-fn server) uid [::push 1] {:flush? true})
+             (is (= [[[::push 1]] nil]
+                   (unpack-sync packer false (first @(:sent_ poll-conn))))))
+
+           (let [post-conn (post! [::request 1] true)
+                 event-msg (take-event! [::request 1])]
+             (is (fn? (:?reply-fn event-msg)))
+             ((:?reply-fn event-msg) {:answer 2})
+             (is (= [{:answer 2} nil]
+                   (unpack-sync packer false (first @(:sent_ post-conn))))))
+
+           (let [post-conn (post! [::notify 3] false)
+                 event-msg (take-event! [::notify 3])]
+             (is (nil? (:?reply-fn event-msg)))
+             (is (= [:chsk/dummy-cb-200 nil]
+                   (unpack-sync packer false (first @(:sent_ post-conn)))))))))))
+
+#?(:clj
    (deftest test-java-ws-binary-message
      (testing "The Java WebSocket client forwards binary frames as independent byte arrays"
        (let [received_ (atom nil)
@@ -483,6 +625,119 @@
 
            (finally
              (sente/chsk-disconnect! chsk)))))))
+
+#?(:cljs
+   (deftest test-ajax-client-flow
+     (testing "Ajax handshakes, repolls, sends, and aborts deterministically"
+       (let [packer   (ep/get-packer)
+             calls_   (atom [])
+             aborted_ (atom [])
+             ajax-call
+             (fn [_url opts cb-fn]
+               (let [call-idx (count @calls_)
+                     xhr      #js {}]
+                 (aset xhr "abort" #(swap! aborted_ conj call-idx))
+                 (swap! calls_ conj {:opts opts, :cb-fn cb-fn, :xhr xhr})
+                 (when-let [xhr-cb-fn (:xhr-cb-fn opts)] (xhr-cb-fn xhr))
+                 xhr))
+             respond!
+             (fn [idx response]
+               ((:cb-fn (nth @calls_ idx)) response))
+             packed
+             (fn [value]
+               (pack-now packer false value))]
+
+         (with-redefs [sente/ajax-call ajax-call]
+           (let [client
+                 (sente/make-channel-socket-client! "/chsk" "token"
+                   {:type :ajax, :protocol :http, :host "localhost"
+                    :legacy-ws-csrf-token-in-url? false
+                    :client-id "client-1", :packer packer})
+                 chsk    (:chsk client)
+                 state_  (:state client)]
+             (try
+               (is (= :get (get-in @calls_ [0 :opts :method])))
+               (is (= 1 (get-in @calls_ [0 :opts :params :handshake?])))
+
+               (respond! 0
+                 {:?content
+                  (packed [[:chsk/handshake [::user nil {:welcome true}]] nil])})
+               (is (= {:type :ajax, :open? true, :uid ::user
+                       :handshake-data {:welcome true}}
+                     (select-keys @state_
+                       [:type :open? :uid :handshake-data])))
+               (is (= :get (get-in @calls_ [1 :opts :method])))
+               (is (nil? (get-in @calls_ [1 :opts :params :handshake?])))
+
+               (let [replies_ (atom [])]
+                 ((:send-fn client) [::request 1] 1000
+                   #(swap! replies_ conj %))
+                 (is (= :post (get-in @calls_ [2 :opts :method])))
+                 (is (= "token" (get-in @calls_ [2 :opts :headers "X-CSRF-Token"])))
+                 (respond! 2 {:?content (packed [::reply nil])})
+                 (is (= [::reply] @replies_)))
+
+               (let [replies_ (atom [])]
+                 ((:send-fn client) [::request 2] 1000
+                   #(swap! replies_ conj %))
+                 (respond! 3 {:?error :timeout})
+                 (is (= [:chsk/timeout] @replies_))
+                 (is (:open? @state_)))
+
+               (let [replies_ (atom [])]
+                 ((:send-fn client) [::request 3] 1000
+                   #(swap! replies_ conj %))
+                 (respond! 4 {:?error :network})
+                 (is (= [:chsk/error] @replies_))
+                 (is (= :unexpected (get-in @state_ [:last-close :reason]))))
+
+               (sente/chsk-disconnect! chsk)
+               (is (= [1] @aborted_))
+
+               (finally
+                 (sente/chsk-disconnect! chsk)))))))))
+
+#?(:cljs
+   (deftest test-auto-client-ajax-fallback
+     (testing "An initial WebSocket error downgrades :auto to Ajax"
+       (let [ws-callbacks_ (atom nil)
+             ws-closed_    (atom 0)
+             ajax-calls_   (atom [])
+             ws-constructor
+             (fn [callbacks]
+               (reset! ws-callbacks_ callbacks)
+               (delay
+                 (reify i/IClientWebSocket
+                   (cws-raw   [_] nil)
+                   (cws-send  [_ _] true)
+                   (cws-close [_ _ _ _] (swap! ws-closed_ inc)))))
+             ajax-call
+             (fn [_url opts cb-fn]
+               (let [xhr #js {}]
+                 (aset xhr "abort" (fn []))
+                 (swap! ajax-calls_ conj {:opts opts, :cb-fn cb-fn})
+                 xhr))]
+
+         (with-redefs [sente/ajax-call ajax-call]
+           (let [client
+                 (sente/make-channel-socket-client! "/chsk" nil
+                   {:type :auto, :protocol :http, :host "localhost"
+                    :client-id "client-1"
+                    :ws-constructor ws-constructor
+                    :ws-kalive-ms nil})]
+             (try
+               ((:on-error @ws-callbacks_) #js {})
+               (is (= 1 @ws-closed_))
+               (is (= :get (get-in @ajax-calls_ [0 :opts :method])))
+               (is (= 1 (get-in @ajax-calls_ [0 :opts :params :handshake?])))
+               ((:cb-fn (first @ajax-calls_))
+                {:?content
+                 (pack-now (ep/get-packer) false
+                   [[:chsk/handshake [::user nil nil]] nil])})
+               (is (= {:type :ajax, :open? true, :uid ::user}
+                     (select-keys @(:state client) [:type :open? :uid])))
+               (finally
+                 (sente/chsk-disconnect! (:chsk client))))))))))
 
 #?(:clj
    (deftest test-websocket-roundtrip
