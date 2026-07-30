@@ -185,6 +185,26 @@
          {:status 200 :body ::reached-adapter}))))
 
 #?(:clj
+   (defn- pack-sync [packer websocket? value]
+     (let [result (promise)]
+       (i/pack packer websocket? value #(deliver result %))
+       (:value (deref result *timeout-msecs* {:error :timeout})))))
+
+#?(:clj
+   (defn- unpack-sync [packer websocket? value]
+     (let [result (promise)]
+       (i/unpack packer websocket? value #(deliver result %))
+       (:value (deref result *timeout-msecs* {:error :timeout})))))
+
+#?(:clj
+   (defn- await-pred [pred]
+     (loop [attempts (quot *timeout-msecs* 10)]
+       (cond
+         (pred) true
+         (pos? attempts) (do (Thread/sleep 10) (recur (dec attempts)))
+         :else false))))
+
+#?(:clj
    (deftest test-builtin-csrf-check
      (testing "Built-in (default) token CSRF check, via the handler"
        (let [post-fn  (fn [opts] (:ajax-post-fn (sente/make-channel-socket-server! stub-sch-adapter opts)))
@@ -310,6 +330,78 @@
                :else false)))))))
 
 #?(:clj
+   (deftest test-server-connection-lifecycle
+     (testing "UID lifecycle spans clients and transport types"
+       (let [connections_ (atom [])
+             adapter
+             (reify i/IServerChanAdapter
+               (ring-req->server-ch-resp [_ ring-req callbacks]
+                 (let [websocket? (:websocket? ring-req)
+                       open?_     (atom true)
+                       sch
+                       (reify i/IServerChan
+                         (sch-open? [_] @open?_)
+                         (sch-close! [this]
+                           (when (compare-and-set! open?_ true false)
+                             ((:on-close callbacks) this websocket? :closed)
+                             true))
+                         (sch-send! [this _websocket? _msg]
+                           ;; Ajax responses close their one-shot channel.
+                           (when-not websocket? (i/sch-close! this))
+                           true))
+                       conn {:callbacks callbacks, :open?_ open?_
+                             :sch sch, :websocket? websocket?}]
+                   (swap! connections_ conj conn)
+                   ((:on-open callbacks) sch websocket?)
+                   {:status (if websocket? 101 200)})))
+
+             server
+             (sente/make-channel-socket-server! adapter
+               {:csrf-token-fn (constantly :sente/skip-CSRF-check)
+                :user-id-fn    (constantly ::user)
+                :lp-timeout-ms nil, :ws-kalive-ms nil
+                ;; Generous grace so a slow CI runner can't let the close
+                ;; timer beat the immediate reconnect below
+                :ms-allow-reconnect-before-close-ws   250
+                :ms-allow-reconnect-before-close-ajax 250})
+             handler (:ajax-get-or-ws-handshake-fn server)
+             connect!
+             (fn [client-id websocket? handshake?]
+               (handler
+                 {:websocket? websocket?
+                  :params (cond-> {:client-id client-id}
+                            handshake? (assoc :handshake? true))})
+               (peek @connections_))
+             close! (fn [{:keys [sch]}] (i/sch-close! sch))]
+
+         (let [ws1 (connect! "client-1" true false)]
+           (close! ws1)
+           (let [ws1-again (connect! "client-1" true false)]
+             ;; The first close is superseded by its reconnect during grace.
+             (Thread/sleep 500)
+             (is (= {:ws #{::user} :ajax #{} :any #{::user}}
+                   @(:connected-uids server)))
+
+             (let [ws2 (connect! "client-2" true false)
+                   _   (connect! "client-3" false true)
+                   ajax (connect! "client-3" false false)]
+               (is (= {:ws #{::user} :ajax #{::user} :any #{::user}}
+                     @(:connected-uids server)))
+
+               (doseq [conn [ws1-again ws2 ajax]] (close! conn))
+               (is (await-pred #(= {:ws #{} :ajax #{} :any #{}}
+                                  @(:connected-uids server))))
+
+               (let [events
+                     (loop [events []]
+                       (if-let [event-msg (async/poll! (:ch-recv server))]
+                         (recur (conj events (:event event-msg)))
+                         events))]
+                 (is (= [[:chsk/uidport-open ::user]
+                         [:chsk/uidport-close ::user]]
+                       events))))))))))
+
+#?(:clj
    (deftest test-java-ws-binary-message
      (testing "The Java WebSocket client forwards binary frames as independent byte arrays"
        (let [received_ (atom nil)
@@ -328,71 +420,134 @@
          (is (= 1 (.position bb)))))))
 
 #?(:clj
-   (deftest test-websocket-roundtrip
-     (testing "The default query-token WebSocket supports requests, replies, and pushes"
-       (let [uid              ::test-user
-             server-received (promise)
-             client-reply    (promise)
-             server
-             (sente/make-channel-socket-server!
-               (http-kit/get-sch-adapter)
-               {:csrf-token-fn (constantly "secret-token")
-                :user-id-fn    (constantly uid)
-                :ws-kalive-ms  nil})
-             stop-router!
-             (sente/start-server-chsk-router!
-               (:ch-recv server)
-               (fn [{:keys [event ?reply-fn]}]
-                 (when (= event [::request {:value 1}])
-                   (deliver server-received event)
-                   (?reply-fn {:value 2}))))
-             ring-handler
-             (ring-params/wrap-params
-               (ring-keyword-params/wrap-keyword-params
-                 (fn [ring-req]
-                   (if (= (:uri ring-req) "/chsk")
-                     ((:ajax-get-or-ws-handshake-fn server) ring-req)
-                     {:status 404}))))
-             http-server
-             (hk/run-server ring-handler {:port 0, :legacy-return-value? false})
+   (deftest test-client-callback-lifecycle
+     (testing "Callbacks settle once across closed, reply, timeout, and error outcomes"
+       (let [packer     (ep/get-packer)
+             callbacks_ (atom [])
+             sent_      (atom [])
+             send-error?_ (atom false)
+             ws-constructor
+             (fn [callbacks]
+               (swap! callbacks_ conj callbacks)
+               (delay
+                 (reify i/IClientWebSocket
+                   (cws-raw [_] nil)
+                   (cws-send [_ data]
+                     (if @send-error?_
+                       (do
+                         (swap! sent_ conj data)
+                         (throw (ex-info "send failed" {})))
+                       (do (swap! sent_ conj data) true)))
+                   (cws-close [_ _code _reason _clean?] true))))
              client
-             (sente/make-channel-socket-client!
-               "/chsk" "secret-token"
+             (sente/make-channel-socket-client! "/chsk" nil
                {:type :ws, :protocol :http, :host "localhost"
-                :port (hk/server-port http-server)
-                :ws-constructor java-ws/make-client-ws
-                :ws-kalive-ms nil})]
+                :packer packer, :ws-constructor ws-constructor
+                :ws-kalive-ms nil})
+             chsk (:chsk client)
+             callback-id
+             (fn [packed]
+               (second (unpack-sync packer true packed)))]
          (try
-           (let [opened?
-                 (loop [attempts (quot *timeout-msecs* 10)]
-                   (cond
-                     (:open? @(:state client)) true
-                     (pos? attempts) (do (Thread/sleep 10) (recur (dec attempts)))
-                     :else false))]
-             (is opened? "Client completed the WebSocket handshake")
+           (let [closed_ (atom [])]
+             (is (false? (sente/chsk-send! chsk [::closed] 100 #(swap! closed_ conj %))))
+             (is (= [:chsk/closed] @closed_)))
 
-             (when opened?
-               ((:send-fn client) [::request {:value 1}] *timeout-msecs*
-                #(deliver client-reply %))
-               (is (= [::request {:value 1}]
-                     (deref server-received *timeout-msecs* :timeout)))
-               (is (= {:value 2}
-                     (deref client-reply *timeout-msecs* :timeout)))
+           ((:on-message (first @callbacks_))
+            (pack-sync packer true [[:chsk/handshake [::user nil nil]] nil]))
 
-               ((:send-fn server) uid [::push {:value 3}])
-               (is (= [::push {:value 3}]
-                     (loop [timeout-ch (async/timeout *timeout-msecs*)]
-                       (let [[event-msg ch]
-                             (async/alts!! [(:ch-recv client) timeout-ch])]
-                         (cond
-                           (= ch timeout-ch) :timeout
-                           (= (:event event-msg) [::push {:value 3}]) (:event event-msg)
-                           :else (recur timeout-ch))))))))
+           (let [replies_ (atom [])]
+             (sente/chsk-send! chsk [::request] 1000 #(swap! replies_ conj %))
+             (let [cb-uuid (callback-id (peek @sent_))
+                   reply   (pack-sync packer true [::reply cb-uuid])]
+               ((:on-message (first @callbacks_)) reply)
+               ((:on-message (first @callbacks_)) reply)
+               (is (= [::reply] @replies_))))
+
+           (let [replies_ (atom [])]
+             (sente/chsk-send! chsk [::request] 25 #(swap! replies_ conj %))
+             (let [cb-uuid (callback-id (peek @sent_))]
+               (is (await-pred #(= [:chsk/timeout] @replies_)))
+               ((:on-message (first @callbacks_))
+                (pack-sync packer true [::late-reply cb-uuid]))
+               (is (= [:chsk/timeout] @replies_))))
+
+           (let [replies_ (atom [])]
+             (reset! send-error?_ true)
+             (sente/chsk-send! chsk [::request] 25 #(swap! replies_ conj %))
+             (is (await-pred #(= [:chsk/error] @replies_)))
+             ((:on-message (peek @callbacks_))
+              (pack-sync packer true
+                [::late-reply (callback-id (peek @sent_))]))
+             (is (= [:chsk/error] @replies_)))
 
            (finally
-             (sente/chsk-disconnect! (:chsk client))
-             (stop-router!)
-             (hk/server-stop! http-server {:timeout 100})))))))
+             (sente/chsk-disconnect! chsk)))))))
+
+#?(:clj
+   (deftest test-websocket-roundtrip
+     (doseq [[packer-id packer] [[:edn     (ep/get-packer)]
+                                 [:msgpack (mp/get-packer)]]]
+       (testing (str "Default query-token WebSocket roundtrip with " (name packer-id))
+         (let [uid              ::test-user
+               server-received (promise)
+               client-reply    (promise)
+               server
+               (sente/make-channel-socket-server!
+                 (http-kit/get-sch-adapter)
+                 {:csrf-token-fn (constantly "secret-token")
+                  :user-id-fn    (constantly uid)
+                  :packer packer, :ws-kalive-ms nil})
+               stop-router!
+               (sente/start-server-chsk-router!
+                 (:ch-recv server)
+                 (fn [{:keys [event ?reply-fn]}]
+                   (when (= event [::request {:value 1}])
+                     (deliver server-received event)
+                     (?reply-fn {:value 2}))))
+               ring-handler
+               (ring-params/wrap-params
+                 (ring-keyword-params/wrap-keyword-params
+                   (fn [ring-req]
+                     (if (= (:uri ring-req) "/chsk")
+                       ((:ajax-get-or-ws-handshake-fn server) ring-req)
+                       {:status 404}))))
+               http-server
+               (hk/run-server ring-handler {:port 0, :legacy-return-value? false})
+               client
+               (sente/make-channel-socket-client!
+                 "/chsk" "secret-token"
+                 {:type :ws, :protocol :http, :host "localhost"
+                  :port (hk/server-port http-server)
+                  :packer packer
+                  :ws-constructor java-ws/make-client-ws
+                  :ws-kalive-ms nil})]
+           (try
+             (let [opened? (await-pred #(:open? @(:state client)))]
+               (is opened? "Client completed the WebSocket handshake")
+
+               (when opened?
+                 ((:send-fn client) [::request {:value 1}] *timeout-msecs*
+                  #(deliver client-reply %))
+                 (is (= [::request {:value 1}]
+                       (deref server-received *timeout-msecs* :timeout)))
+                 (is (= {:value 2}
+                       (deref client-reply *timeout-msecs* :timeout)))
+
+                 ((:send-fn server) uid [::push {:value 3}])
+                 (is (= [::push {:value 3}]
+                       (loop [timeout-ch (async/timeout *timeout-msecs*)]
+                         (let [[event-msg ch]
+                               (async/alts!! [(:ch-recv client) timeout-ch])]
+                           (cond
+                             (= ch timeout-ch) :timeout
+                             (= (:event event-msg) [::push {:value 3}]) (:event event-msg)
+                             :else (recur timeout-ch))))))))
+
+             (finally
+               (sente/chsk-disconnect! (:chsk client))
+               (stop-router!)
+               (hk/server-stop! http-server {:timeout 100}))))))))
 
 (deftest test-websocket-client-csrf-transport
   (let [capture-opts
@@ -783,6 +938,43 @@
              (sente/chsk-disconnect! chsk)))))))
 
 #?(:clj
+   (deftest test-server-router-contract
+     (testing "The default router is ordered and survives handler errors"
+       (let [ch        (async/chan 8)
+             processed_ (atom [])
+             errors_    (atom [])
+             done       (promise)
+             event-msg
+             (fn [event]
+               {:ch-recv ch, :send-fn (fn [& _])
+                :connected-uids (atom {}), :send-buffers (atom {})
+                :ring-req {}, :client-id "client-1", :uid ::user
+                :event event, :id (first event), :?data (second event)
+                :?reply-fn nil})
+             stop!
+             (sente/start-server-chsk-router! ch
+               (fn [{:keys [event]}]
+                 (swap! processed_ conj event)
+                 (case (first event)
+                   ::fails (throw (ex-info "handler failed" {}))
+                   ::three (deliver done true)
+                   nil))
+               {:error-handler
+                (fn [error {:keys [event]}]
+                  (swap! errors_ conj [(.getMessage ^Throwable error) event]))})]
+         (try
+           (doseq [event [[::one 1] [::fails 2] [::three 3]]]
+             (async/>!! ch (event-msg event)))
+           (is (= true (deref done *timeout-msecs* :timeout)))
+
+           (is (= [[::one 1] [::fails 2] [::three 3]] @processed_))
+           (is (= [["handler failed" [::fails 2]]] @errors_))
+
+           (finally
+             (stop!)
+             (async/close! ch)))))))
+
+#?(:clj
    (deftest test-reject-fn
      (testing "`:reject-fn` general rejection hook"
        (let [post-fn   (fn [opts] (:ajax-post-fn (sente/make-channel-socket-server! stub-sch-adapter opts)))
@@ -849,6 +1041,48 @@
 
          (testing "nil return passes through"
            (is (reached? ((post-fn (assoc base :?unauthorized-fn (fn [_] nil))) {}))))))))
+
+#?(:clj
+   (deftest test-rejection-policy-precedence
+     (testing "Request rejection uses the documented policy order"
+       (let [response (fn [body] {:status 403, :body body})
+             opts
+             {:reject-fn       (fn [req] (when (:reject? req) (response :reject)))
+              :csrf-token-fn   (constantly "token")
+              :bad-csrf-fn     (fn [_] (response :csrf))
+              :allowed-origins #{"https://allowed.example"}
+              :bad-origin-fn   (fn [_] (response :origin))
+              :authorized?-fn  :authorized?
+              :unauthorized-fn (fn [_] (response :authorization))
+              :?unauthorized-fn
+              (fn [req] (when (:legacy-reject? req) (response :legacy)))}
+             server (sente/make-channel-socket-server! stub-sch-adapter opts)
+             base-req
+             {:params {:client-id "client-1", :csrf-token "token"}
+              :headers {"origin" "https://allowed.example"}
+              :authorized? true}
+             cases
+             [[:reject
+               (assoc base-req :reject? true :authorized? false
+                 :legacy-reject? true
+                 :params {:client-id "client-1"}
+                 :headers {"origin" "https://evil.example"})]
+              [:csrf
+               (assoc base-req :authorized? false :legacy-reject? true
+                 :params {:client-id "client-1"}
+                 :headers {"origin" "https://evil.example"})]
+              [:origin
+               (assoc base-req :authorized? false :legacy-reject? true
+                 :headers {"origin" "https://evil.example"})]
+              [:authorization
+               (assoc base-req :authorized? false :legacy-reject? true)]
+              [:legacy (assoc base-req :legacy-reject? true)]
+              [::reached-adapter base-req]]]
+
+         (doseq [handler-key [:ajax-post-fn :ajax-get-or-ws-handshake-fn]
+                 [expected req] cases]
+           (is (= expected (:body ((handler-key server) req)))
+             (str (name handler-key) " chooses " expected)))))))
 
 ;;;; Benching
 
