@@ -12,7 +12,8 @@
    [clojure.string  :as str]
    [taoensso.encore :as enc]
 
-   #?(:clj [clojure.core.async              :as async])
+   #?(:clj  [clojure.core.async :as async]
+      :cljs [cljs.core.async    :as async])
    #?(:clj [org.httpkit.server              :as hk])
    #?(:clj [ring.core.protocols              :as ring-protocols])
    #?(:clj [ring.middleware.keyword-params   :as ring-keyword-params])
@@ -84,6 +85,42 @@
       :cljs (js/Promise. (fn [resolve _reject] (roundtrip data packer (fn [v] (resolve   v))))))))
 
 (comment @(roundtrip :data (ep/get-packer)))
+
+(deftest test-event-api
+  (let [event [::event {:value 1}]
+        ch    (async/chan)
+        client-msg
+        {:ch-recv ch, :send-fn identity, :state (atom {})
+         :event event, :id ::event, :?data {:value 1}}
+        server-msg
+        {:ch-recv ch, :send-fn identity
+         :connected-uids (atom {}), :send-buffers (atom {})
+         :ring-req {}, :client-id "client-1", :uid ::user
+         :event event, :id ::event, :?data {:value 1}, :?reply-fn nil}]
+    (is (nil? (sente/validate-event event)))
+    (doseq [[given error]
+            [[::event :wrong-type]
+             [[::event nil nil] :wrong-length]
+             [["event"] :wrong-id-type]
+             [[:event] :unnamespaced-id]]]
+      (is (contains? (sente/validate-event given) error)))
+    (is (sente/event? event))
+    (is (not (sente/event? [:event])))
+    (is (thrown? #?(:clj Exception :cljs js/Error)
+          (sente/assert-event [:event])))
+    (is (= event (sente/as-event event)))
+    (is (= [:chsk/bad-event [:event]] (sente/as-event [:event])))
+    (doseq [[reply error?]
+            [[:chsk/closed true] [:chsk/timeout true] [:chsk/error true]
+             [:reply false] [nil false]]]
+      (is (= error?       (sente/cb-error?   reply)))
+      (is (= (not error?) (sente/cb-success? reply))))
+    (is (sente/client-event-msg? client-msg))
+    (is (sente/server-event-msg? server-msg))
+    (is (sente/event-msg? #?(:clj server-msg :cljs client-msg)))
+    (is (not (sente/client-event-msg? (dissoc client-msg :state))))
+    (is (not (sente/server-event-msg? (assoc server-msg :event [:event]))))
+    (async/close! ch)))
 
 (defn test-promise [p f] ; f is test-fn
   #?(:clj (when p (f (deref p *timeout-msecs* :timeout)))
@@ -622,6 +659,190 @@
               (pack-sync packer true
                 [::late-reply (callback-id (peek @sent_))]))
              (is (= [:chsk/error] @replies_)))
+
+           (finally
+             (sente/chsk-disconnect! chsk)))))))
+
+#?(:clj
+   (deftest test-websocket-reconnect-lifecycle
+     (testing "Unexpected closes retry, while manual disconnects do not"
+       (let [packer     (ep/get-packer)
+             callbacks_ (atom [])
+             closes_    (atom [])
+             ws-constructor
+             (fn [callbacks]
+               (let [idx (count @callbacks_)]
+                 (swap! callbacks_ conj callbacks)
+                 (delay
+                   (reify i/IClientWebSocket
+                     (cws-raw  [_] nil)
+                     (cws-send [_ _data] true)
+                     (cws-close [_ code reason _clean?]
+                       (swap! closes_ conj [idx code reason])
+                       ((:on-close (nth @callbacks_ idx)) code reason false)
+                       true)))))
+             client
+             (sente/make-channel-socket-client! "/chsk" nil
+               {:type :ws, :protocol :http, :host "localhost"
+                :packer packer, :ws-constructor ws-constructor
+                :ws-kalive-ms nil})
+             chsk   (:chsk client)
+             state_ (:state client)
+             handshake
+             (pack-sync packer true
+               [[:chsk/handshake [::user nil nil]] nil])]
+         (try
+           ((:on-message (first @callbacks_)) handshake)
+           ((:on-close (first @callbacks_)) 1006 "connection lost" true)
+
+           (is (= 2 (count @callbacks_)))
+           (is (= {:open? false, :reason :unexpected}
+                 {:open? (:open? @state_)
+                  :reason (get-in @state_ [:last-close :reason])}))
+           (is (= {:code 1006, :reason "connection lost", :clean? false}
+                 (dissoc (:last-ws-close @state_) :udt)))
+
+           ((:on-message (second @callbacks_)) handshake)
+           (sente/chsk-disconnect! chsk)
+           (is (= 2 (count @callbacks_)))
+           (is (= :requested-disconnect
+                 (get-in @state_ [:last-close :reason])))
+           (is (some #{[1 1000 "CLOSE_NORMAL"]} @closes_))
+
+           (finally
+             (sente/chsk-disconnect! chsk)))))))
+
+#?(:clj
+   (deftest test-websocket-keepalive
+     (doseq [[reply expected-reason]
+             [["pong" nil]
+              [::wrong-pong :ws-ping-timeout]
+              [::no-reply   :ws-ping-timeout]]]
+       (testing (if expected-reason
+                  "A missed or wrong pong reconnects"
+                  "A pong keeps the connection open")
+         (let [packer      (ep/get-packer)
+               callbacks_ (atom [])
+               ping-seen  (promise)
+               ws-constructor
+               (fn [callbacks]
+                 (let [idx (count @callbacks_)]
+                   (swap! callbacks_ conj callbacks)
+                   (delay
+                     (reify i/IClientWebSocket
+                       (cws-raw [_] nil)
+                       (cws-send [_ data]
+                         (let [[event cb-uuid]
+                               (unpack-sync packer true data)]
+                           (when (= event [:chsk/ws-ping])
+                             (deliver ping-seen true)
+                             (when-not (= reply ::no-reply)
+                               ((:on-message (nth @callbacks_ idx))
+                                (pack-sync packer true [reply cb-uuid])))))
+                         true)
+                       (cws-close [_ _code _reason _clean?] true)))))
+               client
+               (sente/make-channel-socket-client! "/chsk" nil
+                 {:type :ws, :protocol :http, :host "localhost"
+                  :packer packer, :ws-constructor ws-constructor
+                  :ws-kalive-ms 50, :ws-ping-timeout-ms 100})
+               chsk   (:chsk client)
+               state_ (:state client)]
+           (try
+             ((:on-message (first @callbacks_))
+              (pack-sync packer true
+                [[:chsk/handshake [::user nil nil]] nil]))
+             (is (= true (deref ping-seen *timeout-msecs* :timeout)))
+
+             (if expected-reason
+               (do
+                 (is (await-pred #(<= 2 (count @callbacks_))))
+                 (is (= expected-reason
+                       (get-in @state_ [:last-close :reason]))))
+               (do
+                 (is (= 1 (count @callbacks_)))
+                 (is (:open? @state_))))
+
+             (finally
+               (sente/chsk-disconnect! chsk))))))))
+
+#?(:clj
+   (deftest test-client-packer-errors
+     (testing "Pack and unpack failures propagate without wedging later messages"
+       (let [base-packer   (ep/get-packer)
+             async-pack_  (atom nil)
+             async-unpack_ (atom nil)
+             packer
+             (reify i/IPacker2
+               (pack [_ ws? value cb-fn]
+                 (case (ffirst value)
+                   ::sync-pack  (throw (ex-info "sync pack" {}))
+                   ::async-pack (reset! async-pack_ cb-fn)
+                   (i/pack base-packer ws? value cb-fn)))
+               (unpack [_ ws? packed cb-fn]
+                 (case packed
+                   ::sync-unpack  (throw (ex-info "sync unpack" {}))
+                   ::async-unpack (reset! async-unpack_ cb-fn)
+                   (i/unpack base-packer ws? packed cb-fn))))
+             callbacks_ (atom nil)
+             sent_      (atom [])
+             ws-constructor
+             (fn [callbacks]
+               (reset! callbacks_ callbacks)
+               (delay
+                 (reify i/IClientWebSocket
+                   (cws-raw   [_] nil)
+                   (cws-send  [_ data] (swap! sent_ conj data) true)
+                   (cws-close [_ _code _reason _clean?] true))))
+             client
+             (sente/make-channel-socket-client! "/chsk" nil
+               {:type :ws, :protocol :http, :host "localhost"
+                :packer packer, :ws-constructor ws-constructor
+                :ws-kalive-ms nil})
+             chsk    (:chsk client)
+             recv-ch (:ch-recv client)
+             receive-event!
+             (fn [expected]
+               (loop [timeout-ch (async/timeout *timeout-msecs*)]
+                 (let [[event-msg ch] (async/alts!! [recv-ch timeout-ch])]
+                   (cond
+                     (= ch timeout-ch) :timeout
+                     (= (:event event-msg) expected) expected
+                     :else (recur timeout-ch)))))]
+         (try
+           ((:on-message @callbacks_)
+            (pack-sync base-packer true
+              [[:chsk/handshake [::user nil nil]] nil]))
+
+           (is (thrown? Exception
+                 (sente/chsk-send! chsk [::sync-pack])))
+           (sente/chsk-send! chsk [::after-sync-pack])
+           (is (= 1 (count @sent_)))
+
+           (sente/chsk-send! chsk [::async-pack])
+           (sente/chsk-send! chsk [::after-async-pack])
+           (is (= 1 (count @sent_)))
+           (is (thrown? Exception
+                 (@async-pack_ {:error (ex-info "async pack" {})})))
+           (is (= 2 (count @sent_)))
+           (is (nil? (@async-pack_ {:value ::duplicate-result})))
+           (is (= 2 (count @sent_)))
+
+           (is (thrown? Exception
+                 ((:on-message @callbacks_) ::sync-unpack)))
+           ((:on-message @callbacks_)
+            (pack-sync base-packer true [[[::after-sync-unpack]] nil]))
+           (is (= [::after-sync-unpack]
+                 (receive-event! [::after-sync-unpack])))
+
+           ((:on-message @callbacks_) ::async-unpack)
+           ((:on-message @callbacks_)
+            (pack-sync base-packer true [[[::after-async-unpack]] nil]))
+           (is (thrown? Exception
+                 (@async-unpack_ {:error (ex-info "async unpack" {})})))
+           (is (= [::after-async-unpack]
+                 (receive-event! [::after-async-unpack])))
+           (is (nil? (@async-unpack_ {:value [[[::duplicate]] nil]})))
 
            (finally
              (sente/chsk-disconnect! chsk)))))))
