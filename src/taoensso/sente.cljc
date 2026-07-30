@@ -2063,8 +2063,6 @@
         :or   {type           :auto
                recv-buf-or-n  (async/sliding-buffer 2048) ; Mostly for buffered-evs
                packer         :edn
-               client-id      (or (:client-uuid opts) ; Backwards compatibility
-                                  (enc/uuid-str))
                wrap-recv-evs? false
                backoff-ms-fn  enc/exp-backoff
 
@@ -2074,12 +2072,17 @@
                ws-constructor     #?(:cljs make-client-ws :clj nil)}}]]
 
      (truss/have? [:in #{:ajax :ws :auto}] type)
-     (truss/have? enc/nblank-str? client-id)
 
-     ;; Check once now to trigger possible warning
-     (get-client-csrf-token-str true ?csrf-token-or-fn)
+     (let [client-id
+           (truss/have enc/nblank-str?
+             (if (contains? opts :client-id)
+               client-id
+               (or (:client-uuid opts) (enc/uuid-str)))) ; Backwards compatibility
 
-     (let [ws-kalive-ms (when ws-kalive-ms (quot ws-kalive-ms 2)) ; Ref. #455
+           ;; Check once now to trigger possible warning
+           _ (get-client-csrf-token-str true ?csrf-token-or-fn)
+
+           ws-kalive-ms (when ws-kalive-ms (quot ws-kalive-ms 2)) ; Ref. #455
            packer (coerce-packer packer)
 
            [ws-url ajax-url]
