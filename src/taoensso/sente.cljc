@@ -90,7 +90,7 @@
      (:require-macros
       [taoensso.sente :as sente-macros :refer [elide-require]])))
 
-(enc/assert-min-encore-version [3 165 0])
+(enc/assert-min-encore-version [3 171 1])
 (def sente-version
   "Useful for identifying client/server mismatch"
   [1 22 0])

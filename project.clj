@@ -9,7 +9,7 @@
 
   :dependencies
   [[org.clojure/core.async "1.9.865"]
-   [com.taoensso/encore    "3.168.0"]
+   [com.taoensso/encore    "3.171.1"]
    [com.taoensso/trove     "1.1.0"]]
 
   :test-paths ["test" #_"src"]
@@ -18,8 +18,9 @@
   {;; :default [:base :system :user :provided :dev]
    :provided {:dependencies [[org.clojure/clojurescript "1.12.145"]
                              [org.clojure/clojure       "1.12.5"]]}
+   :c1.13    {:dependencies [[org.clojure/clojure       "1.13.0-alpha6"]]}
    :c1.12    {:dependencies [[org.clojure/clojure       "1.12.5"]]}
-   :c1.11    {:dependencies [[org.clojure/clojure       "1.11.1"]]}
+   :c1.11    {:dependencies [[org.clojure/clojure       "1.11.4"]]}
 
    :graal-tests
    {:source-paths ["test"]
@@ -27,7 +28,7 @@
     :aot [taoensso.graal-tests]
     :uberjar-name "graal-tests.jar"
     :dependencies
-    [[org.clojure/clojure                  "1.11.1"]
+    [[org.clojure/clojure                  "1.11.4"]
      [com.github.clj-easy/graal-build-time "1.0.6"]]}
 
    :community
@@ -90,6 +91,6 @@
    "build-once" ["do" ["clean"] ["cljsbuild" "once"]]
    "deploy-lib" ["do" ["build-once"] ["deploy" "clojars"] ["install"]]
 
-   "test-clj"   ["with-profile" "+c1.12:+c1.11"      "test"]
+   "test-clj"   ["with-profile" "+c1.13:+c1.12:+c1.11" "test"]
    "test-cljs"  ["with-profile" "+c1.12" "cljsbuild" "test"]
    "test-all"   ["do" ["clean"] ["test-clj"] ["test-cljs"]]})

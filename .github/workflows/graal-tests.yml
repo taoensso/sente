@@ -1,5 +1,15 @@
 name: Graal tests
-on: [push, pull_request]
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   tests:
@@ -12,30 +22,31 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@v6
-      - uses: graalvm/setup-graalvm@v1.5.5
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: graalvm/setup-graalvm@0def53c0fd8534bc13416c9469f5be45265824fd # v1.6.3
         with:
           java-version: ${{ matrix.java }}
           distribution: graalvm-community
-          components: native-image
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: DeLaGuardo/setup-clojure@13.6.0
+      - uses: DeLaGuardo/setup-clojure@4c7a6f613e5089821bb3bb2a33a3ee115578580d # 13.6.1
         with:
           lein: 2.12.0 # Pinned 2026-06-11: `latest` (2.13.0) currently breaks setup-clojure's Windows lein.ps1 shim
-          bb: latest
+          bb: 1.12.218
 
-      - uses: actions/cache@v5
+      - uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
           path: ~/.m2/repository
-          key: deps-${{ runner.os }}-${{ hashFiles('project.clj') }}
+          key: graal-deps-${{ runner.os }}-java-${{ matrix.java }}-${{ hashFiles('project.clj') }}
           restore-keys: |
+            graal-deps-${{ runner.os }}-java-${{ matrix.java }}-
+            graal-deps-${{ runner.os }}-
             deps-${{ runner.os }}-
 
       # Pre-initialize MSVC toolchain env
       - name: Set up MSVC dev environment (Windows)
         if: runner.os == 'Windows'
-        uses: ilammy/msvc-dev-cmd@v1
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1
 
       - name: Run Graal tests
         run: bb graal-tests

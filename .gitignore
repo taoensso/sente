@@ -11,4 +11,5 @@ pom.xml*
 /target/
 /checkouts/
 /logs/
+/out/
 /wiki/.git
