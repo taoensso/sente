@@ -63,7 +63,7 @@
     [[com.cognitect/transit-clj  "1.1.357"]
      [com.cognitect/transit-cljs "0.8.280"]
      [org.clojure/test.check     "1.1.3"]
-     [http-kit                   "2.8.1"]]
+     [http-kit                   "2.9.0-beta4"]]
 
     :plugins
     [[lein-pprint    "1.3.2"]
