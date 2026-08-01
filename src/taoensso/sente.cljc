@@ -93,7 +93,7 @@
 (enc/assert-min-encore-version [3 171 1])
 (def sente-version
   "Useful for identifying client/server mismatch"
-  [1 22 0])
+  [1 23 0])
 
 #?(:cljs (def ^:private node-target? (= *target* "nodejs")))
 
