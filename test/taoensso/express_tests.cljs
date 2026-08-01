@@ -20,12 +20,14 @@
         (let [server (express/make-express-channel-socket-server!)]
           (testing "raw request bodies are preserved for binary packers"
             (let [body (js/Uint8Array. #js [0 1 2])
-                  req  #js {:query #js {}, :body body}]
+                  req  #js {:query #js {}, :body body,
+                            :headers #js {"origin" "http://site.com"}}]
               ((:ajax-post-fn server)
                req #js {})
               (is (identical? req  (:body @ring-req_)))
               (is (identical? body (:taoensso.sente/ajax-body @ring-req_)))
-              (is (empty? (:form-params @ring-req_))))))
+              (is (empty? (:form-params @ring-req_)))
+              (is (= {"origin" "http://site.com"} (:headers @ring-req_))))))
 
         (is (= :sente/skip-CSRF-check
               ((:csrf-token-fn @server-opts_) nil)))

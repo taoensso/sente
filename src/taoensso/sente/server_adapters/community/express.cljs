@@ -40,11 +40,16 @@
         query-params (obj->map (.-query exp-req)) ; From `express`
         form-params  (when-not binary-body? (obj->map body))
         params (merge query-params form-params)
+        headers ; Ring-style (Node lowercases names), needed by Sente's
+                ; `:allowed-origins` and WebSocket subprotocol CSRF checks
+        (when-let [hs (.-headers exp-req)]
+          (into {} (for [k (js-keys hs)] [k (str (aget hs k))])))
         ring-req
         (merge base-ring-req
           {:response             exp-resp
            :body                 exp-req ; Backwards compatibility
            ::sente/ajax-body     body
+           :headers              headers
            :query-params         query-params
            :form-params          form-params
            :params               params})]
