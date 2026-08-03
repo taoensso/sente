@@ -13,46 +13,57 @@
   Needs `js/CompressionStream` browser support.
 
   If `packer` takes+returns platform bytes:   `binary?` should be true.
-  If `packer` takes+returns platform strings: `binary?` should be false."
+  If `packer` takes+returns platform strings: `binary?` should be false.
 
-  [packer {:keys [binary?]}]
-  #?(:clj
-     (reify i/IPacker2
-       (unpack [_ ws? ba cb]
-         (if binary?
-           (i/unpack packer ws?                   (impl/gunzip ba)  cb)
-           (i/unpack packer ws? (enc/utf8-ba->str (impl/gunzip ba)) cb)))
+  `:max-uncompressed-bytes` defaults to 64 MiB to bound gzip expansion.
+  Set it to nil to disable the limit."
 
-       (pack [_ ws? x cb]
-         (i/pack packer ws? x
-           (fn [{:keys [value error]}]
-             (if           error
-               (cb {:error error})
-               (cb {:value (impl/gzip (if binary? value (enc/str->utf8-ba value)))}))))))
-
-     :cljs
-     (do
-       (when-not (exists? js/CompressionStream)   (truss/ex-info!   "CompressionStream not supported"))
-       (when-not (exists? js/DecompressionStream) (truss/ex-info! "DecompressionStream not supported"))
+  [packer {:keys [binary?] :as opts}]
+  (let [max-uncompressed-bytes
+        (if (contains? opts :max-uncompressed-bytes)
+          (:max-uncompressed-bytes opts)
+          impl/default-max-uncompressed-bytes)]
+    (when-not (or (nil? max-uncompressed-bytes) (pos-int? max-uncompressed-bytes))
+      (truss/ex-info! "Invalid gzip expansion limit"
+        {:max-uncompressed-bytes max-uncompressed-bytes}))
+    #?(:clj
        (reify i/IPacker2
-         (unpack [_ ws? packed cb]
-           (->
-             (impl/gunzip (impl/as-u8s packed)) ; Decompress -> u8s promise
-             (.then
-               (fn [u8s]
-                 (if binary?
-                   (i/unpack packer ws?                   u8s  cb)
-                   (i/unpack packer ws? (enc/utf8-ba->str u8s) cb))))
-             (.catch (fn [err] (cb {:error err})))))
+         (unpack [_ ws? ba cb]
+           (let [unpacked (impl/gunzip ba max-uncompressed-bytes)]
+             (if binary?
+               (i/unpack packer ws?                   unpacked  cb)
+               (i/unpack packer ws? (enc/utf8-ba->str unpacked) cb))))
 
-         (pack [_ ws? cljs-val cb]
-           (i/pack packer ws? cljs-val
-             (fn [{:keys [error value]}] ; Serialize -> text/bin value
+         (pack [_ ws? x cb]
+           (i/pack packer ws? x
+             (fn [{:keys [value error]}]
                (if           error
                  (cb {:error error})
-                 (-> (impl/gzip (if binary? (impl/as-u8s value) (enc/str->utf8-ba value))) ; Compress -> u8s promise
-                   (.then  (fn [u8s] (cb {:value u8s})))
-                   (.catch (fn [err] (cb {:error err}))))))))))))
+                 (cb {:value (impl/gzip (if binary? value (enc/str->utf8-ba value)))}))))))
+
+       :cljs
+       (do
+         (when-not (exists? js/CompressionStream)   (truss/ex-info!   "CompressionStream not supported"))
+         (when-not (exists? js/DecompressionStream) (truss/ex-info! "DecompressionStream not supported"))
+         (reify i/IPacker2
+           (unpack [_ ws? packed cb]
+             (->
+               (impl/gunzip (impl/as-u8s packed) max-uncompressed-bytes) ; Decompress -> u8s promise
+               (.then
+                 (fn [u8s]
+                   (if binary?
+                     (i/unpack packer ws?                   u8s  cb)
+                     (i/unpack packer ws? (enc/utf8-ba->str u8s) cb))))
+               (.catch (fn [err] (cb {:error err})))))
+
+           (pack [_ ws? cljs-val cb]
+             (i/pack packer ws? cljs-val
+               (fn [{:keys [error value]}] ; Serialize -> text/bin value
+                 (if           error
+                   (cb {:error error})
+                   (-> (impl/gzip (if binary? (impl/as-u8s value) (enc/str->utf8-ba value))) ; Compress -> u8s promise
+                     (.then  (fn [u8s] (cb {:value u8s})))
+                     (.catch (fn [err] (cb {:error err})))))))))))))
 
 (comment
   (let [p (wrap-packer (taoensso.sente.packers.msgpack/get-packer) {:binary? true})

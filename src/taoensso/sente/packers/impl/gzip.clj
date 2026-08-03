@@ -3,6 +3,14 @@
 (def ^:private ^:const prefix-raw  (byte 0x00))
 (def ^:private ^:const prefix-gzip (byte 0x01))
 (def ^:private ^:const min-bytes   1024)
+(def ^:const default-max-uncompressed-bytes (* 64 1024 1024))
+
+(defn- check-size! [size max-size]
+  (when (and max-size (> size max-size))
+    (throw
+      (ex-info "Gzip payload exceeds configured expansion limit"
+        {:uncompressed-bytes size, :max-uncompressed-bytes max-size})))
+  size)
 
 (defn- prefix
   "Returns given byte[] with added flag prefix."
@@ -27,16 +35,30 @@
 
 (defn gunzip
   "Compressed byte[] -> uncompressed byte[]."
-  ^bytes [^bytes ba]
-  (let [len   (alength ba)
-        flag  (bit-and 0xFF (aget ba 0))]
-    (if-not (== flag prefix-gzip)
-      (java.util.Arrays/copyOfRange ba 1 len)
-      (with-open [bais (java.io.ByteArrayInputStream.  ba 1 (dec len))
-                  gis  (java.util.zip.GZIPInputStream. bais)
-                  baos (java.io.ByteArrayOutputStream.)]
-        (.transferTo gis baos)
-        (.toByteArray    baos)))))
+  (^bytes [^bytes ba] (gunzip ba default-max-uncompressed-bytes))
+  (^bytes [^bytes ba max-size]
+   (let [len (alength ba)]
+     (when (zero? len)
+       (throw (ex-info "Invalid empty gzip payload" {})))
+     (let [flag (bit-and 0xFF (aget ba 0))]
+       (when-not (or (== flag prefix-raw) (== flag prefix-gzip))
+         (throw (ex-info "Invalid gzip payload prefix" {:prefix flag})))
+       (if (== flag prefix-raw)
+         (do
+           (check-size! (dec len) max-size)
+           (java.util.Arrays/copyOfRange ba 1 len))
+         (with-open [bais (java.io.ByteArrayInputStream. ba 1 (dec len))
+                     gis  (java.util.zip.GZIPInputStream. bais)
+                     baos (java.io.ByteArrayOutputStream.)]
+           (let [buffer (byte-array 8192)]
+             (loop [total 0]
+               (let [n (.read gis buffer)]
+                 (when-not (neg? n)
+                   (let [total (+ total n)]
+                     (check-size! total max-size)
+                     (.write baos buffer 0 n)
+                     (recur total))))))
+           (.toByteArray baos)))))))
 
 (comment
   (defn bn [len] (byte-array (take len (cycle (range 128)))))

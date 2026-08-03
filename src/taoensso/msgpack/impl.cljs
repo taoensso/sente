@@ -9,6 +9,7 @@
 ;;;; Streams
 
 (defprotocol IInputStream
+  (remaining [_])
   (read-u8s [_ n])
   (read-str [_ n])
   (read-u8  [_])
@@ -55,6 +56,8 @@
 (def ^:private text-decoder (js/TextDecoder. "utf-8"))
 (def ^:private text-encoder (js/TextEncoder.))
 
+(declare ensure-readable!)
+
 (deftype InputStream
   [    ^:unsynchronized-mutable offset
    ^js ^:unsynchronized-mutable view
@@ -62,7 +65,9 @@
 
   IDeref (-deref [_] u8s)
   IInputStream
+  (remaining [_] (- (.-byteLength u8s) offset))
   (read-u8s [this n]
+    (ensure-readable! this n :value)
     (let [i     offset
           end   (+ i n)
           chunk (.subarray u8s i end)]
@@ -285,18 +290,54 @@
 
 ;;;; Unpacking
 
+(def ^:private ^:dynamic *max-value-bytes* nil)
+(def ^:private ^:dynamic *max-collection-items* nil)
+(def ^:private ^:dynamic *max-nesting-depth* nil)
+(def ^:private ^:dynamic *nesting-depth* 0)
+
+(def ^:private default-max-value-bytes (* 64 1024 1024))
+(def ^:private default-max-collection-items (* 1024 1024))
+(def ^:private default-max-nesting-depth 512)
+
+(defn- next-nesting-depth! []
+  (let [depth (inc *nesting-depth*)]
+    (when (and *max-nesting-depth* (> depth *max-nesting-depth*))
+      (truss/ex-info! "MessagePack nesting exceeds configured limit"
+        {:nesting-depth depth, :max-nesting-depth *max-nesting-depth*}))
+    depth))
+
+(defn- ensure-readable!
+  [in n kind]
+  (when (and (= kind :value) *max-value-bytes* (> n *max-value-bytes*))
+    (truss/ex-info! "MessagePack value exceeds configured byte limit"
+      {:declared-bytes n, :max-value-bytes *max-value-bytes*}))
+  (when (and (#{:collection :map} kind) *max-collection-items* (> n *max-collection-items*))
+    (truss/ex-info! "MessagePack collection exceeds configured item limit"
+      {:declared-items n, :max-collection-items *max-collection-items*}))
+  (let [minimum-bytes (if (= kind :map) (* 2 n) n)
+        remaining     (remaining in)]
+    (when (> minimum-bytes remaining)
+      (truss/ex-info! "MessagePack length exceeds remaining input"
+        {:kind kind, :declared-size n, :minimum-bytes minimum-bytes,
+         :remaining-bytes remaining})))
+  n)
+
 (declare unpack-1)
 #_(defn- unpack-n [init n in] (persistent! (reduce (fn [acc _] (conj!  acc (unpack-1 in))) (transient init) (range n))))
-(defn-   unpack-n [init n in]
+(defn-   unpack-n* [init n in]
+  (ensure-readable! in n :collection)
   (if (zero? n)
     init
     (loop [n n, acc (transient init)]
       (if (zero? n)
         (persistent! acc)
         (recur (dec n) (conj! acc (unpack-1 in)))))))
+(defn-   unpack-n [init n in]
+  (binding [*nesting-depth* (next-nesting-depth!)] (unpack-n* init n in)))
 
 #_(defn- unpack-map [n in] (persistent! (reduce (fn [acc _] (assoc! acc (unpack-1 in) (unpack-1 in))) (transient {}) (range n))))
-(defn-   unpack-map [n in]
+(defn-   unpack-map* [n in]
+  (ensure-readable! in n :map)
   (if (zero? n)
     {}
     (let [key-cache_ c/*key-cache_*]
@@ -309,6 +350,8 @@
                   (.-val      ^CachedKey k)
                   (do (c/key-cache-unpack! key-cache_ k) k))]
             (recur (dec n) (assoc! acc k (unpack-1 in)))))))))
+(defn-   unpack-map [n in]
+  (binding [*nesting-depth* (next-nesting-depth!)] (unpack-map* n in)))
 
 (defn- unpack-1 [in]
   (let   [byte-id (read-u8 in)]
@@ -385,7 +428,8 @@
 (c/extend-packable 3 nil ; Ratio
   nil
   (unpack [^js u8s]
-    (let [in (in-stream ^js u8s)] (/ (unpack-1 in) (unpack-1 in)))))
+    (binding [*nesting-depth* (next-nesting-depth!)]
+      (let [in (in-stream ^js u8s)] (/ (unpack-1 in) (unpack-1 in))))))
 
 (c/extend-packable 4 PersistentHashSet
   (pack   [s] (let [out (out-stream 1024)] (pack-seq s out) @out))
@@ -477,7 +521,36 @@
 
 ;;;;
 
-(defn unpack [in] (unpack-1 (in-stream* in)))
+(defn unpack
+  ([in] (unpack in nil))
+  ([in opts]
+   (let [max-value-bytes
+         (if (contains? opts :max-value-bytes)
+           (:max-value-bytes opts)
+           default-max-value-bytes)
+
+         max-collection-items
+         (if (contains? opts :max-collection-items)
+           (:max-collection-items opts)
+           default-max-collection-items)
+
+         max-nesting-depth
+         (if (contains? opts :max-nesting-depth)
+           (:max-nesting-depth opts)
+           default-max-nesting-depth)]
+
+     (when-not (or (nil? max-value-bytes) (pos-int? max-value-bytes))
+       (truss/ex-info! "Invalid MessagePack byte limit" {:max-value-bytes max-value-bytes}))
+     (when-not (or (nil? max-collection-items) (pos-int? max-collection-items))
+       (truss/ex-info! "Invalid MessagePack collection limit" {:max-collection-items max-collection-items}))
+     (when-not (or (nil? max-nesting-depth) (nat-int? max-nesting-depth))
+       (truss/ex-info! "Invalid MessagePack nesting limit" {:max-nesting-depth max-nesting-depth}))
+
+     (binding [*max-value-bytes* max-value-bytes
+               *max-collection-items* max-collection-items
+               *max-nesting-depth* max-nesting-depth
+               *nesting-depth* 0]
+       (unpack-1 (in-stream* in))))))
 (defn pack
   ([clj    ] (let [out (out-stream  1024)] (pack-bytes clj out) @out))
   ([clj out] (let [out (out-stream* out)]  (pack-bytes clj out)  out)))

@@ -53,6 +53,10 @@
   #?(:clj  (doto (byte-array     n) (java.util.Arrays/fill (byte 1)))
      :cljs (doto (js/Uint8Array. n)                 (.fill       1))))
 
+(defn encoded-bytes [xs]
+  #?(:clj  (byte-array (map unchecked-byte xs))
+     :cljs (js/Uint8Array. (to-array xs))))
+
 ;;;;
 
 (deftest core
@@ -162,6 +166,24 @@
 
          (is (= js/Number.MAX_SAFE_INTEGER (mp/unpack safe-max)))
          (is (thrown? js/RangeError (mp/unpack unsafe)))))))
+
+(deftest bounded-unpacking
+  (is (thrown? #?(:clj Exception :cljs js/Error)
+        (mp/unpack (encoded-bytes [0x91 0x91 0xc0]) {:max-nesting-depth 1})))
+
+  (testing "Declared lengths cannot allocate or loop beyond available input"
+    (is (thrown? #?(:clj Exception :cljs js/Error)
+          (mp/unpack (encoded-bytes [0xc4 10 1]))))
+    (is (thrown? #?(:clj Exception :cljs js/Error)
+          (mp/unpack (encoded-bytes [0xdc 0 2 0xc0]))))
+    (is (thrown? #?(:clj Exception :cljs js/Error)
+          (mp/unpack (encoded-bytes [0xde 0 1 0xc0])))))
+
+  (testing "Explicit value and collection limits are enforced"
+    (is (thrown? #?(:clj Exception :cljs js/Error)
+          (mp/unpack (encoded-bytes [0xc4 2 1 2]) {:max-value-bytes 1})))
+    (is (thrown? #?(:clj Exception :cljs js/Error)
+          (mp/unpack (encoded-bytes [0x92 0xc0 0xc0]) {:max-collection-items 1})))))
 
 #?(:cljs
    (defmethod test/report [:cljs.test/default :end-run-tests] [m]

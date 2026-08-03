@@ -105,6 +105,48 @@
   (deftest test-packer-gz+transit (test-promise (roundtrip td1 (gz/wrap-packer (tp/get-packer) {:binary? false})) #(is (= td1 %))))
   (deftest test-packer-gz+msgpack (test-promise (roundtrip td1 (gz/wrap-packer (mp/get-packer) {:binary?  true})) #(is (= td1 %)))))
 
+(deftest test-packer-msgpack-limits
+  (let [packed_ (atom nil)]
+    (i/pack (mp/get-packer) :ws [[]] #(reset! packed_ (:value %)))
+    (is (thrown? #?(:clj Exception :cljs js/Error)
+          (i/unpack (mp/get-packer {:max-nesting-depth 1}) :ws @packed_ identity)))))
+
+(deftest test-gzip-expansion-limit
+  (testing "Gzip unpacking rejects output beyond the configured limit"
+    (let [packer  (gz/wrap-packer (ep/get-packer)
+                    {:binary? false, :max-uncompressed-bytes 64})
+          payload (apply str (repeat 2048 "x"))]
+      #?(:clj
+         (let [packed_ (atom nil)]
+           (i/pack packer :ws payload #(reset! packed_ (:value %)))
+           (is (thrown? Exception
+                 (i/unpack packer :ws @packed_ (fn [_])))))
+
+         :cljs
+         (test-promise
+           (js/Promise.
+             (fn [resolve reject]
+               (i/pack packer :ws payload
+                 (fn [{:keys [value error]}]
+                   (if error
+                     (reject error)
+                     (i/unpack packer :ws value resolve))))))
+           #(is (some? (:error %))))))))
+
+(deftest test-gzip-malformed-input
+  (let [packer (gz/wrap-packer (ep/get-packer) {:binary? false})]
+    #?(:clj
+       (doseq [packed [(byte-array 0) (byte-array [2])]]
+         (is (thrown? Exception (i/unpack packer :ws packed identity))))
+
+       :cljs
+       (doseq [packed [(js/Uint8Array. 0) (js/Uint8Array. #js [2])]]
+         (test-promise
+           (js/Promise.
+             (fn [resolve]
+               (i/unpack packer :ws packed resolve)))
+           #(is (some? (:error %))))))))
+
 ;;;; Security: CSRF & origin checks (server-only)
 
 #?(:clj

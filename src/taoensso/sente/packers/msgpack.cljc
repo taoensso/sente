@@ -12,11 +12,14 @@
   format, Ref. <https://msgpack.org/index.html>.
 
   Clj/s MessagePack implementation adapted from
-  <https://github.com/rosejn/msgpack-cljc>."
-  []
-  (reify i/IPacker2
-    (pack   [_ _ws? x  cb] (cb {:value (msgpack/pack    x)}))
-    (unpack [_ _ws? in cb] (cb {:value (msgpack/unpack in)}))))
+  <https://github.com/rosejn/msgpack-cljc>.
+
+  Optional `unpack-opts` are forwarded to `taoensso.msgpack/unpack`."
+  ([] (get-packer nil))
+  ([unpack-opts]
+   (reify i/IPacker2
+     (pack   [_ _ws? x  cb] (cb {:value (msgpack/pack x)}))
+     (unpack [_ _ws? in cb] (cb {:value (msgpack/unpack in unpack-opts)})))))
 
 (comment
   (let [p (get-packer)]

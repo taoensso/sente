@@ -23,14 +23,27 @@
 
 #?(:clj
    (defn unpack
-     "Returns Clj value for given MessagePack-encoded input ∈ #{byte[] DataInput}."
-     [input] (c/with-key-cache (impl/unpack input)))
+     "Returns Clj value for given MessagePack-encoded input ∈ #{byte[] DataInput}.
+
+     Optional limits default to 64 MiB per byte/string value, 1048576
+     items per collection, and 512 levels of nesting. Set an option to nil
+     to disable that limit."
+     ([input] (c/with-key-cache (impl/unpack input)))
+     ([input {:keys [max-value-bytes max-collection-items max-nesting-depth] :as opts}]
+      (c/with-key-cache (impl/unpack input opts))))
 
    :cljs
    (defn unpack
      "Returns Cljs value for given MessagePack-encoded input
-     ∈ #{Uint8Array ArrayBuffer DataView subs}."
-     [input] (c/with-key-cache (impl/unpack input))))
+     ∈ #{Uint8Array ArrayBuffer DataView subs}.
+     Decoded binary values may share the input's backing buffer.
+
+     Optional limits default to 64 MiB per byte/string value, 1048576
+     items per collection, and 512 levels of nesting. Set an option to nil
+     to disable that limit."
+     ([input] (c/with-key-cache (impl/unpack input)))
+     ([input {:keys [max-value-bytes max-collection-items max-nesting-depth] :as opts}]
+      (c/with-key-cache (impl/unpack input opts)))))
 
 (comment
   (require '[taoensso.encore :as enc])
