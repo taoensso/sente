@@ -397,23 +397,48 @@
           0xdd (unpack-n #{} (read-u32 in)            in)
           (do  (unpack-n #{} (bit-and 2r1111 byte-id) in)))))))
 
+(defn- typed-array-bytes
+  [^js a byte-width write-fn]
+  (let [n       (.-length a)
+        ^js ab  (js/ArrayBuffer. (* n byte-width))
+        ^js out (js/DataView. ab)]
+    (dotimes [idx n]
+      (write-fn out (* idx byte-width) (aget a idx)))
+    (js/Uint8Array. ab)))
+
+(defn- bytes->typed-array
+  [^js u8s byte-width make-array read-fn type-name]
+  (let [byte-length (.-byteLength u8s)]
+    (when-not (zero? (mod byte-length byte-width))
+      (truss/ex-info! "Invalid typed array extension length"
+        {:type type-name, :byte-length byte-length, :byte-width byte-width}))
+    (let [n        (quot byte-length byte-width)
+          ^js view (js/DataView. (.-buffer u8s) (.-byteOffset u8s) byte-length)
+          ^js out  (make-array n)]
+      (dotimes [idx n]
+        (aset out idx (read-fn view (* idx byte-width))))
+      out)))
+
 (c/extend-packable 5 js/Int32Array
-  (pack   [a] (js/Uint8Array. (.-buffer a) (.-byteOffset a) (.-byteLength a)))
-  (unpack [^js u8s]
-    (let [^js copy (js/Uint8Array. u8s)]
-      (js/Int32Array. (.-buffer copy) 0 (quot (.-byteLength copy) 4)))))
+  (pack [a]
+    (typed-array-bytes a 4 (fn [view offset value] (.setInt32 view offset value))))
+  (unpack [u8s]
+    (bytes->typed-array u8s 4 #(js/Int32Array. %)
+      (fn [view offset] (.getInt32 view offset)) "Int32Array")))
 
 (c/extend-packable 6 js/Float32Array
-  (pack   [a] (js/Uint8Array. (.-buffer a) (.-byteOffset a) (.-byteLength a)))
-  (unpack [^js u8s]
-    (let [^js copy (js/Uint8Array. u8s)]
-      (js/Float32Array. (.-buffer copy) 0 (quot (.-byteLength copy) 4)))))
+  (pack [a]
+    (typed-array-bytes a 4 (fn [view offset value] (.setFloat32 view offset value))))
+  (unpack [u8s]
+    (bytes->typed-array u8s 4 #(js/Float32Array. %)
+      (fn [view offset] (.getFloat32 view offset)) "Float32Array")))
 
 (c/extend-packable 7 js/Float64Array
-  (pack   [a] (js/Uint8Array. (.-buffer a) (.-byteOffset a) (.-byteLength a)))
-  (unpack [^js u8s]
-    (let [^js copy (js/Uint8Array. u8s)]
-      (js/Float64Array. (.-buffer copy) 0 (quot (.-byteLength copy) 8)))))
+  (pack [a]
+    (typed-array-bytes a 8 (fn [view offset value] (.setFloat64 view offset value))))
+  (unpack [u8s]
+    (bytes->typed-array u8s 8 #(js/Float64Array. %)
+      (fn [view offset] (.getFloat64 view offset)) "Float64Array")))
 
 (c/extend-packable -1 js/Date
   (pack [d]

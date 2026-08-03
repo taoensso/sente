@@ -34,6 +34,9 @@
          (instance? js/Float64Array x)) (vec (js/Array.from x))
        :else nil)))
 
+(defn unsigned-byte-vec [x]
+  (mapv #(bit-and 0xff %) (byte-vec x)))
+
 (defn eq
   ([x y] (= (eq x) (eq y)))
   ([x  ]
@@ -105,7 +108,21 @@
    (testing "Primitive num arrays"
      [(rt? #?(:clj (int-array    (range 128)), :cljs (js/Int32Array.   (to-array (range 128)))))
       (rt? #?(:clj (float-array  (range 128)), :cljs (js/Float32Array. (to-array (range 128)))))
-      (rt? #?(:clj (double-array (range 128)), :cljs (js/Float64Array. (to-array (range 128)))))])
+      (rt? #?(:clj (double-array (range 128)), :cljs (js/Float64Array. (to-array (range 128)))))
+
+      (testing "use portable big-endian extension bytes"
+        [(is (= [0xd6 5 0x01 0x02 0x03 0x04]
+               (unsigned-byte-vec
+                 (mp/pack #?(:clj  (int-array [0x01020304])
+                             :cljs (js/Int32Array. #js [0x01020304]))))))
+         (is (= [0xd6 6 0x3f 0x80 0x00 0x00]
+               (unsigned-byte-vec
+                 (mp/pack #?(:clj  (float-array [1.0])
+                             :cljs (js/Float32Array. #js [1.0]))))))
+         (is (= [0xd7 7 0x3f 0xf0 0x00 0x00 0x00 0x00 0x00 0x00]
+               (unsigned-byte-vec
+                 (mp/pack #?(:clj  (double-array [1.0])
+                             :cljs (js/Float64Array. #js [1.0]))))))])])
 
    (testing "Ext types"
      [(is (let [ub (ubytes     1)] (eq ub (:ba-content (rt (c/->PackableExt 106 ub))))))
