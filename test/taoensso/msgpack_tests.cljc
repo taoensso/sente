@@ -74,6 +74,8 @@
 
    (rt? "float32" (float  0.0) (float  2.5))
    (rt? "float64" (double 0.0) (double 2.5) (double 3) 1e-46 1e39 3M)
+   #?(:clj
+      (is (thrown? Exception (mp/pack 9007199254740993M))))
 
    (rt? "Keywords" :foo :foo/bar)
    (rt? "Symbols"  'foo 'foo/bar)
@@ -130,6 +132,19 @@
          {:this-is-a-cachable-key 3
           :this/is-a-cachable-key 4} 5
          ["complex key" #{:a :b :c}] 6})])])
+
+#?(:cljs
+   (deftest unsafe-i64
+     (testing "Encoded int64 values must fit ClojureScript's safe integer range"
+       (let [safe-max
+             (js/Uint8Array.
+               #js [0xd3 0x00 0x1f 0xff 0xff 0xff 0xff 0xff 0xff])
+             unsafe
+             (js/Uint8Array.
+               #js [0xd3 0x00 0x20 0x00 0x00 0x00 0x00 0x00 0x01])]
+
+         (is (= js/Number.MAX_SAFE_INTEGER (mp/unpack safe-max)))
+         (is (thrown? js/RangeError (mp/unpack unsafe)))))))
 
 #?(:cljs
    (defmethod test/report [:cljs.test/default :end-run-tests] [m]

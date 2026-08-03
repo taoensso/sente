@@ -81,9 +81,15 @@
   (read-i64 [this]
     (let [i  offset
           hi (.getInt32  view    i)
-          lo (.getUint32 view (+ i 4))]
+          lo (.getUint32 view (+ i 4))
+          gl (goog.math.Long.fromBits lo hi)
+          n  (.toNumber gl)]
       (set! offset (+ i 8))
-      (.toNumber (goog.math.Long.fromBits lo hi)))))
+      (if (<= min-safe-int n max-safe-int)
+        n
+        (throw
+          (js/RangeError.
+            (str "Int outside safe range to unpack (i64): " (.toString gl))))))))
 
 (deftype OutputStream
   [    ^:unsynchronized-mutable offset

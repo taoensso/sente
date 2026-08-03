@@ -105,7 +105,12 @@
   ;;
   java.lang.Float             (pack-bytes [f ^DataOutput out] (do (.writeByte out 0xca) (.writeFloat  out f)))
   java.lang.Double            (pack-bytes [d ^DataOutput out] (do (.writeByte out 0xcb) (.writeDouble out d)))
-  java.math.BigDecimal        (pack-bytes [d ^DataOutput out] (pack-bytes (.doubleValue d) out))
+  java.math.BigDecimal
+  (pack-bytes [^java.math.BigDecimal n ^DataOutput out]
+    (let [d (.doubleValue n)]
+      (if (and (Double/isFinite d) (zero? (.compareTo n (java.math.BigDecimal/valueOf d))))
+        (pack-bytes d out)
+        (truss/ex-info! "Cannot pack BigDecimal without losing precision" {:value n}))))
   clojure.lang.Sequential     (pack-bytes [s ^DataOutput out] (pack-seq s out))
   clojure.lang.IPersistentMap (pack-bytes [m ^DataOutput out] (pack-map m out))
   ;;
