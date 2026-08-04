@@ -1,4 +1,6 @@
 (ns taoensso.msgpack.common
+  (:require
+   [taoensso.truss :as truss])
   #?(:cljs (:require-macros [taoensso.msgpack.common])))
 
 ;;;; Extensions
@@ -26,11 +28,24 @@
 
 (deftype CachedKey [val])
 
+#?(:clj
+   (deftype SharedDict
+     [^objects entries
+      ^java.util.IdentityHashMap kw-idxs
+      ^java.util.HashMap         str-idxs
+      ^long max-str-len
+      ^ints prefix-hashes]
+     clojure.lang.IDeref (deref [_] (vec entries)))
+
+   :cljs
+   (deftype SharedDict [entries kw-idxs str-idxs max-str-len prefix-hashes]
+     IDeref (-deref [_] (vec entries))))
+
 (deftype PackingKeyCache
-  [kw-idxs str-idxs auto-kw-idxs auto-seen-kws])
+  [kw-idxs str-idxs auto-kw-idxs auto-seen-kws shared-dict shared-dict-active?_])
 
 (deftype UnpackingKeyCache
-  [key-vals auto-kw-state])
+  [key-vals auto-kw-state shared-dict shared-dict-count_])
 
 (def ^:no-doc ^:dynamic *key-cache_*
   "`PackingKeyCache` or `UnpackingKeyCache` for current operation."
@@ -38,7 +53,14 @@
 
 (def ^:private seen-kw #?(:clj (Object.) :cljs (js-obj)))
 
-(defn ^:no-doc new-pack-key-cache [auto-cache-keywords?]
+(defn- as-shared-dict [x]
+  (when x
+    (if (instance? SharedDict x)
+      x
+      (truss/ex-info! "Expected `:shared-dict` value built with `msgpack/shared-dict`"
+        {:value x, :type (type x)}))))
+
+(defn ^:no-doc new-pack-key-cache [auto-cache-keywords? shared-dict]
   ;; JVM keywords are interned; Cljs keyword FQNs are strings.
   (PackingKeyCache.
     #?(:clj  (java.util.IdentityHashMap.)
@@ -50,23 +72,27 @@
          :cljs (js/Map.)))
     (when auto-cache-keywords?
       #?(:clj  (java.util.IdentityHashMap.)
-         :cljs (js/Map.)))))
+         :cljs (js/Map.)))
+    (as-shared-dict shared-dict)
+    (volatile! false)))
 
-(defn ^:no-doc new-unpack-key-cache []
+(defn ^:no-doc new-unpack-key-cache [shared-dict]
   (UnpackingKeyCache.
     #?(:clj  (java.util.ArrayList.)
        :cljs (array))
     #?(:clj  (object-array 2)
-       :cljs (array nil nil))))
+       :cljs (array nil nil))
+    (as-shared-dict shared-dict)
+    (volatile! nil)))
 
 #?(:clj
-   (defmacro ^:no-doc with-pack-key-cache [auto-cache-keywords? & body]
-     `(binding [*key-cache_* (new-pack-key-cache ~auto-cache-keywords?)]
+   (defmacro ^:no-doc with-pack-key-cache [auto-cache-keywords? shared-dict & body]
+     `(binding [*key-cache_* (new-pack-key-cache ~auto-cache-keywords? ~shared-dict)]
         ~@body)))
 
 #?(:clj
-   (defmacro ^:no-doc with-unpack-key-cache [& body]
-     `(binding [*key-cache_* (new-unpack-key-cache)]
+   (defmacro ^:no-doc with-unpack-key-cache [shared-dict & body]
+     `(binding [*key-cache_* (new-unpack-key-cache ~shared-dict)]
         ~@body)))
 
 ;; Wide cache sizes must not exceed the u16 reference capacity
@@ -74,6 +100,187 @@
 (def ^:private ^:const max-auto-kw-cache-size 65536)
 (def ^:private ^:const max-auto-kw-seen-size  65536)
 (def ^:no-doc  ^:const auto-kw-ref-id          10)
+(def ^:no-doc  ^:const shared-dict-ref-id       11)
+
+;;;; Shared dicts
+
+(def ^:private ^:const max-shared-dict-size 65536)
+(def ^:private ^:const fnv32-prime 16777619)
+(def ^:private fnv32-offset #?(:clj (unchecked-int 2166136261) :cljs (bit-or 2166136261 0)))
+
+(defn- fnv32-b [h b]
+  #?(:clj  (unchecked-multiply-int (bit-xor (int h) (int b)) fnv32-prime)
+     :cljs (js/Math.imul        (bit-xor      h       b)  fnv32-prime)))
+
+(defn- fnv32-ba [h ba]
+  (let [len #?(:clj (alength ^bytes ba) :cljs (.-byteLength ^js ba))]
+    (loop [i 0, h h]
+      (if (== i len)
+        h
+        (recur (inc i)
+          (fnv32-b h
+            (bit-and #?(:clj (aget ^bytes ba i) :cljs (aget ba i)) 0xff)))))))
+
+(defn- fnv32-u32 [h n]
+  (-> h
+    (fnv32-b (bit-and (unsigned-bit-shift-right n 24) 0xff))
+    (fnv32-b (bit-and (unsigned-bit-shift-right n 16) 0xff))
+    (fnv32-b (bit-and (unsigned-bit-shift-right n  8) 0xff))
+    (fnv32-b (bit-and                           n      0xff))))
+
+#?(:cljs (def ^:private text-encoder (js/TextEncoder.)))
+
+(defn- utf8-bytes [s]
+  #?(:clj  (.getBytes ^String s java.nio.charset.StandardCharsets/UTF_8)
+     :cljs (.encode text-encoder s)))
+
+(defn- utf8-encodable? [s]
+  ;; Avoid divergent replacement bytes from JVM UTF-8 and JS TextEncoder.
+  #?(:clj
+     (.canEncode (.newEncoder java.nio.charset.StandardCharsets/UTF_8) ^String s)
+
+     :cljs
+     (let [n (.-length s)]
+       (loop [i 0]
+         (if (== i n)
+           true
+           (let [c (.charCodeAt s i)]
+             (cond
+               (<= 0xD800 c 0xDBFF)
+               (and (< (inc i) n)
+                    (<= 0xDC00 (.charCodeAt s (inc i)) 0xDFFF)
+                    (recur (+ i 2)))
+
+               (<= 0xDC00 c 0xDFFF) false
+               :else (recur (inc i)))))))))
+
+(defn- fnv32-part [h s]
+  (let [ba (utf8-bytes s)]
+    (fnv32-ba (fnv32-u32 h #?(:clj (alength ^bytes ba) :cljs (.-byteLength ^js ba))) ba)))
+
+(defn- entry-hash [h x]
+  ;; Fingerprint precision deliberately matches the kw wire format's (FQN):
+  ;; kws that print identically (e.g. (keyword "a/b" "c"), (keyword "a" "b/c"))
+  ;; conflate here exactly as they do on the wire
+  (fnv32-part (fnv32-b h (if (keyword? x) 1 2)) (str x)))
+
+(defn- kw-dict-key [kw]
+  #?(:clj kw
+     :cljs
+     (let [ns (namespace kw)]
+       (if ns
+         (str (.-length ns) ":" ns (name kw))
+         (str "-:" (name kw))))))
+
+(defn ^:no-doc shared-dict
+  "Returns an immutable, precompiled shared dictionary for ordered keywords
+  and/or strings."
+  [entries]
+  (let [n (when (sequential? entries) (bounded-count (inc max-shared-dict-size) entries))]
+    (when-not (and n (<= 1 n max-shared-dict-size))
+      (truss/ex-info! "`shared-dict` expects a non-empty ordered sequence of <= 65536 keywords/strings"
+        {:type (type entries), :count n}))
+
+    (let [n     n
+          earr  #?(:clj (object-array n) :cljs (array))
+          kwm   #?(:clj (java.util.IdentityHashMap. (int n)) :cljs (js/Map.))
+          strm  #?(:clj (java.util.HashMap. (int n)) :cljs (js/Map.))
+          maxsl (volatile! -1)
+          ph    #?(:clj (int-array (inc n)) :cljs (array fnv32-offset))]
+      #?(:clj (aset ^ints ph 0 (int fnv32-offset)))
+      (reduce
+        (fn [idx x]
+          (when-not (or (keyword? x) (and (string? x) (not= x "")))
+            (truss/ex-info! "`shared-dict` entries must all be keywords or non-empty strings"
+              {:idx idx, :value x, :type (type x)}))
+          (when-not (utf8-encodable? (str x))
+            (truss/ex-info! "`shared-dict` entries must be UTF-8 encodable"
+              {:idx idx, :value x}))
+
+          (let [kw?       (keyword? x)
+                cache-key (if kw? (kw-dict-key x) x)
+                m         (if kw? kwm strm)]
+            (when #?(:clj  (.containsKey ^java.util.Map m cache-key)
+                     :cljs (.has ^js m cache-key))
+              (truss/ex-info! "`shared-dict` entries must be distinct"
+                {:idx idx, :duplicate x}))
+            #?(:clj
+               (do (aset ^objects earr idx x)
+                   (.put ^java.util.Map m cache-key idx)
+                   (aset ^ints ph (inc idx) (int (entry-hash (aget ^ints ph idx) x))))
+
+               :cljs
+               (do (.push earr x)
+                   (.set ^js m cache-key idx)
+                   (.push ph (entry-hash (aget ph idx) x))))
+            (when-not kw?
+              (vswap! maxsl max #?(:clj (.length ^String x) :cljs (.-length x)))))
+          (inc idx))
+        0 entries)
+      (SharedDict. earr kwm strm @maxsl ph))))
+
+(defn ^:no-doc shared-dict-count [^SharedDict dict]
+  (if dict
+    #?(:clj  (alength ^objects (.-entries dict))
+       :cljs (alength          (.-entries dict)))
+    0))
+
+(defn ^:no-doc shared-dict-pack-str-ref [^PackingKeyCache cache s]
+  (when-let [^SharedDict dict (when cache (.-shared-dict cache))]
+    (when (<= #?(:clj (.length ^String s) :cljs (.-length s))
+              (.-max-str-len dict))
+      #?(:clj  (.get ^java.util.HashMap (.-str-idxs dict) s)
+         :cljs (.get ^js (.-str-idxs dict) s)))))
+
+(defn ^:no-doc shared-dict-pack-kw-ref [^PackingKeyCache cache kw]
+  (when-let [^SharedDict dict (when cache (.-shared-dict cache))]
+    #?(:clj  (.get ^java.util.IdentityHashMap (.-kw-idxs dict) kw)
+       :cljs (.get ^js (.-kw-idxs dict) (kw-dict-key kw)))))
+
+(defn ^:no-doc shared-dict-pack-count [^PackingKeyCache cache]
+  (shared-dict-count (when cache (.-shared-dict cache))))
+
+(defn ^:no-doc shared-dict-pack-fingerprint [^PackingKeyCache cache]
+  (let [^SharedDict dict (.-shared-dict cache)
+        n (shared-dict-count dict)
+        ph (.-prefix-hashes dict)]
+    #?(:clj  (aget ^ints  ph n)
+       :cljs (aget        ph n))))
+
+(defn ^:no-doc shared-dict-pack-activate! [^PackingKeyCache cache]
+  (let [active?_ (.-shared-dict-active?_ cache)]
+    (when-not @active?_
+      (vreset! active?_ true)
+      true)))
+
+(defn ^:no-doc shared-dict-unpack-count [^UnpackingKeyCache cache]
+  (when cache @(.-shared-dict-count_ cache)))
+
+(defn ^:no-doc shared-dict-unpack-activate!
+  [^UnpackingKeyCache cache wire-count wire-fingerprint]
+  (let [^SharedDict dict (when cache (.-shared-dict cache))]
+    (when-not dict
+      (truss/ex-info! "Data was packed with a `:shared-dict`, so unpacking needs the same dict"
+        {:packed {:dict-count wire-count}}))
+    (when (shared-dict-unpack-count cache)
+      (truss/ex-info! "Unexpected activating `:shared-dict` reference"
+        {:packed {:dict-count wire-count}}))
+    (let [n  (shared-dict-count dict)
+          ph (.-prefix-hashes dict)
+          expected #?(:clj  (when (<= 1 wire-count n) (aget ^ints  ph wire-count))
+                      :cljs (when (<= 1 wire-count n) (aget        ph wire-count)))
+          matches? (and (some? expected) (== expected wire-fingerprint))]
+      (when-not matches?
+        (truss/ex-info! "`:shared-dict` mismatch: never remove or reorder entries"
+          {:packed {:dict-count wire-count}, :given {:dict-count n}}))
+      (vreset! (.-shared-dict-count_ cache) wire-count)
+      nil)))
+
+(defn ^:no-doc shared-dict-unpack-get [^UnpackingKeyCache cache idx]
+  (let [^SharedDict dict (.-shared-dict cache)
+        entries (.-entries dict)]
+    #?(:clj  (aget ^objects entries idx)
+       :cljs (aget          entries idx))))
 
 (defn ^:no-doc key-cache-pack!
   "Called on map keys when packing.

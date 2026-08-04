@@ -25,6 +25,7 @@
    #?(:clj [taoensso.sente.server-adapters.community.jetty :as jetty])
 
    [taoensso.sente.interfaces      :as i]
+   [taoensso.msgpack               :as msgpack]
    [taoensso.sente.packers.edn     :as ep]
    [taoensso.sente.packers.transit :as tp]
    [taoensso.sente.packers.msgpack :as mp]
@@ -70,6 +71,10 @@
           "37b4e00a-f8a4-4646-95b1-612f7640f011" :long-key4})))})
 
 (def td1 (get-test-data))
+(def test-msgpack-shared-dict
+  (msgpack/shared-dict
+    [:long-key1 :long-key2 :long-key3 :long-key4
+     "bed6400a-785e-4a83-a41d-e5b566cd8950"]))
 
 ;;;; Packers
 
@@ -141,6 +146,7 @@
   (deftest test-packer-transit    (test-promise (roundtrip td1                 (tp/get-packer))                   #(is (= td1 %))))
   (deftest test-packer-msgpack    (test-promise (roundtrip td1                 (mp/get-packer))                   #(is (= td1 %))))
   (deftest test-packer-msgpack-kws (test-promise (roundtrip td1 (mp/get-packer {:auto-cache-keywords? true}))     #(is (= td1 %))))
+  (deftest test-packer-msgpack-dict (test-promise (roundtrip td1 (mp/get-packer {:shared-dict test-msgpack-shared-dict})) #(is (= td1 %))))
   (deftest test-packer-gz+edn     (test-promise (roundtrip td1 (gz/wrap-packer (ep/get-packer) {:binary? false})) #(is (= td1 %))))
   (deftest test-packer-gz+transit (test-promise (roundtrip td1 (gz/wrap-packer (tp/get-packer) {:binary? false})) #(is (= td1 %))))
   (deftest test-packer-gz+msgpack (test-promise (roundtrip td1 (gz/wrap-packer (mp/get-packer) {:binary?  true})) #(is (= td1 %)))))

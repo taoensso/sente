@@ -57,6 +57,11 @@
   #?(:clj  (byte-array (map unchecked-byte xs))
      :cljs (js/Uint8Array. (to-array xs))))
 
+(def test-shared-dict (mp/shared-dict [:name :email :age]))
+
+(defn pack-with-dict [dict x]
+  (binding [mp/*shared-dict* dict] (mp/pack x)))
+
 ;;;;
 
 (deftest core
@@ -284,6 +289,12 @@
                    [0xd4 0x0a 0x00]
                    [0xd5 0x0a 0x01 0x00]
                    [0xd6 0x0a 0x00 0x00 0x00 0x00]
+                   [0xd4 0x0b 0x00]
+                   [0xd5 0x0b 0x01 0x00]
+                   [0xd6 0x0b 0x00 0x00 0x00 0x00]
+                   [0xd7 0x0b 0x00 0x00 0x00 0x01 0x00 0x00 0x00 0x00]
+                   [0xc7 0x0a 0x08 0x02 0x01 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00]
+                   [0x91 0xc7 0x0a 0x08 0x01 0x01 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00]
                    [0xd4 0xff 0x00]
                    [0xc7 0x0c 0xff 0x00 0x00 0x00 0x00
                     0x7f 0xff 0xff 0xff 0xff 0xff 0xff 0xff]
@@ -291,6 +302,181 @@
                    [0xc7 0x0a 0x03 0xcb 0x3f 0xf0 0x00
                     0x00 0x00 0x00 0x00 0x00 0x03]]]
     (is (thrown? #?(:clj Exception :cljs js/Error) (mp/unpack (encoded-bytes encoded))))))
+
+(deftest shared-dicts
+  (let [dict   test-shared-dict
+        dict+  (mp/shared-dict [:name :email :age :status])
+        packed (pack-with-dict dict [:name :email :age])]
+    [(is (= [:name :email :age] @dict))
+     (is (= [:name :email :age] (mp/unpack packed {:shared-dict dict})))
+     (is (= [:name :email :age] (mp/unpack packed {:shared-dict dict+}))
+       "Append-only evolution")
+     (is (thrown? #?(:clj Exception :cljs js/Error) (mp/unpack packed)))
+     (is (thrown? #?(:clj Exception :cljs js/Error)
+           (mp/unpack packed {:shared-dict (mp/shared-dict [:email :name :age])})))
+     (is (thrown? #?(:clj Exception :cljs js/Error)
+           (mp/unpack (pack-with-dict dict+ :status) {:shared-dict dict})))
+
+     (is (= (unsigned-byte-vec (mp/pack :x))
+            (unsigned-byte-vec (pack-with-dict dict :x)))
+       "No dictionary hits have no wire overhead")
+
+     (is (= [0x93
+             0xd7 0x0b 0x00 0x02 0x00 0x00 0x0b 0xb2 0x71 0xaf
+             0xd4 0x0b 0x01
+             0xd4 0x0b 0x02]
+           (unsigned-byte-vec packed))
+       "Stable activating and compact references")
+
+     (let [sdict  (mp/shared-dict [:name "country" "currency"])
+           sdict+ (mp/shared-dict [:name "country" "currency" "region"])
+           country #?(:clj (String. "country") :cljs (str "country"))
+           data   [{"country" 1} {"country" 2} country]
+           packed (pack-with-dict sdict data)
+           thawed (mp/unpack packed {:shared-dict sdict+})]
+       [(is (= [:name "country" "currency"] @sdict))
+        (is (= data thawed) "String refs work as map keys and values")
+        #?(:clj
+           (is (identical? (nth @sdict+ 1) (peek thawed))
+             "String refs return the dictionary's shared instance"))
+        (is (< (count (byte-vec
+                        (pack-with-dict sdict
+                          ["country" "currency" "country" "currency"])))
+               (count (byte-vec
+                        (mp/pack
+                          ["country" "currency" "country" "currency"]))))
+          "Repeated dictionary strings cover activation cost")])
+
+     (let [data   [:novel :novel :novel]
+           packed (binding [mp/*shared-dict* dict, mp/*auto-cache-keywords?* true]
+                    (mp/pack data))]
+       [(is (= data (mp/unpack packed))
+          "Automatic refs don't depend on the configured dictionary")
+        (is (= (unsigned-byte-vec packed)
+               (unsigned-byte-vec
+                 (binding [mp/*auto-cache-keywords?* true]
+                   (mp/pack data))))
+          "Unused dictionaries add no automatic-cache overhead")])
+
+     (let [dict   (mp/shared-dict ["country"])
+           dict+  (mp/shared-dict ["country" :known])
+           data   ["country" :novel :novel :novel]
+           packed (binding [mp/*shared-dict* dict, mp/*auto-cache-keywords?* true]
+                    (mp/pack data))]
+       (is (= data (mp/unpack packed {:shared-dict dict+}))
+         "Dictionary and automatic refs use independent indexes"))
+
+     (let [dict (mp/shared-dict ["known"])
+           data ["novel" "novel"]]
+       (is (= data
+             (mp/unpack
+               (binding [mp/*shared-dict* dict, mp/*auto-cache-keywords?* true]
+                 (mp/pack data))
+               {:shared-dict dict}))
+         "Novel strings don't enter the automatic keyword cache"))
+
+     (is (= [{:name 1} {:name 2} :name #{:email}]
+           (mp/unpack
+             (pack-with-dict dict [{:name 1} {:name 2} :name #{:email}])
+             {:shared-dict dict}))
+       "Dict aligns with map-key cache and nested extensions")
+
+     (let [dict (mp/shared-dict [:dict-kw "dict-key"])
+           data [:dict-kw :novel :novel :novel
+                 {:dict-kw 0, "dict-key" 0}
+                 {:dict-kw 1, "dict-key" 1}
+                 {:dict-kw 2, "dict-key" :novel}]]
+       (is (= data
+             (mp/unpack
+               (binding [mp/*shared-dict* dict, mp/*auto-cache-keywords?* true]
+                 (mp/pack data))
+               {:shared-dict dict}))
+         "Dictionary, automatic, and map-key caches stay aligned"))
+
+     (let [schema [:customer-identifier :customer-email :customer-status]
+           row    (zipmap schema [1 "e" :active])
+           dict   (mp/shared-dict schema)]
+       (is (< (count (byte-vec (pack-with-dict dict row)))
+              (count (byte-vec (mp/pack row))))
+         "Dict hits can cover activation cost"))
+
+     (let [kws    (mapv #(keyword (str "k" %)) (range 256))
+           dict   (mp/shared-dict kws)
+           packed (pack-with-dict dict (peek kws))]
+       [(is (= [0x00 0xff 0x00 0xff]
+              (subvec (unsigned-byte-vec packed) 2 6))
+          "Activator carries count-1 and index as u16")
+        (is (= (peek kws) (mp/unpack packed {:shared-dict dict})))])
+
+     (let [kws    (mapv #(keyword (str "k" %)) (range 257))
+           dict   (mp/shared-dict kws)
+           data   [(first kws) (peek kws)]
+           packed (pack-with-dict dict data)]
+       [(is (= data (mp/unpack packed {:shared-dict dict})))
+        (is (= [0xd5 0x0b 0x01 0x00]
+              (subvec (unsigned-byte-vec packed) 11 15))
+          "Indexes >=256 use compact u16 references")])
+
+     (let [dict   (mp/shared-dict (mapv #(str "k" %) (range 65536)))
+           packed (pack-with-dict dict "k65535")]
+       [(is (= [0xff 0xff 0xff 0xff]
+              (subvec (unsigned-byte-vec packed) 2 6))
+          "Maximum count and index fit u16")
+        (is (= "k65535" (mp/unpack packed {:shared-dict dict})))])
+
+     (let [kw1 (keyword "a/b" "c")
+           kw2 (keyword "a" "b/c")]
+       (is (= kw2
+             (mp/unpack
+               (pack-with-dict (mp/shared-dict [kw1]) kw1)
+               {:shared-dict (mp/shared-dict [kw2])}))
+         "Kws that print identically conflate, matching the kw wire format"))
+
+     (is (thrown? #?(:clj Exception :cljs js/Error)
+           (mp/unpack
+             (pack-with-dict (mp/shared-dict [:name]) :name)
+             {:shared-dict (mp/shared-dict ["name"])}))
+       "Keywords and same-name strings have different fingerprints")
+
+     (is (thrown? #?(:clj Exception :cljs js/Error)
+           (mp/unpack
+             (pack-with-dict (mp/shared-dict ["a" "b"]) "b")
+             {:shared-dict (mp/shared-dict ["a" "c"])}))
+       "Changed string entries have different fingerprints")
+
+     #?(:clj
+        (let [baos (java.io.ByteArrayOutputStream.)
+              out  (java.io.DataOutputStream. baos)]
+          (binding [mp/*shared-dict* dict]
+            (mp/pack out :name)
+            (mp/pack out :email))
+          (let [in (java.io.DataInputStream.
+                     (java.io.ByteArrayInputStream. (.toByteArray baos)))]
+            (is (= [:name :email]
+                  [(mp/unpack in {:shared-dict dict})
+                   (mp/unpack in {:shared-dict dict})])
+              "Each DataOutput value activates its dictionary"))))
+
+     (testing "Validation"
+       [(is (thrown? #?(:clj Exception :cljs js/Error) (mp/shared-dict [])))
+        (is (thrown? #?(:clj Exception :cljs js/Error) (mp/shared-dict [:a 42])))
+        (is (thrown? #?(:clj Exception :cljs js/Error) (mp/shared-dict [""])))
+        (is (thrown? #?(:clj Exception :cljs js/Error)
+              (mp/shared-dict
+                ["a" #?(:clj (String. "a") :cljs (str "a"))])))
+        (is (thrown? #?(:clj Exception :cljs js/Error) (mp/shared-dict [:a :a])))
+        (is (thrown? #?(:clj Exception :cljs js/Error)
+              (mp/shared-dict (map #(keyword (str "k" %)) (range 65537)))))
+        (is (thrown? #?(:clj Exception :cljs js/Error)
+              (mp/shared-dict
+                [(keyword #?(:clj  (str (char 0xD800))
+                             :cljs (js/String.fromCharCode 0xD800)))])))
+        (is (thrown? #?(:clj Exception :cljs js/Error)
+              (mp/shared-dict
+                [#?(:clj  (str (char 0xD800))
+                    :cljs (js/String.fromCharCode 0xD800))])))
+        (is (thrown? #?(:clj Exception :cljs js/Error)
+              (binding [mp/*shared-dict* [:a]] (mp/pack :a))))])]))
 
 ;;;; test.check
 

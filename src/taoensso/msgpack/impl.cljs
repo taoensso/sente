@@ -197,14 +197,27 @@
       (write-u8  out byte-id)
       (write-u16 out cache-idx))))
 
+(defn- pack-shared-dict-ref [cache cache-idx out]
+  (if (c/shared-dict-pack-activate! cache)
+    (let [n (c/shared-dict-pack-count cache)]
+      (write-u8  out 0xd7)
+      (write-u8  out c/shared-dict-ref-id)
+      (write-u16 out (dec n))
+      (write-u16 out cache-idx)
+      (write-i32 out (c/shared-dict-pack-fingerprint cache)))
+    (pack-cache-ref c/shared-dict-ref-id cache-idx out)))
+
 (defn- pack-str [^string s out]
-  (let [^js u8s (.encode text-encoder s)
-        len (.-byteLength u8s)]
-    (cond
-      (<= len 0x1f)       (do (write-u8 out   (bit-or 2r10100000 len)) (write-u8s out u8s))
-      (<= len 0xff)       (do (write-u8 out 0xd9) (write-u8  out len)  (write-u8s out u8s))
-      (<= len 0xffff)     (do (write-u8 out 0xda) (write-u16 out len)  (write-u8s out u8s))
-      (<= len 0xffffffff) (do (write-u8 out 0xdb) (write-u32 out len)  (write-u8s out u8s)))))
+  (let [cache c/*key-cache_*]
+    (if-let [cache-idx (c/shared-dict-pack-str-ref cache s)]
+      (pack-shared-dict-ref cache cache-idx out)
+    (let [^js u8s (.encode text-encoder s)
+          len (.-byteLength u8s)]
+      (cond
+        (<= len 0x1f)       (do (write-u8 out   (bit-or 2r10100000 len)) (write-u8s out u8s))
+        (<= len 0xff)       (do (write-u8 out 0xd9) (write-u8  out len)  (write-u8s out u8s))
+        (<= len 0xffff)     (do (write-u8 out 0xda) (write-u16 out len)  (write-u8s out u8s))
+        (<= len 0xffffffff) (do (write-u8 out 0xdb) (write-u32 out len)  (write-u8s out u8s)))))))
 
 (defn- pack-int [n out]
   (if (neg? n)
@@ -246,6 +259,11 @@
 
 #_(defn- pack-kvs [m out] (reduce-kv (fn [_ k v] (pack-bytes k  out) (pack-bytes v out)) nil m))
 (defn-   pack-kvs [m out]
+  ;; NB the key cache tracks LOGICAL kw/str keys, independent of how their
+  ;; bytes are produced: keys that pack as dict/auto-kw refs still register
+  ;; here, mirrored by `key-cache-unpack!` so both sides' idxs stay aligned.
+  ;; So on repeat occurrences the key cache shadows any dict, which is
+  ;; byte-optimal: its refs are always <= dict ref size.
   (let [key-cache_ c/*key-cache_*]
     (reduce-kv
       (fn [_ k v]
@@ -268,14 +286,16 @@
 
 (defn- pack-kw [k out]
   (let [cache c/*key-cache_*]
-    (if (c/auto-kw-cache-packing? cache)
-      (if-let [cache-idx (c/auto-kw-cache-pack-ref cache k)]
-        (pack-cache-ref c/auto-kw-ref-id cache-idx out)
-        (let [^js u8s (.encode text-encoder (.substring (str k) 1))]
-          (c/auto-kw-cache-pack-observe! cache k (.-byteLength u8s))
-          (pack-bytes (PackableExt. 0 u8s) out)))
-      (pack-bytes
-        (PackableExt. 0 (.encode text-encoder (.substring (str k) 1))) out))))
+    (if-let [cache-idx (c/shared-dict-pack-kw-ref cache k)]
+      (pack-shared-dict-ref cache cache-idx out)
+      (if (c/auto-kw-cache-packing? cache)
+        (if-let [cache-idx (c/auto-kw-cache-pack-ref cache k)]
+          (pack-cache-ref c/auto-kw-ref-id cache-idx out)
+          (let [^js u8s (.encode text-encoder (.substring (str k) 1))]
+            (c/auto-kw-cache-pack-observe! cache k (.-byteLength u8s))
+            (pack-bytes (PackableExt. 0 u8s) out)))
+        (pack-bytes
+          (PackableExt. 0 (.encode text-encoder (.substring (str k) 1))) out)))))
 
 (defn- pack-set-bytes [s]
   (let [out (out-stream 1024)] (pack-seq s out) @out))
@@ -627,6 +647,30 @@
           (c/auto-kw-cache-unpack-get cache cache-idx)
           (truss/ex-info! "Invalid MessagePack cached-keyword reference"
             {:cache-idx cache-idx, :cached-keyword-count (or cache-count 0)}))))))
+
+(c/extend-packable c/shared-dict-ref-id nil nil
+  (unpack [u8s]
+    (let [len   (.-byteLength ^js u8s)
+          cache c/*key-cache_*
+          ^js view (js/DataView. (.-buffer u8s) (.-byteOffset u8s) len)]
+      (if (== len 8)
+        (let [wire-count (inc (.getUint16 view 0))
+              cache-idx  (.getUint16 view 2)
+              fingerprint (.getInt32 view 4)]
+          (ensure-ext! (< cache-idx wire-count)
+            {:type :shared-dict, :cache-idx cache-idx, :dict-count wire-count})
+          (c/shared-dict-unpack-activate! cache wire-count fingerprint)
+          (c/shared-dict-unpack-get cache cache-idx))
+        (let [cache-idx (cache-ref-idx u8s)]
+          (ensure-ext! (some? cache-idx) {:type :shared-dict, :byte-length len})
+          (let [cache-count (c/shared-dict-unpack-count cache)]
+            (when-not cache-count
+              (truss/ex-info! "MessagePack `:shared-dict` reference before activation"
+                {:cache-idx cache-idx}))
+            (if (< cache-idx cache-count)
+              (c/shared-dict-unpack-get cache cache-idx)
+              (truss/ex-info! "Invalid MessagePack `:shared-dict` reference"
+                {:cache-idx cache-idx, :active-dict-count cache-count}))))))))
 
 (c/extend-packable 9 UUID
   (pack   [u]             (.encode text-encoder (str u)))
