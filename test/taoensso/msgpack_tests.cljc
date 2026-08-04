@@ -186,7 +186,45 @@
       (testing "Invalid reference"
         (is (thrown? #?(:clj Exception :cljs js/Error)
               (mp/unpack
-                (encoded-bytes [0x81 0xd4 0x08 0x00 0x01])))))])])
+                (encoded-bytes [0x81 0xd4 0x08 0x00 0x01])))))])
+
+   (testing "Keyword caching"
+     (let [pack* (fn [x] (binding [mp/*auto-cache-keywords?* true] (mp/pack x)))]
+       [(let [data   [:abc :abc :abc]
+              packed (pack* data)]
+          [(is (= [0x93
+                   0xc7 0x03 0x00 0x61 0x62 0x63
+                   0xc7 0x03 0x00 0x61 0x62 0x63
+                   0xc7 0x03 0x00 0x61 0x62 0x63]
+                 (unsigned-byte-vec (mp/pack data)))
+             "Disabled by default")
+           (is (= [0x93
+                   0xc7 0x03 0x00 0x61 0x62 0x63
+                   0xc7 0x03 0x00 0x61 0x62 0x63
+                   0xd4 0x0a 0x00]
+                 (unsigned-byte-vec packed))
+             "Caches from the third occurrence")
+           (is (= data (mp/unpack packed)))])
+
+        (let [data [:a :a :a :ab :ab :ab]]
+          (is (= (unsigned-byte-vec (mp/pack data))
+                 (unsigned-byte-vec (pack*   data)))
+            "Doesn't cache keywords no larger than a reference"))
+
+        (let [data [:nested #{:nested} :nested]]
+          (is (= data (mp/unpack (pack* data))) "Cache spans nested extensions"))
+
+        (let [data [:value-kw :value-kw {:value-kw 1} {:value-kw 2}
+                    {:key-kw 1} :key-kw :key-kw]]
+          (is (= data (mp/unpack (pack* data))) "Map-key and keyword caches align"))
+
+        (let [kws    (mapv #(keyword (str "keyword-" %)) (range 257))
+              data   (into [] cat [kws kws kws])
+              packed (pack* data)]
+          [(is (= data (mp/unpack packed)))
+           (is (= [0xd5 0x0a 0x01 0x00]
+                 (take-last 4 (unsigned-byte-vec packed)))
+             "Indexes >=256 use compact u16 references")])]))])
 
 #?(:cljs
    (deftest unsafe-i64
@@ -241,6 +279,11 @@
                    [0xd5 0x03 0x01 0x00]
                    [0xd4 0x04 0xc0]
                    [0xd5 0x08 0x00 0x00]
+                   [0xd5 0x08 0x01 0x00]
+                   [0xd6 0x08 0x00 0x00 0x00 0x00]
+                   [0xd4 0x0a 0x00]
+                   [0xd5 0x0a 0x01 0x00]
+                   [0xd6 0x0a 0x00 0x00 0x00 0x00]
                    [0xd4 0xff 0x00]
                    [0xc7 0x0c 0xff 0x00 0x00 0x00 0x00
                     0x7f 0xff 0xff 0xff 0xff 0xff 0xff 0xff]

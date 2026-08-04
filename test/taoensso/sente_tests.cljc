@@ -140,6 +140,7 @@
   (deftest test-packer-edn        (test-promise (roundtrip td1                 (ep/get-packer))                   #(is (= td1 %))))
   (deftest test-packer-transit    (test-promise (roundtrip td1                 (tp/get-packer))                   #(is (= td1 %))))
   (deftest test-packer-msgpack    (test-promise (roundtrip td1                 (mp/get-packer))                   #(is (= td1 %))))
+  (deftest test-packer-msgpack-kws (test-promise (roundtrip td1 (mp/get-packer {:auto-cache-keywords? true}))     #(is (= td1 %))))
   (deftest test-packer-gz+edn     (test-promise (roundtrip td1 (gz/wrap-packer (ep/get-packer) {:binary? false})) #(is (= td1 %))))
   (deftest test-packer-gz+transit (test-promise (roundtrip td1 (gz/wrap-packer (tp/get-packer) {:binary? false})) #(is (= td1 %))))
   (deftest test-packer-gz+msgpack (test-promise (roundtrip td1 (gz/wrap-packer (mp/get-packer) {:binary?  true})) #(is (= td1 %)))))

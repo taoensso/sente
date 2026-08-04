@@ -186,6 +186,17 @@
       (<= len 0xffff)     (do (write-u8 out 0xc5) (write-u16 out len) (write-u8s out u8s))
       (<= len 0xffffffff) (do (write-u8 out 0xc6) (write-u32 out len) (write-u8s out u8s)))))
 
+(defn- pack-cache-ref [byte-id cache-idx out]
+  (if (< cache-idx 256)
+    (do
+      (write-u8 out 0xd4)
+      (write-u8 out byte-id)
+      (write-u8 out cache-idx))
+    (do
+      (write-u8  out 0xd5)
+      (write-u8  out byte-id)
+      (write-u16 out cache-idx))))
+
 (defn- pack-str [^string s out]
   (let [^js u8s (.encode text-encoder s)
         len (.-byteLength u8s)]
@@ -255,6 +266,17 @@
       (<= len 0xffff)     (do (write-u8 out 0xde) (write-u16 out len)  (pack-kvs m out))
       (<= len 0xffffffff) (do (write-u8 out 0xdf) (write-u32 out len)  (pack-kvs m out)))))
 
+(defn- pack-kw [k out]
+  (let [cache c/*key-cache_*]
+    (if (c/auto-kw-cache-packing? cache)
+      (if-let [cache-idx (c/auto-kw-cache-pack-ref cache k)]
+        (pack-cache-ref c/auto-kw-ref-id cache-idx out)
+        (let [^js u8s (.encode text-encoder (.substring (str k) 1))]
+          (c/auto-kw-cache-pack-observe! cache k (.-byteLength u8s))
+          (pack-bytes (PackableExt. 0 u8s) out)))
+      (pack-bytes
+        (PackableExt. 0 (.encode text-encoder (.substring (str k) 1))) out))))
+
 (defn- pack-set-bytes [s]
   (let [out (out-stream 1024)] (pack-seq s out) @out))
 
@@ -264,6 +286,7 @@
   nil                (pack-bytes [_ out] (write-u8    out       0xc0))
   boolean            (pack-bytes [b out] (write-u8    out (if b 0xc3 0xc2)))
   string             (pack-bytes [s out] (pack-str s out))
+  Keyword            (pack-bytes [k out] (pack-kw  k out))
   number             (pack-bytes [n out] (pack-num n out))
   ;;
   PersistentVector   (pack-bytes [s out] (pack-seq      s  out))
@@ -439,9 +462,17 @@
 (defn- ensure-ext! [valid? data]
   (when-not valid? (truss/ex-info! "Invalid MessagePack extension" data)))
 
-(c/extend-packable 0 Keyword
-  (pack   [k]       (.encode text-encoder (.substring (str k) 1)))
-  (unpack [^js u8s] (keyword (.decode text-decoder ^js u8s))))
+(defn- cache-ref-idx [u8s]
+  (case (.-byteLength ^js u8s)
+    1 (aget ^js u8s 0)
+    2 (bit-or (bit-shift-left (aget ^js u8s 0) 8) (aget ^js u8s 1))
+    nil))
+
+(c/extend-packable 0 nil nil
+  (unpack [^js u8s]
+    (let [kw (keyword (.decode text-decoder u8s))]
+      (c/auto-kw-cache-unpack-observe! c/*key-cache_* kw (.-byteLength u8s))
+      kw)))
 
 (c/extend-packable 1 Symbol
   (pack   [s]       (.encode text-encoder (str s) 1))
@@ -573,17 +604,29 @@
           {:type :timestamp, :epoch-seconds (.toString long-s)})
         date))))
 
-(c/extend-packable 8 nil nil ; Cached key
+(c/extend-packable 8 nil nil ; Cached map key
   (unpack [u8s]
     (ensure-ext! (= (.-byteLength ^js u8s) 1)
-      {:type :cached-key, :byte-length (.-byteLength ^js u8s)})
+      {:type :cached-map-key, :byte-length (.-byteLength ^js u8s)})
     (let [cache-idx   (aget ^js u8s 0)
           cache       c/*key-cache_*
           cache-count (when cache (c/key-cache-unpack-count cache))]
       (if (and cache-count (< cache-idx cache-count))
         (CachedKey. (c/key-cache-unpack-get cache cache-idx))
-        (truss/ex-info! "Invalid MessagePack cached-key reference"
-          {:cache-idx cache-idx, :cached-key-count (or cache-count 0)})))))
+        (truss/ex-info! "Invalid MessagePack cached-map-key reference"
+          {:cache-idx cache-idx, :cached-map-key-count (or cache-count 0)})))))
+
+(c/extend-packable c/auto-kw-ref-id nil nil
+  (unpack [u8s]
+    (let [cache-idx (cache-ref-idx u8s)]
+      (ensure-ext! (some? cache-idx)
+        {:type :cached-keyword, :byte-length (.-byteLength ^js u8s)})
+      (let [cache       c/*key-cache_*
+            cache-count (when cache (c/auto-kw-cache-unpack-count cache))]
+        (if (and cache-count (< cache-idx cache-count))
+          (c/auto-kw-cache-unpack-get cache cache-idx)
+          (truss/ex-info! "Invalid MessagePack cached-keyword reference"
+            {:cache-idx cache-idx, :cached-keyword-count (or cache-count 0)}))))))
 
 (c/extend-packable 9 UUID
   (pack   [u]             (.encode text-encoder (str u)))

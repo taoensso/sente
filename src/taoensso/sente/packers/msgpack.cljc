@@ -14,12 +14,23 @@
   Clj/s MessagePack implementation adapted from
   <https://github.com/rosejn/msgpack-cljc>.
 
-  Optional `unpack-opts` are forwarded to `taoensso.msgpack/unpack`."
+  Options:
+    `:auto-cache-keywords?` - enables experimental keyword caching; use only
+      after all readers support the new encoding
+    Remaining options are forwarded to `taoensso.msgpack/unpack`."
   ([] (get-packer nil))
-  ([unpack-opts]
-   (reify i/IPacker2
-     (pack   [_ _ws? x  cb] (cb {:value (msgpack/pack x)}))
-     (unpack [_ _ws? in cb] (cb {:value (msgpack/unpack in unpack-opts)})))))
+  ([opts]
+   (let [auto-cache-keywords? (get opts :auto-cache-keywords?)
+         auto-cache-option?   (contains? opts :auto-cache-keywords?)
+         unpack-opts          (dissoc opts :auto-cache-keywords?)]
+     (reify i/IPacker2
+       (pack [_ _ws? x cb]
+         (let [packed (if auto-cache-option?
+                        (binding [msgpack/*auto-cache-keywords?* auto-cache-keywords?]
+                          (msgpack/pack x))
+                        (msgpack/pack x))]
+           (cb {:value packed})))
+       (unpack [_ _ws? in cb] (cb {:value (msgpack/unpack in unpack-opts)}))))))
 
 (comment
   (let [p (get-packer)]

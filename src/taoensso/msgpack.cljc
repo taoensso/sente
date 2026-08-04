@@ -4,13 +4,20 @@
    [taoensso.msgpack.impl :as impl]
    [taoensso.msgpack.common :as c]))
 
+(def ^:dynamic *auto-cache-keywords?*
+  "Experimental, subject to change. Feedback welcome!
+
+  When true, packing automatically caches repeated keyword occurrences. Keep
+  false until all readers support the new encoding."
+  false)
+
 #?(:clj
    (defn pack
      "1 arity: returns MessagePack-encoded byte[] for given Clj value.
       2 arity: writes  MessagePack-encoded bytes  for given Clj value to
         given DataOutput and returns the DataOutput."
-     (^bytes              [       clj] (c/with-pack-key-cache (impl/pack clj)))
-     (^java.io.DataOutput [output clj] (c/with-pack-key-cache (impl/pack clj output))))
+     (^bytes              [       clj] (c/with-pack-key-cache *auto-cache-keywords?* (impl/pack clj)))
+     (^java.io.DataOutput [output clj] (c/with-pack-key-cache *auto-cache-keywords?* (impl/pack clj output))))
 
    :cljs
    (defn pack
@@ -18,8 +25,8 @@
       2 arity: writes  MessagePack-encoded bytes      for given Cljs value to
         given output ∈ #{Uint8Array ArrayBuffer DataView subs} and returns an
         output stream that can be dereffed to get Uint8Array."
-     ([       clj] (c/with-pack-key-cache (impl/pack clj)))
-     ([output clj] (c/with-pack-key-cache (impl/pack clj output)))))
+     ([       clj] (c/with-pack-key-cache *auto-cache-keywords?* (impl/pack clj)))
+     ([output clj] (c/with-pack-key-cache *auto-cache-keywords?* (impl/pack clj output)))))
 
 #?(:clj
    (defn unpack

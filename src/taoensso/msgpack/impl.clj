@@ -36,6 +36,17 @@
       (<= len 0xffff)     (do (.writeByte out 0xc5) (.writeShort out len) (.write out ba))
       (<= len 0xffffffff) (do (.writeByte out 0xc6) (.writeInt   out len) (.write out ba)))))
 
+(defn- pack-cache-ref [byte-id cache-idx ^DataOutput out]
+  (if (< cache-idx 256)
+    (do
+      (.writeByte out 0xd4)
+      (.writeByte out byte-id)
+      (.writeByte out cache-idx))
+    (do
+      (.writeByte  out 0xd5)
+      (.writeByte  out byte-id)
+      (.writeShort out cache-idx))))
+
 (defn- pack-str [^String s ^DataOutput out]
   (let [ba  (.getBytes s StandardCharsets/UTF_8)
         len (alength ba)]
@@ -101,10 +112,22 @@
       (<= len 0xffff)     (do (.writeByte out 0xde) (.writeShort out len)  (pack-kvs m out))
       (<= len 0xffffffff) (do (.writeByte out 0xdf) (.writeInt   out len)  (pack-kvs m out)))))
 
+(defn- pack-kw [^clojure.lang.Keyword k ^DataOutput out]
+  (let [cache c/*key-cache_*]
+    (if (c/auto-kw-cache-packing? cache)
+      (if-let [cache-idx (c/auto-kw-cache-pack-ref cache k)]
+        (pack-cache-ref c/auto-kw-ref-id cache-idx out)
+        (let [ba (.getBytes (.substring (str k) 1) StandardCharsets/UTF_8)]
+          (c/auto-kw-cache-pack-observe! cache k (alength ba))
+          (pack-bytes (PackableExt. 0 ba) out)))
+      (pack-bytes
+        (PackableExt. 0 (.getBytes (.substring (str k) 1) StandardCharsets/UTF_8)) out))))
+
 (extend-protocol Packable
   nil                         (pack-bytes [_ ^DataOutput out]       (.writeByte out 0xc0))
   java.lang.Boolean           (pack-bytes [b ^DataOutput out] (if b (.writeByte out 0xc3) (.writeByte out 0xc2)))
   java.lang.String            (pack-bytes [s ^DataOutput out] (pack-str s out))
+  clojure.lang.Keyword        (pack-bytes [k ^DataOutput out] (pack-kw  k out))
   ;;
   java.lang.Byte              (pack-bytes [n ^DataOutput out] (pack-int n out))
   java.lang.Short             (pack-bytes [n ^DataOutput out] (pack-int n out))
@@ -291,9 +314,19 @@
 (defn- ensure-ext! [valid? data]
   (when-not valid? (truss/ex-info! "Invalid MessagePack extension" data)))
 
-(c/extend-packable 0 clojure.lang.Keyword
-  (pack   [k]  (.getBytes (.substring (str k) 1) StandardCharsets/UTF_8))
-  (unpack [ba] (keyword (String. ^bytes ba       StandardCharsets/UTF_8))))
+(defn- cache-ref-idx [ba]
+  (case (alength ^bytes ba)
+    1 (bit-and 0xff (aget ^bytes ba 0))
+    2 (bit-or
+        (bit-shift-left (bit-and 0xff (aget ^bytes ba 0)) 8)
+        (bit-and                 0xff (aget ^bytes ba 1)))
+    nil))
+
+(c/extend-packable 0 nil nil
+  (unpack [ba]
+    (let [kw (keyword (String. ^bytes ba StandardCharsets/UTF_8))]
+      (c/auto-kw-cache-unpack-observe! c/*key-cache_* kw (alength ^bytes ba))
+      kw)))
 
 (c/extend-packable 1 clojure.lang.Symbol
   (pack   [s]  (.getBytes (str s)         StandardCharsets/UTF_8))
@@ -410,16 +443,29 @@
       (ensure-ext! (<= 0 nanos 999999999) {:type :timestamp, :nanoseconds nanos})
       (java.time.Instant/ofEpochSecond secs nanos))))
 
-(c/extend-packable 8 nil nil ; Cached key
+(c/extend-packable 8 nil nil ; Cached map key
   (unpack [ba]
-    (ensure-ext! (= (alength ^bytes ba) 1) {:type :cached-key, :byte-length (alength ^bytes ba)})
+    (ensure-ext! (= (alength ^bytes ba) 1)
+      {:type :cached-map-key, :byte-length (alength ^bytes ba)})
     (let [cache-idx   (bit-and 0xff (aget ^bytes ba 0))
           cache       c/*key-cache_*
           cache-count (when cache (c/key-cache-unpack-count cache))]
       (if (and cache-count (< cache-idx cache-count))
         (CachedKey. (c/key-cache-unpack-get cache cache-idx))
-        (truss/ex-info! "Invalid MessagePack cached-key reference"
-          {:cache-idx cache-idx, :cached-key-count (or cache-count 0)})))))
+        (truss/ex-info! "Invalid MessagePack cached-map-key reference"
+          {:cache-idx cache-idx, :cached-map-key-count (or cache-count 0)})))))
+
+(c/extend-packable c/auto-kw-ref-id nil nil
+  (unpack [ba]
+    (let [cache-idx (cache-ref-idx ba)]
+      (ensure-ext! (some? cache-idx)
+        {:type :cached-keyword, :byte-length (alength ^bytes ba)})
+      (let [cache       c/*key-cache_*
+            cache-count (when cache (c/auto-kw-cache-unpack-count cache))]
+        (if (and cache-count (< cache-idx cache-count))
+          (c/auto-kw-cache-unpack-get cache cache-idx)
+          (truss/ex-info! "Invalid MessagePack cached-keyword reference"
+            {:cache-idx cache-idx, :cached-keyword-count (or cache-count 0)}))))))
 
 (c/extend-packable 9 java.util.UUID
   (pack   [u] (.getBytes (str u) StandardCharsets/UTF_8))
