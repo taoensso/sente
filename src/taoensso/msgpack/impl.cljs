@@ -243,7 +243,7 @@
           (do
             (write-u8  out 0xd4)
             (write-u8  out 8)
-            (write-u8s out (js/Uint8Array. #js [cache-idx])))
+            (write-u8  out cache-idx))
           (pack-bytes k out))
         (pack-bytes   v out))
       nil m)))
@@ -577,12 +577,13 @@
   (unpack [u8s]
     (ensure-ext! (= (.-byteLength ^js u8s) 1)
       {:type :cached-key, :byte-length (.-byteLength ^js u8s)})
-    (let [cache-idx (aget ^js u8s 0)
-          cache     (when c/*key-cache_* @c/*key-cache_*)]
-      (if (contains? cache cache-idx)
-        (CachedKey. (get cache cache-idx))
+    (let [cache-idx   (aget ^js u8s 0)
+          cache       c/*key-cache_*
+          cache-count (when cache (c/key-cache-unpack-count cache))]
+      (if (and cache-count (< cache-idx cache-count))
+        (CachedKey. (c/key-cache-unpack-get cache cache-idx))
         (truss/ex-info! "Invalid MessagePack cached-key reference"
-          {:cache-idx cache-idx, :cached-key-count (count cache)})))))
+          {:cache-idx cache-idx, :cached-key-count (or cache-count 0)})))))
 
 (c/extend-packable 9 UUID
   (pack   [u]             (.encode text-encoder (str u)))

@@ -168,7 +168,13 @@
 
    (testing "Key caching"
      [(rt? "Basic" [{:a :A} {:a :A}] {:foo {1 {:x :X} 2 {:y :Y}}})
-      (rt? ">256    keys" (let [m (into {} (map (fn [n] [(str "key" n) n])) (range 512))] [m m {:a :A :b :B} m]))
+      (is (= [0x92 0x82 0xd4 0x00 0x61 0x00 0xa1 0x62 0x01
+              0x82 0xd4 0x08 0x00 0x02 0xd4 0x08 0x01 0x03]
+            (unsigned-byte-vec (mp/pack [{:a 0 "b" 1} {:a 2 "b" 3}])))
+        "Preserves cached keyword/string key encoding")
+      (rt? ">256    keys"
+        (let [m (into {} (map (fn [n] (let [s (str "key" n)] [(if (even? n) (keyword s) s) n]))) (range 512))]
+          [m m {:a :A :b :B} m]))
       (rt? "Complex keys"
         {:this-is-a-cachable-key  0
          :this/is-a-cachable-key  1

@@ -413,12 +413,13 @@
 (c/extend-packable 8 nil nil ; Cached key
   (unpack [ba]
     (ensure-ext! (= (alength ^bytes ba) 1) {:type :cached-key, :byte-length (alength ^bytes ba)})
-    (let [cache-idx (bit-and 0xff (aget ^bytes ba 0))
-          cache     (when c/*key-cache_* @c/*key-cache_*)]
-      (if (contains? cache cache-idx)
-        (CachedKey. (get cache cache-idx))
+    (let [cache-idx   (bit-and 0xff (aget ^bytes ba 0))
+          cache       c/*key-cache_*
+          cache-count (when cache (c/key-cache-unpack-count cache))]
+      (if (and cache-count (< cache-idx cache-count))
+        (CachedKey. (c/key-cache-unpack-get cache cache-idx))
         (truss/ex-info! "Invalid MessagePack cached-key reference"
-          {:cache-idx cache-idx, :cached-key-count (count cache)})))))
+          {:cache-idx cache-idx, :cached-key-count (or cache-count 0)})))))
 
 (c/extend-packable 9 java.util.UUID
   (pack   [u] (.getBytes (str u) StandardCharsets/UTF_8))
