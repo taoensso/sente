@@ -2,6 +2,69 @@ This project uses [**Break Versioning**](https://www.taoensso.com/break-versioni
 
 ---
 
+# `v1.23.0-RC1` (2026-08-21)
+
+- **Dependency**: [on Clojars](https://clojars.org/com.taoensso/sente/versions/1.23.0-RC1)
+- **Versioning**: [Break Versioning](https://www.taoensso.com/break-versioning)
+
+This promotes [v1.23.0-beta1](../../releases/tag/v1.23.0-beta1) to release candidate with no changes.
+
+Sente v1.23 is a **major security and hardening release** focused on CSRF protection and
+MessagePack improvements. It includes **changes that may break a small minority of users** -
+please see the BREAKING section below.
+
+As always please **test carefully** before using for anything important, and
+please **report any unexpected problems** - thank you! 🙏
+
+\- [Peter Taoussanis](https://www.taoensso.com)
+
+## Since `v1.23.0-beta1` (2026-08-06)
+
+No changes
+
+## Since `v1.22.0` (2026-07-02)
+
+### BREAKING
+
+- \[mod] MsgPack/gzip: bound decoder resources \[394e1896]
+- \[mod] MsgPack: standardize typed arrays \[b3ce2131]
+- \[mod] MsgPack: reject unsafe numeric conversions \[4025b7c3]
+
+### Fixes
+
+- \[sec] \[#465] \[#418] WebSocket: prepare protected CSRF transport \[62dbcb86]
+- \[sec] \[#465] \[#418] Express: forward request headers \[01ab9383]
+- \[fix] \[#446] Packers: preserve message order \[4f14f2bc]
+- \[fix] Ring: settle 3-arity async handlers \[e4b3d072]
+- \[fix] Server: respect WS handshake closes \[34ce9a24]
+- \[fix] Server: allow nil Ajax timeout \[f743496a]
+- \[fix] Adapters: preserve binary Ajax \[99a41b9f]
+- \[fix] Express: delegate CSRF validation \[4661fead]
+- \[fix] Client: ignore superseded transports \[f016e1ff]
+- \[fix] Client: support Clojure 1.13 \[7b25f704]
+- \[fix] Java client: receive binary frames \[27c2be13]
+- \[fix] IDs: expand correlation entropy \[dc64f542]
+- \[fix] `assert-event`: return input \[9accd930]
+- \[fix] MsgPack: support unsigned int64 \[373a4a5d]
+- \[fix] MsgPack: reject invalid dates \[244dca96]
+- \[fix] MsgPack: reject trailing input \[76e410bb]
+- \[fix] MsgPack: validate UUIDs \[c6025326]
+- \[fix] MsgPack: validate extension IDs \[fe0476b1]
+- \[fix] MsgPack: validate built-in extensions \[d449df4d]
+- \[fix] MsgPack: validate array widths \[c302280a]
+- \[fix] MsgPack: validate cached keys \[650e5e49]
+- \[fix] MsgPack: preserve CLJS collections \[65bd7e8d]
+- \[fix] MsgPack: preserve negative zero \[25b80d98]
+- \[fix] MsgPack: preserve UTF-8 BOM \[f6543c1c]
+
+### New
+
+- \[new] MsgPack: add shared dictionaries \[1a37a02c]
+- \[new] MsgPack: cache repeated keywords \[80ec5047]
+- \[prf] MsgPack: optimize key cache \[e1ef87f3]
+
+---
+
 # `v1.23.0-beta1` (2026-08-06)
 
 - **Dependency**: [on Clojars](https://clojars.org/com.taoensso/sente/versions/1.23.0-beta1)
