@@ -10,38 +10,38 @@
                 *assert* true}
 
   :dependencies
-  [[org.clojure/clojure        "1.12.3"]
-   [org.clojure/clojurescript "1.12.42"]
-   [org.clojure/core.async    "1.8.741"]
-   [nrepl                       "1.5.1"] ; Optional, for Cider
+  [[org.clojure/clojure        "1.12.7"]
+   [org.clojure/clojurescript "1.12.145"]
+   [org.clojure/core.async    "1.9.865"]
+   [nrepl                       "1.8.0"] ; Optional, for Cider
 
    [com.taoensso/sente      "1.23.0-RC1"] ; <--- Sente
-   [com.taoensso/telemere       "1.1.0"] ; Optional, for logging
+   [com.taoensso/telemere       "1.4.0"] ; Optional, for logging
 
    ;; Choose (uncomment) a supported web server --------------
-   [http-kit "2.9.0-beta4"] ; Default
+   [http-kit "2.9.0-beta5"] ; Default
    ;; [org.immutant/web "x.y.z" :exclusions [ring/ring-core]]
    ;; [nginx-clojure/nginx-clojure-embed "x.y.z"]
    ;; [aleph "x.y.z"]
    ;; [info.sunng/ring-jetty9-adapter "x.y.z"]
    ;; --------------------------------------------------------
 
-   [ring                 "1.13.0"] ; v1.14.2+ breaks latest `ring-defaults` (v0.6.0)?
-   [ring/ring-defaults   "0.6.0"]  ; Includes `ring-anti-forgery`, etc.
+   [ring                 "1.15.6"]
+   [ring/ring-defaults   "0.7.1"]  ; Includes `ring-anti-forgery`, etc.
    ;; [ring-anti-forgery "x.y.z"]
 
    [compojure "1.7.2"] ; Or routing lib of your choice
    [hiccup    "2.0.0"] ; Optional, to generate HTML
 
    ;; If you want to use Transit for serialization
-   [com.cognitect/transit-clj  "1.0.333"]
+   [com.cognitect/transit-clj  "1.2.372"]
    [com.cognitect/transit-cljs "0.8.280"]]
 
   :plugins
   [[lein-pprint       "1.3.2"]
-   [lein-ancient      "0.7.0"]
+   [lein-ancient      "1.0.0"]
    [lein-cljsbuild    "1.1.8"]
-   [cider/cider-nrepl "0.58.0"]] ; Optional, for use with Emacs
+   [cider/cider-nrepl "0.64.1"]] ; Optional, for use with Emacs
 
   :cljsbuild
   {:builds

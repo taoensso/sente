@@ -9,17 +9,17 @@
 
   :dependencies
   [[org.clojure/core.async "1.9.865"]
-   [com.taoensso/encore    "3.171.1"]
-   [com.taoensso/trove     "1.1.0"]]
+   [com.taoensso/encore    "3.172.1"]
+   [com.taoensso/trove     "1.2.0"]]
 
   :test-paths ["test" #_"src"]
 
   :profiles
   {;; :default [:base :system :user :provided :dev]
    :provided {:dependencies [[org.clojure/clojurescript "1.12.145"]
-                             [org.clojure/clojure       "1.12.5"]]}
-   :c1.13    {:dependencies [[org.clojure/clojure       "1.13.0-alpha6"]]}
-   :c1.12    {:dependencies [[org.clojure/clojure       "1.12.5"]]}
+                             [org.clojure/clojure       "1.12.7"]]}
+   :c1.13    {:dependencies [[org.clojure/clojure       "1.13.0-alpha11"]]}
+   :c1.12    {:dependencies [[org.clojure/clojure       "1.12.7"]]}
    :c1.11    {:dependencies [[org.clojure/clojure       "1.11.4"]]}
 
    :graal-tests
@@ -35,13 +35,13 @@
    {:dependencies
     [[org.immutant/web               "2.1.10"]
      [nginx-clojure                  "0.6.0"]
-     [aleph                          "0.9.9"]
-     [macchiato/core                 "0.2.23"] ; 0.2.24 seems to fail?
+     [aleph                          "0.9.11"]
+     [macchiato/core                 "0.2.23"] ; 0.2.24+ needs `:target :nodejs`
      [luminus/ring-undertow-adapter  "1.5.2"]
-     [info.sunng/ring-jetty9-adapter "0.40.1"]
-     [ring/ring-core                            "1.15.5"]
-     [ring/ring-jetty-adapter                   "1.15.5"]
-     [org.ring-clojure/ring-websocket-protocols "1.15.5"]
+     [info.sunng/ring-jetty9-adapter "0.40.6"]
+     [ring/ring-core                            "1.15.6"]
+     [ring/ring-jetty-adapter                   "1.15.6"]
+     [org.ring-clojure/ring-websocket-protocols "1.15.6"]
      [org.java-websocket/Java-WebSocket         "1.6.0"]]
 
     ;; For nginx-clojure on Java 17+,
@@ -60,10 +60,10 @@
      *unchecked-math*     false #_:warn-on-boxed}
 
     :dependencies
-    [[com.cognitect/transit-clj  "1.1.357"]
+    [[com.cognitect/transit-clj  "1.2.372"]
      [com.cognitect/transit-cljs "0.8.280"]
      [org.clojure/test.check     "1.1.3"]
-     [http-kit                   "2.9.0-beta4"]]
+     [http-kit                   "2.9.0-beta5"]]
 
     :plugins
     [[lein-pprint    "1.3.2"]
