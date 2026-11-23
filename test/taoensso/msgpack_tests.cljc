@@ -274,6 +274,10 @@
 (deftest bounded-unpacking
   (is (thrown? #?(:clj Exception :cljs js/Error)
         (mp/unpack (encoded-bytes [0x91 0x91 0xc0]) {:max-nesting-depth 1})))
+  (is (thrown? #?(:clj Exception :cljs js/Error) ; Depth counts inside set ext
+        (mp/unpack (encoded-bytes [0x91 0xd4 0x04 0x90]) {:max-nesting-depth 1})))
+  (is (= [[nil] [nil]] ; Siblings don't accumulate depth
+        (mp/unpack (encoded-bytes [0x92 0x91 0xc0 0x91 0xc0]) {:max-nesting-depth 2})))
   (is (thrown? #?(:clj Exception :cljs js/Error)
         (mp/unpack (encoded-bytes [0xc0 0xc3]))))
 

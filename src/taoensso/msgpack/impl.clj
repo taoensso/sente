@@ -13,7 +13,35 @@
 
 ;;;; Utils
 
-(def ^:private ^:dynamic *remaining-input-bytes-fn* nil)
+;; Checked for every value read, so kept in a single thread-local object
+;; (significantly faster than dynamic vars)
+(deftype UnpackLimits
+  [^long max-value-bytes ^long max-collection-items ^long max-nesting-depth
+   ^longs depth_ ^objects in_]) ; Mutable: current depth, ?InputStream
+
+(def ^:private ^ThreadLocal unpack-limits_ "?UnpackLimits" (ThreadLocal.))
+
+(defn- unpack-limits ^UnpackLimits [max-value-bytes max-collection-items max-nesting-depth in]
+  (UnpackLimits.
+    (long (or max-value-bytes      Long/MAX_VALUE))
+    (long (or max-collection-items Long/MAX_VALUE))
+    (long (or max-nesting-depth    Long/MAX_VALUE))
+    (long-array 1)
+    (doto (object-array 1) (aset 0 in))))
+
+(defmacro ^:private with-limits [limits & body]
+  `(let [old# (.get unpack-limits_)] ; Support re-entrant unpack
+     (.set unpack-limits_ ~limits)
+     (try ~@body (finally (.set unpack-limits_ old#)))))
+
+(defn ^:no-doc swap-limits-in!
+  "Sets input used for limit checks, returns previous input."
+  [in]
+  (when-let [^UnpackLimits l (.get unpack-limits_)]
+    (let [^objects in_ (.-in_ l)
+          old-in (aget in_ 0)]
+      (aset in_ 0 in)
+      old-in)))
 
 (defmacro with-out [[out size] & body]
   `(let [baos# (ByteArrayOutputStream. ~size)
@@ -24,8 +52,8 @@
 (defmacro with-in [[in ba] & body]
   `(let [bais# (ByteArrayInputStream. ~(with-meta ba {:tag 'bytes}))
          ~in   (DataInputStream. bais#)]
-     (binding [*remaining-input-bytes-fn* #(.available bais#)]
-       ~@body)))
+     (let [old-in# (swap-limits-in! bais#)] ; Faster than `binding`
+       (try ~@body (finally (swap-limits-in! old-in#))))))
 
 ;;;; Packing
 
@@ -204,38 +232,43 @@
 
 ;;;; Unpacking
 
-(def ^:private ^:dynamic *max-value-bytes* nil)
-(def ^:private ^:dynamic *max-collection-items* nil)
-(def ^:private ^:dynamic *max-nesting-depth* nil)
-(def ^:private ^:dynamic *nesting-depth* 0)
-
 (def ^:private default-max-value-bytes (* 64 1024 1024))
 (def ^:private default-max-collection-items (* 1024 1024))
 (def ^:private default-max-nesting-depth 512)
 
-(defn- next-nesting-depth! []
-  (let [depth (inc *nesting-depth*)]
-    (when (and *max-nesting-depth* (> depth *max-nesting-depth*))
-      (truss/ex-info! "MessagePack nesting exceeds configured limit"
-        {:nesting-depth depth, :max-nesting-depth *max-nesting-depth*}))
-    depth))
+(defn- nesting-depth! [^long delta]
+  (when-let [^UnpackLimits l (.get unpack-limits_)]
+    (let [^longs depth_ (.-depth_ l)
+          depth         (+ (aget depth_ 0) delta)]
+      (when (> depth (.-max-nesting-depth l))
+        (truss/ex-info! "MessagePack nesting exceeds configured limit"
+          {:nesting-depth depth, :max-nesting-depth (.-max-nesting-depth l)}))
+      (aset depth_ 0 depth))))
+
+(defmacro ^:private with-nesting [& body]
+  `(do
+     (nesting-depth! 1)
+     (try ~@body (finally (nesting-depth! -1)))))
 
 (defn- ensure-readable!
   [n kind]
-  (when (and (= kind :value) *max-value-bytes* (> n *max-value-bytes*))
-    (truss/ex-info! "MessagePack value exceeds configured byte limit"
-      {:declared-bytes n, :max-value-bytes *max-value-bytes*}))
-  (when (and (#{:collection :map} kind) *max-collection-items* (> n *max-collection-items*))
-    (truss/ex-info! "MessagePack collection exceeds configured item limit"
-      {:declared-items n, :max-collection-items *max-collection-items*}))
-  (when-let [remaining (when *remaining-input-bytes-fn*
-                         (*remaining-input-bytes-fn*))]
-    (let [minimum-bytes (if (= kind :map) (* 2 n) n)]
-      (when (> minimum-bytes remaining)
-        (truss/ex-info! "MessagePack length exceeds remaining input"
-          {:kind kind, :declared-size n, :minimum-bytes minimum-bytes,
-           :remaining-bytes remaining}))))
-  n)
+  (let [n (long n)]
+    (when-let [^UnpackLimits l (.get unpack-limits_)]
+      (if (identical? kind :value)
+        (when (> n (.-max-value-bytes l))
+          (truss/ex-info! "MessagePack value exceeds configured byte limit"
+            {:declared-bytes n, :max-value-bytes (.-max-value-bytes l)}))
+        (when (> n (.-max-collection-items l))
+          (truss/ex-info! "MessagePack collection exceeds configured item limit"
+            {:declared-items n, :max-collection-items (.-max-collection-items l)})))
+      (when-let [^InputStream in (aget ^objects (.-in_ l) 0)]
+        (let [remaining     (.available in)
+              minimum-bytes (if (identical? kind :map) (* 2 n) n)]
+          (when (> minimum-bytes remaining)
+            (truss/ex-info! "MessagePack length exceeds remaining input"
+              {:kind kind, :declared-size n, :minimum-bytes minimum-bytes,
+               :remaining-bytes remaining})))))
+    n))
 
 (defn- read-u8  [^DataInput in] (.readUnsignedByte            in))
 (defn- read-u16 [^DataInput in] (.readUnsignedShort           in))
@@ -254,7 +287,7 @@
   (ensure-readable! n :collection)
   (persistent! (reduce (fn [acc _] (conj! acc (unpack-1 in))) (transient init) (range n))))
 (defn-   unpack-n   [init n ^DataInput in]
-  (binding [*nesting-depth* (next-nesting-depth!)] (unpack-n* init n in)))
+  (with-nesting (unpack-n* init n in)))
 #_(defn- unpack-map [     n ^DataInput in] (persistent! (reduce (fn [acc _] (assoc! acc (unpack-1 in) (unpack-1 in))) (transient {})   (range n))))
 (defn-   unpack-map* [     n ^DataInput in]
   (ensure-readable! n :map)
@@ -270,7 +303,7 @@
             (assoc! acc k (unpack-1 in))))
         (transient {}) (range n)))))
 (defn-   unpack-map [      n ^DataInput in]
-  (binding [*nesting-depth* (next-nesting-depth!)] (unpack-map* n in)))
+  (with-nesting (unpack-map* n in)))
 
 (defn-   unpack-1        [^DataInput in]
   (let   [byte-id (.readUnsignedByte in)]
@@ -332,8 +365,8 @@
 
 ;;;; Built-in extensions
 
-(defn- ensure-ext! [valid? data]
-  (when-not valid? (truss/ex-info! "Invalid MessagePack extension" data)))
+(defmacro ^:private ensure-ext! [valid? data] ; Macro for lazy data
+  `(when-not ~valid? (truss/ex-info! "Invalid MessagePack extension" ~data)))
 
 (defn- cache-ref-idx [ba]
   (case (alength ^bytes ba)
@@ -365,7 +398,7 @@
       (pack-bytes (denominator r) out)))
 
   (unpack [ba]
-    (binding [*nesting-depth* (next-nesting-depth!)]
+    (with-nesting
       (with-in [in ba]
         (let [numerator   (unpack-1 in)
               denominator (unpack-1 in)
@@ -375,7 +408,7 @@
                        (not (zero? denominator)))
                   {:type :ratio, :numerator numerator, :denominator denominator})
               v (/ numerator denominator)]
-          (ensure-ext! (zero? (*remaining-input-bytes-fn*)) {:type :ratio})
+          (ensure-ext! (zero? (.available in)) {:type :ratio})
           v)))))
 
 (c/extend-packable 4 clojure.lang.IPersistentSet
@@ -389,7 +422,7 @@
                 (if (= (bit-and byte-id 0xf0) 0x90)
                   (unpack-n #{} (bit-and byte-id 0x0f) in)
                   (truss/ex-info! "Invalid MessagePack set extension" {:byte-id byte-id})))]
-        (ensure-ext! (zero? (*remaining-input-bytes-fn*)) {:type :set})
+        (ensure-ext! (zero? (.available in)) {:type :set})
         v))))
 
 (defn- ensure-array-width! [^bytes ba width]
@@ -517,9 +550,10 @@
   (unpack [ba]
     ;; Match Cljs strictness, `UUID/fromString` is lenient
     ;; (accepts non-canonical forms like "1-2-3-4-5")
-    (let [s (String. ^bytes ba StandardCharsets/UTF_8)]
-      (if (re-matches #"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}" s)
-        (java.util.UUID/fromString s)
+    (let [s (String. ^bytes ba StandardCharsets/UTF_8)
+          u (try (java.util.UUID/fromString s) (catch IllegalArgumentException _ nil))]
+      (if (and u (.equalsIgnoreCase (str u) s)) ; Faster than regex
+        u
         (truss/ex-info! "Invalid MessagePack UUID extension" {:value s})))))
 
 #_ ; Unfortunately no simple equivalent for Cljs
@@ -564,21 +598,18 @@
      (when-not (or (nil? max-nesting-depth) (nat-int? max-nesting-depth))
        (truss/ex-info! "Invalid MessagePack nesting limit" {:max-nesting-depth max-nesting-depth}))
 
-     (binding [*max-value-bytes* max-value-bytes
-               *max-collection-items* max-collection-items
-               *max-nesting-depth* max-nesting-depth
-               *nesting-depth* 0]
-       (if (bytes? in)
-         (let [bais (ByteArrayInputStream. ^bytes in)
-               din  (DataInputStream. bais)]
-           (binding [*remaining-input-bytes-fn* #(.available bais)]
-             (let [value (unpack-1 din)]
-               (when (pos? (.available bais))
-                 (truss/ex-info! "Trailing data after MessagePack value"
-                   {:trailing-bytes (.available bais)}))
-               value)))
-         (if (instance? DataInput in)
-           (unpack-1 in)
-           (truss/ex-info! "Unexpected unpack `input` type"
-             {:given {:value in, :type (type in)}
-              :expected '#{bytes DataInput}})))))))
+     (if (bytes? in)
+       (let [bais (ByteArrayInputStream. ^bytes in)
+             din  (DataInputStream. bais)]
+         (with-limits (unpack-limits max-value-bytes max-collection-items max-nesting-depth bais)
+           (let [value (unpack-1 din)]
+             (when (pos? (.available bais))
+               (truss/ex-info! "Trailing data after MessagePack value"
+                 {:trailing-bytes (.available bais)}))
+             value)))
+       (if (instance? DataInput in)
+         (with-limits (unpack-limits max-value-bytes max-collection-items max-nesting-depth nil)
+           (unpack-1 in))
+         (truss/ex-info! "Unexpected unpack `input` type"
+           {:given {:value in, :type (type in)}
+            :expected '#{bytes DataInput}}))))))
