@@ -157,6 +157,24 @@
     (is (thrown? #?(:clj Exception :cljs js/Error)
           (i/unpack (mp/get-packer {:max-nesting-depth 1}) :ws @packed_ identity)))))
 
+(deftest test-packer-msgpack-dict-rollout
+  (let [dict   test-msgpack-shared-dict
+        rt     (fn [pack-opts unpack-opts]
+                 (let [v_ (atom nil)]
+                   (i/pack (mp/get-packer pack-opts) :ws [:long-key1]
+                     (fn [packed]
+                       (i/unpack (mp/get-packer unpack-opts) :ws (:value packed)
+                         #(reset! v_ (:value %)))))
+                   @v_))]
+
+    [(is (= [:long-key1] (rt {:shared-dict dict, :pack-shared-dict nil} {}))
+       "Step 1: peers can unpack with dict, but don't yet pack with it")
+     (is (= [:long-key1] (rt {:shared-dict dict} {:shared-dict dict, :pack-shared-dict nil}))
+       "Step 2: peers pack with dict")
+     (is (thrown? #?(:clj Exception :cljs js/Error) (rt {:shared-dict dict} {})))
+     (is (thrown? #?(:clj Exception :cljs js/Error) (mp/get-packer {:shared-dict [:long-key1]}))
+       "Eager validation")]))
+
 (deftest test-gzip-expansion-limit
   (testing "Gzip unpacking rejects output beyond the configured limit"
     (let [packer  (gz/wrap-packer (ep/get-packer)

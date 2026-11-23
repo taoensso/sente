@@ -3,6 +3,7 @@
   (:require
    [taoensso.truss   :as truss]
    [taoensso.msgpack :as msgpack]
+   [taoensso.msgpack.common :as c]
    [taoensso.sente.interfaces :as i]))
 
 (defn get-packer
@@ -19,33 +20,24 @@
       after all readers support the new encoding
     `:shared-dict` - enables experimental shared dictionary; precompiled
       `taoensso.msgpack/shared-dict` that must match on all readers and writers
+    `:pack-shared-dict` - dictionary (or nil) to pack with while unpacking
+      with `:shared-dict`; lets peers learn a new dictionary before any use it
     Remaining options are forwarded to `taoensso.msgpack/unpack`."
   ([] (get-packer nil))
   ([opts]
-   (let [auto-cache-keywords? (get opts :auto-cache-keywords?)
-         auto-cache-option?   (contains? opts :auto-cache-keywords?)
-         shared-dict            (get opts :shared-dict)
-         shared-dict-option?    (contains? opts :shared-dict)
-         unpack-opts          (dissoc opts :auto-cache-keywords?)]
+   (c/as-shared-dict (get opts      :shared-dict)) ; Validate eagerly
+   (c/as-shared-dict (get opts :pack-shared-dict))
+   (let [unpack-opts (dissoc opts :auto-cache-keywords? :pack-shared-dict)]
      (reify i/IPacker2
        (pack [_ _ws? x cb]
-         (let [packed
-               (cond
-                 (and auto-cache-option? shared-dict-option?)
-                 (binding [msgpack/*auto-cache-keywords?* auto-cache-keywords?
-                           msgpack/*shared-dict* shared-dict]
-                   (msgpack/pack x))
+         (cb {:value
+              (binding [msgpack/*auto-cache-keywords?*
+                        (get opts :auto-cache-keywords? msgpack/*auto-cache-keywords?*)
 
-                 auto-cache-option?
-                 (binding [msgpack/*auto-cache-keywords?* auto-cache-keywords?]
-                   (msgpack/pack x))
-
-                 shared-dict-option?
-                 (binding [msgpack/*shared-dict* shared-dict]
-                   (msgpack/pack x))
-
-                 :else (msgpack/pack x))]
-           (cb {:value packed})))
+                        msgpack/*shared-dict*
+                        (get opts :pack-shared-dict
+                          (get opts :shared-dict msgpack/*shared-dict*))]
+                (msgpack/pack x))}))
        (unpack [_ _ws? in cb] (cb {:value (msgpack/unpack in unpack-opts)}))))))
 
 (comment

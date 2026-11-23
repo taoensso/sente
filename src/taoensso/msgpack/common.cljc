@@ -51,7 +51,7 @@
   "`PackingKeyCache` or `UnpackingKeyCache` for current operation."
   nil)
 
-(defn- as-shared-dict [x]
+(defn ^:no-doc as-shared-dict [x]
   (when x
     (if (instance? SharedDict x)
       x
@@ -265,7 +265,10 @@
                       :cljs (when (<= 1 wire-count n) (aget        ph wire-count)))
           matches? (and (some? expected) (== expected wire-fingerprint))]
       (when-not matches?
-        (truss/ex-info! "`:shared-dict` mismatch: never remove or reorder entries"
+        (truss/ex-info!
+          (if (> wire-count n)
+            "Data was packed with a newer `:shared-dict`: update readers before writers"
+            "`:shared-dict` mismatch: never remove or reorder entries")
           {:packed {:dict-count wire-count}, :given {:dict-count n}}))
       (vreset! (.-shared-dict-count_ cache) wire-count)
       nil)))
