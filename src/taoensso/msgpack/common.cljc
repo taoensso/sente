@@ -12,7 +12,9 @@
 (defmethod unpack-ext :default [byte-id ba-content] (PackableExt. byte-id ba-content))
 
 #?(:clj
-   (defmacro extend-packable [byte-id class & [pack-clause unpack-clause]]
+   (defmacro extend-packable
+     "Extension ids 32-127 are free for custom use, all others are reserved."
+     [byte-id class & [pack-clause unpack-clause]]
      (let [pack-clause
            (when-let [[_ [arg] & body] pack-clause]
              `(extend-protocol Packable ~class
