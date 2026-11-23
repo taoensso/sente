@@ -17,9 +17,37 @@ Each responder is a `(fn [ring-req]) -> ring-resp` you can override.
 
 # Token CSRF (default)
 
-Sente compares a session reference token against the client's (the `:csrf-token` param, or `x-csrf-token` / `x-xsrf-token` header). Add anti-forgery middleware ([ring-anti-forgery](https://github.com/ring-clojure/ring-anti-forgery) or [ring-defaults](https://github.com/ring-clojure/ring-defaults)) and pass the token to your client; see [Getting started](./1-Getting-started).
+Sente compares a session reference token against the client's (the `:csrf-token` param, `x-csrf-token` / `x-xsrf-token` header, or [WebSocket subprotocol](#websocket-token-transport-sente-v123)). Add anti-forgery middleware ([ring-anti-forgery](https://github.com/ring-clojure/ring-anti-forgery) or [ring-defaults](https://github.com/ring-clojure/ring-defaults)) and pass the token to your client; see [Getting started](./1-Getting-started).
 
 Disable it by returning `:sente/skip-CSRF-check` from `:csrf-token-fn`.
+
+## WebSocket token transport (Sente v1.23+)
+
+Browsers can't set custom headers on WebSocket handshakes, so Sente's client has always sent the token for these as a `csrf-token` URL param. URLs commonly end up in server and proxy logs, which can leak the token.
+
+Sente v1.23 adds a protected transport that sends the token in the `Sec-WebSocket-Protocol` header instead (or the `X-CSRF-Token` header for Java clients). It's currently **opt-in** via a client option:
+
+```clojure
+(sente/make-channel-socket-client! "/chsk" ?csrf-token
+  {:legacy-ws-csrf-token-in-url? false ; Keep token out of URL
+   ...})
+```
+
+To roll out safely:
+
+1. **First** upgrade all servers to Sente v1.23+. They accept both transports, no config needed.
+2. **Then** set `:legacy-ws-csrf-token-in-url? false` on your clients.
+
+Browser clients using the protected transport can't open a WebSocket to a pre-v1.23 server. Note that `:type :auto` clients will then quietly fall back to Ajax, so when testing please check that you're actually getting a WebSocket connection.
+
+Sente v1.24 plans to change the default to `false`, so it's worth testing the new transport now.
+
+Things to check if you have a custom setup:
+
+- **Custom server adapters** must select the `:ws-protocol` they're given in the WebSocket upgrade response, see [`IServerChanAdapter`](https://cljdoc.org/d/com.taoensso/sente/CURRENT/api/taoensso.sente.interfaces#IServerChanAdapter). Sente's bundled JVM adapters do this already.
+- **Custom `:ws-constructor` fns** must pass on the `:protocols` (browser) or `:headers` (Java) they're given.
+- **Express adapter**: Sente's token check is delegated to `csurf` by default, which commonly ignores GET requests (incl. WebSocket handshakes). Please make sure to set `:allowed-origins` or have `csurf` check GETs.
+- **Custom `:csrf-token-fn` / `:reject-fn`** logic using [`valid-csrf-token?`](https://cljdoc.org/d/com.taoensso/sente/CURRENT/api/taoensso.sente#valid-csrf-token?) needs no changes. Logic that reads the `csrf-token` param directly will need updating.
 
 # Origin CSRF
 
@@ -52,6 +80,6 @@ Use it for CSRF the token check can't express (signed token, double-submit cooki
 {:reject-fn (fn [req] (when (rate-limited? req) {:status 429}))}
 ```
 
-Read the token from anywhere, e.g. the `Sec-WebSocket-Protocol` header (WebSockets can't set custom headers). Compare secret tokens in constant time ([`const-str=`](https://cljdoc.org/d/com.taoensso/encore/CURRENT/api/taoensso.encore#const-str=)).
+Read the client's token from anywhere it can be sent, e.g. a custom header or param. Compare secret tokens in constant time ([`const-str=`](https://cljdoc.org/d/com.taoensso/encore/CURRENT/api/taoensso.encore#const-str=)).
 
 > `:reject-fn` replaces the deprecated `:?unauthorized-fn`.
