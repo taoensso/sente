@@ -282,7 +282,7 @@
     ba))
 (defn- read-str          [n ^DataInput in] (let [ba (read-bytes n in)] (String. ba StandardCharsets/UTF_8)))
 
-(declare unpack-1)
+(declare unpack-1 unpack-1*)
 (defn-   unpack-n*  [init n ^DataInput in]
   (ensure-readable! n :collection)
   (persistent! (reduce (fn [acc _] (conj! acc (unpack-1 in))) (transient init) (range n))))
@@ -295,7 +295,7 @@
     (persistent!
       (reduce
         (fn [acc _]
-          (let [k (unpack-1 in)
+          (let [k (unpack-1* in)
                 k
                 (if (instance? CachedKey k)
                   (.-val      ^CachedKey k)
@@ -305,7 +305,13 @@
 (defn-   unpack-map [      n ^DataInput in]
   (with-nesting (unpack-map* n in)))
 
-(defn-   unpack-1        [^DataInput in]
+(defn- unpack-1 [^DataInput in]
+  (let [x (unpack-1* in)]
+    (if (instance? CachedKey x)
+      (truss/ex-info! "Unexpected MessagePack cached-map-key reference" {})
+      x)))
+
+(defn-   unpack-1*       [^DataInput in] ; May return `CachedKey`
   (let   [byte-id (.readUnsignedByte in)]
     (case byte-id
       0xc0 nil

@@ -389,7 +389,7 @@
          :remaining-bytes remaining})))
   n)
 
-(declare unpack-1)
+(declare unpack-1 unpack-1*)
 #_(defn- unpack-n [init n in] (persistent! (reduce (fn [acc _] (conj!  acc (unpack-1 in))) (transient init) (range n))))
 (defn-   unpack-n* [init n in]
   (ensure-readable! in n :collection)
@@ -411,7 +411,7 @@
       (loop [n n, acc (transient {})]
         (if (zero? n)
           (persistent! acc)
-          (let [k (unpack-1 in)
+          (let [k (unpack-1* in)
                 k
                 (if (instance? CachedKey k)
                   (.-val      ^CachedKey k)
@@ -421,6 +421,12 @@
   (binding [*nesting-depth* (next-nesting-depth!)] (unpack-map* n in)))
 
 (defn- unpack-1 [in]
+  (let [x (unpack-1* in)]
+    (if (instance? CachedKey x)
+      (truss/ex-info! "Unexpected MessagePack cached-map-key reference" {})
+      x)))
+
+(defn- unpack-1* [in] ; May return `CachedKey`
   (let   [byte-id (read-u8 in)]
     (case byte-id
       0xc0 nil
