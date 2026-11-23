@@ -138,8 +138,9 @@
         (if-let [cache-idx (c/auto-kw-cache-pack-ref cache k)]
           (pack-cache-ref c/auto-kw-ref-id cache-idx out)
           (let [ba (.getBytes (.substring (str k) 1) StandardCharsets/UTF_8)]
-            (c/auto-kw-cache-pack-observe! cache k (alength ba))
-            (pack-bytes (PackableExt. 0 ba) out)))
+            (if (c/auto-kw-cache-pack-define! cache k (alength ba))
+              (pack-bytes (PackableExt. c/auto-kw-ref-id ba) out)
+              (pack-bytes (PackableExt. 0                ba) out))))
         (pack-bytes
           (PackableExt. 0 (.getBytes (.substring (str k) 1) StandardCharsets/UTF_8)) out)))))
 
@@ -344,9 +345,7 @@
 
 (c/extend-packable 0 nil nil
   (unpack [ba]
-    (let [kw (keyword (String. ^bytes ba StandardCharsets/UTF_8))]
-      (c/auto-kw-cache-unpack-observe! c/*key-cache_* kw (alength ^bytes ba))
-      kw)))
+    (keyword (String. ^bytes ba StandardCharsets/UTF_8))))
 
 (c/extend-packable 1 clojure.lang.Symbol
   (pack   [s]  (.getBytes (str s)         StandardCharsets/UTF_8))
@@ -477,15 +476,17 @@
 
 (c/extend-packable c/auto-kw-ref-id nil nil
   (unpack [ba]
-    (let [cache-idx (cache-ref-idx ba)]
-      (ensure-ext! (some? cache-idx)
-        {:type :cached-keyword, :byte-length (alength ^bytes ba)})
-      (let [cache       c/*key-cache_*
-            cache-count (when cache (c/auto-kw-cache-unpack-count cache))]
-        (if (and cache-count (< cache-idx cache-count))
-          (c/auto-kw-cache-unpack-get cache cache-idx)
-          (truss/ex-info! "Invalid MessagePack cached-keyword reference"
-            {:cache-idx cache-idx, :cached-keyword-count (or cache-count 0)}))))))
+    (let [cache c/*key-cache_*]
+      (if-some [cache-idx (cache-ref-idx ba)]
+        (let [cache-count (when cache (c/auto-kw-cache-unpack-count cache))]
+          (if (and cache-count (< cache-idx cache-count))
+            (c/auto-kw-cache-unpack-get cache cache-idx)
+            (truss/ex-info! "Invalid MessagePack cached-keyword reference"
+              {:cache-idx cache-idx, :cached-keyword-count (or cache-count 0)})))
+        (do
+          (ensure-ext! (> (alength ^bytes ba) 2) {:type :cached-keyword, :byte-length 0})
+          (c/auto-kw-cache-unpack-define! cache
+            (keyword (String. ^bytes ba StandardCharsets/UTF_8))))))))
 
 (c/extend-packable c/shared-dict-ref-id nil nil
   (unpack [ba]

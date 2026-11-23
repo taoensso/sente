@@ -204,11 +204,11 @@
                  (unsigned-byte-vec (mp/pack data)))
              "Disabled by default")
            (is (= [0x93
-                   0xc7 0x03 0x00 0x61 0x62 0x63
-                   0xc7 0x03 0x00 0x61 0x62 0x63
+                   0xc7 0x03 0x0a 0x61 0x62 0x63
+                   0xd4 0x0a 0x00
                    0xd4 0x0a 0x00]
                  (unsigned-byte-vec packed))
-             "Caches from the third occurrence")
+             "Explicit definition, then references")
            (is (= data (mp/unpack packed)))])
 
         (let [data [:a :a :a :ab :ab :ab]]
@@ -222,6 +222,23 @@
         (let [data [:value-kw :value-kw {:value-kw 1} {:value-kw 2}
                     {:key-kw 1} :key-kw :key-kw]]
           (is (= data (mp/unpack (pack* data))) "Map-key and keyword caches align"))
+
+        (is (= [:abc :xyz :abc :xyz :xyz]
+               (mp/unpack
+                 (encoded-bytes
+                   [0x95
+                    0xc7 0x03 0x00 0x61 0x62 0x63   ; Plain
+                    0xc7 0x03 0x0a 0x78 0x79 0x7a   ; Definition
+                    0xc7 0x03 0x00 0x61 0x62 0x63   ; Plain
+                    0xd4 0x0a 0x00                  ; Reference
+                    0xd5 0x0a 0x00 0x00])))         ; Reference (wide)
+          "Reader follows writer's definitions, whatever its policy")
+
+        (let [defs (fn [n] (encoded-bytes (into [0xdd 0x00 (bit-shift-right n 16) (bit-and (bit-shift-right n 8) 0xff) (bit-and n 0xff)]
+                                            cat (repeat n [0xc7 0x03 0x0a 0x61 0x62 0x63]))))]
+          [(is (= 65536 (count (mp/unpack (defs 65536)))))
+           (is (thrown? #?(:clj Exception :cljs js/Error) (mp/unpack (defs 65537)))
+             "Reader rejects definitions beyond max cache size")])
 
         (let [kws    (mapv #(keyword (str "keyword-" %)) (range 257))
               data   (into [] cat [kws kws kws])
@@ -288,7 +305,7 @@
                    [0xd6 0x08 0x00 0x00 0x00 0x00]
                    [0xd4 0x0a 0x00]
                    [0xd5 0x0a 0x01 0x00]
-                   [0xd6 0x0a 0x00 0x00 0x00 0x00]
+                   [0xc7 0x00 0x0a]
                    [0xd4 0x0b 0x00]
                    [0xd5 0x0b 0x01 0x00]
                    [0xd6 0x0b 0x00 0x00 0x00 0x00]

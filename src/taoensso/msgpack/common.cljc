@@ -42,16 +42,14 @@
      IDeref (-deref [_] (vec entries))))
 
 (deftype PackingKeyCache
-  [kw-idxs str-idxs auto-kw-idxs auto-seen-kws shared-dict shared-dict-active?_])
+  [kw-idxs str-idxs auto-kw-idxs shared-dict shared-dict-active?_])
 
 (deftype UnpackingKeyCache
-  [key-vals auto-kw-state shared-dict shared-dict-count_])
+  [key-vals auto-kws shared-dict shared-dict-count_])
 
 (def ^:no-doc ^:dynamic *key-cache_*
   "`PackingKeyCache` or `UnpackingKeyCache` for current operation."
   nil)
-
-(def ^:private seen-kw #?(:clj (Object.) :cljs (js-obj)))
 
 (defn- as-shared-dict [x]
   (when x
@@ -70,9 +68,6 @@
     (when auto-cache-keywords?
       #?(:clj  (java.util.IdentityHashMap.)
          :cljs (js/Map.)))
-    (when auto-cache-keywords?
-      #?(:clj  (java.util.IdentityHashMap.)
-         :cljs (js/Map.)))
     (as-shared-dict shared-dict)
     (volatile! false)))
 
@@ -80,8 +75,8 @@
   (UnpackingKeyCache.
     #?(:clj  (java.util.ArrayList.)
        :cljs (array))
-    #?(:clj  (object-array 2)
-       :cljs (array nil nil))
+    #?(:clj  (java.util.ArrayList.)
+       :cljs (array))
     (as-shared-dict shared-dict)
     (volatile! nil)))
 
@@ -98,7 +93,6 @@
 ;; Wide cache sizes must not exceed the u16 reference capacity
 (def ^:private ^:const max-key-cache-size       256)
 (def ^:private ^:const max-auto-kw-cache-size 65536)
-(def ^:private ^:const max-auto-kw-seen-size  65536)
 (def ^:no-doc  ^:const auto-kw-ref-id          10)
 (def ^:no-doc  ^:const shared-dict-ref-id       11)
 
@@ -342,6 +336,9 @@
        :cljs (aget vals idx))))
 
 ;;;; Keyword caching
+;; Wire format: ext `auto-kw-ref-id` with a >2 byte body DEFINES the next
+;; slot (body is kw name), and with a 1-2 byte body REFERENCES a slot.
+;; So admission policy is private to writer, and may change freely.
 
 (defn ^:no-doc auto-kw-cache-packing? [^PackingKeyCache cache]
   (boolean (when cache (.-auto-kw-idxs cache))))
@@ -351,76 +348,35 @@
     #?(:clj  (.get ^java.util.IdentityHashMap m kw)
        :cljs (.get ^js m (.-fqn kw)))))
 
-(defn ^:no-doc auto-kw-cache-pack-observe! [^PackingKeyCache cache kw byte-len]
-  (when (and (> byte-len 2) cache)
-    (when-let [idxs (.-auto-kw-idxs cache)]
-      (let [seen      (.-auto-seen-kws cache)
-            cache-key #?(:clj kw :cljs (.-fqn kw))]
-        (cond
-          #?(:clj  (.containsKey ^java.util.IdentityHashMap seen cache-key)
-             :cljs (.has ^js seen cache-key))
-          (let [n #?(:clj  (.size ^java.util.IdentityHashMap idxs)
-                     :cljs (.-size ^js idxs))]
-            (when (< n max-auto-kw-cache-size)
-              #?(:clj  (.put ^java.util.IdentityHashMap idxs cache-key n)
-                 :cljs (.set ^js idxs cache-key n))))
+(defn ^:no-doc auto-kw-cache-pack-define!
+  "Returns true iff given kw was assigned the next cache slot."
+  [^PackingKeyCache cache kw byte-len]
+  (when (> byte-len 2) ; Must be distinguishable from (and larger than) a ref
+    (let [idxs (.-auto-kw-idxs cache)
+          n    #?(:clj  (.size ^java.util.IdentityHashMap idxs)
+                  :cljs (.-size ^js idxs))]
+      (when (< n max-auto-kw-cache-size)
+        #?(:clj  (.put ^java.util.IdentityHashMap idxs kw n)
+           :cljs (.set ^js idxs (.-fqn kw) n))
+        true))))
 
-          :else
-          (when (< #?(:clj  (.size ^java.util.IdentityHashMap seen)
-                      :cljs (.-size ^js seen))
-                   max-auto-kw-seen-size)
-            #?(:clj  (.put ^java.util.IdentityHashMap seen cache-key cache-key)
-               :cljs (.set ^js seen cache-key cache-key)))))))
-  nil)
-
-(defn ^:no-doc auto-kw-cache-unpack-observe!
-  [^UnpackingKeyCache cache kw byte-len]
-  (when (and cache (> byte-len 2))
-    (let [auto-state (.-auto-kw-state cache)
-          m (or #?(:clj  (aget ^objects auto-state 0)
-                    :cljs (aget          auto-state 0))
-              (let [m    #?(:clj  (java.util.IdentityHashMap.) :cljs (js/Map.))
-                    vals #?(:clj  (java.util.ArrayList.)       :cljs (array))]
-                #?(:clj  (aset ^objects auto-state 0 m)
-                   :cljs (aset          auto-state 0 m))
-                #?(:clj  (aset ^objects auto-state 1 vals)
-                   :cljs (aset          auto-state 1 vals))
-                m))
-          vals      #?(:clj  (aget ^objects auto-state 1)
-                       :cljs (aget          auto-state 1))
-          cache-key #?(:clj kw :cljs (.-fqn kw))
-          state     #?(:clj  (.get ^java.util.IdentityHashMap m cache-key)
-                       :cljs (.get ^js m cache-key))]
-      (cond
-        (identical? state seen-kw)
-        (let [n #?(:clj  (.size ^java.util.ArrayList vals)
-                   :cljs (alength vals))]
-          (when (< n max-auto-kw-cache-size)
-            #?(:clj
-               (do (.put ^java.util.IdentityHashMap m cache-key n)
-                   (.add ^java.util.ArrayList vals kw))
-               :cljs
-               (do (.set ^js m cache-key n)
-                   (.push vals kw)))))
-
-        (nil? state)
-        (when (< #?(:clj  (.size ^java.util.IdentityHashMap m)
-                    :cljs (.-size ^js m))
-                 max-auto-kw-seen-size)
-          #?(:clj  (.put ^java.util.IdentityHashMap m cache-key seen-kw)
-             :cljs (.set ^js m cache-key seen-kw)))))
-    nil))
+(defn ^:no-doc auto-kw-cache-unpack-define! [^UnpackingKeyCache cache kw]
+  (let [vals (when cache (.-auto-kws cache))
+        n    (if vals #?(:clj (.size ^java.util.ArrayList vals) :cljs (alength vals)) max-auto-kw-cache-size)]
+    (when-not (< n max-auto-kw-cache-size)
+      (truss/ex-info! "Invalid MessagePack cached-keyword definition"
+        {:cached-keyword-count (if vals n 0)}))
+    #?(:clj  (.add ^java.util.ArrayList vals kw)
+       :cljs (.push vals kw))
+    kw))
 
 (defn ^:no-doc auto-kw-cache-unpack-count [^UnpackingKeyCache cache]
-  (if-let [vals (when cache
-                  #?(:clj  (aget ^objects (.-auto-kw-state cache) 1)
-                     :cljs (aget          (.-auto-kw-state cache) 1)))]
+  (if-let [vals (when cache (.-auto-kws cache))]
     #?(:clj  (.size ^java.util.ArrayList vals)
        :cljs (alength vals))
     0))
 
 (defn ^:no-doc auto-kw-cache-unpack-get [^UnpackingKeyCache cache idx]
-  (let [vals #?(:clj  (aget ^objects (.-auto-kw-state cache) 1)
-                :cljs (aget          (.-auto-kw-state cache) 1))]
+  (let [vals (.-auto-kws cache)]
     #?(:clj  (.get ^java.util.ArrayList vals idx)
        :cljs (aget vals idx))))

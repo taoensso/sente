@@ -292,8 +292,9 @@
         (if-let [cache-idx (c/auto-kw-cache-pack-ref cache k)]
           (pack-cache-ref c/auto-kw-ref-id cache-idx out)
           (let [^js u8s (.encode text-encoder (.substring (str k) 1))]
-            (c/auto-kw-cache-pack-observe! cache k (.-byteLength u8s))
-            (pack-bytes (PackableExt. 0 u8s) out)))
+            (if (c/auto-kw-cache-pack-define! cache k (.-byteLength u8s))
+              (pack-bytes (PackableExt. c/auto-kw-ref-id u8s) out)
+              (pack-bytes (PackableExt. 0                u8s) out))))
         (pack-bytes
           (PackableExt. 0 (.encode text-encoder (.substring (str k) 1))) out)))))
 
@@ -490,9 +491,7 @@
 
 (c/extend-packable 0 nil nil
   (unpack [^js u8s]
-    (let [kw (keyword (.decode text-decoder u8s))]
-      (c/auto-kw-cache-unpack-observe! c/*key-cache_* kw (.-byteLength u8s))
-      kw)))
+    (keyword (.decode text-decoder u8s))))
 
 (c/extend-packable 1 Symbol
   (pack   [s]       (.encode text-encoder (str s) 1))
@@ -637,16 +636,18 @@
           {:cache-idx cache-idx, :cached-map-key-count (or cache-count 0)})))))
 
 (c/extend-packable c/auto-kw-ref-id nil nil
-  (unpack [u8s]
-    (let [cache-idx (cache-ref-idx u8s)]
-      (ensure-ext! (some? cache-idx)
-        {:type :cached-keyword, :byte-length (.-byteLength ^js u8s)})
-      (let [cache       c/*key-cache_*
-            cache-count (when cache (c/auto-kw-cache-unpack-count cache))]
-        (if (and cache-count (< cache-idx cache-count))
-          (c/auto-kw-cache-unpack-get cache cache-idx)
-          (truss/ex-info! "Invalid MessagePack cached-keyword reference"
-            {:cache-idx cache-idx, :cached-keyword-count (or cache-count 0)}))))))
+  (unpack [^js u8s]
+    (let [cache c/*key-cache_*]
+      (if-some [cache-idx (cache-ref-idx u8s)]
+        (let [cache-count (when cache (c/auto-kw-cache-unpack-count cache))]
+          (if (and cache-count (< cache-idx cache-count))
+            (c/auto-kw-cache-unpack-get cache cache-idx)
+            (truss/ex-info! "Invalid MessagePack cached-keyword reference"
+              {:cache-idx cache-idx, :cached-keyword-count (or cache-count 0)})))
+        (do
+          (ensure-ext! (> (.-byteLength u8s) 2) {:type :cached-keyword, :byte-length 0})
+          (c/auto-kw-cache-unpack-define! cache
+            (keyword (.decode text-decoder u8s))))))))
 
 (c/extend-packable c/shared-dict-ref-id nil nil
   (unpack [u8s]
