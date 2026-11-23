@@ -188,6 +188,13 @@
           :this/is-a-cachable-key 4} 5
          ["complex key" #{:a :b :c}] 6})
 
+      (is (= [{#?(:clj \a :cljs "a") 1} {:k 1} {:k 2}]
+            (mp/unpack
+              (encoded-bytes ; Clj-packed [{\a 1} {:k 1} {:k 2}]
+                [0x93 0x81 0xd4 0x02 0x61 0x01 0x81 0xd4 0x00 0x6b 0x01
+                 0x81 0xd4 0x08 0x00 0x02])))
+        "Char keys are never cached")
+
       (testing "Invalid reference"
         (is (thrown? #?(:clj Exception :cljs js/Error)
               (mp/unpack

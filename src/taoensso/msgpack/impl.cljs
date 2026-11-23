@@ -402,20 +402,32 @@
 (defn-   unpack-n [init n in]
   (binding [*nesting-depth* (next-nesting-depth!)] (unpack-n* init n in)))
 
+(defn- char-ext-at?
+  "Is the encoded value starting at `idx` a char extension?
+  Needed since JS can't distinguish chars from strings."
+  [^js u8s idx]
+  (case (aget u8s idx)
+    (0xd4 0xd5) (== (aget u8s (+ idx 1)) 2)
+    0xc7        (== (aget u8s (+ idx 2)) 2)
+    false))
+
 #_(defn- unpack-map [n in] (persistent! (reduce (fn [acc _] (assoc! acc (unpack-1 in) (unpack-1 in))) (transient {}) (range n))))
 (defn-   unpack-map* [n in]
   (ensure-readable! in n :map)
   (if (zero? n)
     {}
-    (let [key-cache_ c/*key-cache_*]
+    (let [key-cache_ c/*key-cache_*
+          ^js u8s    @in]
       (loop [n n, acc (transient {})]
         (if (zero? n)
           (persistent! acc)
-          (let [k (unpack-1* in)
+          (let [idx (- (.-byteLength u8s) (remaining in))
+                k   (unpack-1* in)
                 k
-                (if (instance? CachedKey k)
-                  (.-val      ^CachedKey k)
-                  (do (c/key-cache-unpack! key-cache_ k) k))]
+                (cond
+                  (instance? CachedKey k) (.-val ^CachedKey k)
+                  (and (string? k) (char-ext-at? u8s idx)) k ; Uncached by Clj
+                  :else (do (c/key-cache-unpack! key-cache_ k) k))]
             (recur (dec n) (assoc! acc k (unpack-1 in)))))))))
 (defn-   unpack-map [n in]
   (binding [*nesting-depth* (next-nesting-depth!)] (unpack-map* n in)))
