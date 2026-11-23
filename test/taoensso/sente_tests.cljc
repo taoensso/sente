@@ -492,7 +492,6 @@
              server
              (sente/make-channel-socket-server! adapter
                {:csrf-token-fn (constantly :sente/skip-CSRF-check)
-                :user-id-fn    (fn [ring-req & _] (get-in ring-req [:session :uid]))
                 :packer packer, :ws-kalive-ms nil
                 :send-buf-ms-ws 60000, :send-buf-ms-ajax 60000})
              connect!
@@ -504,7 +503,8 @@
                (peek @connections_))
              conn-a1 (connect! ::user-a "a1")
              conn-a2 (connect! ::user-a "a2")
-             conn-b  (connect! ::user-b "b1")]
+             conn-b  (connect! ::user-b "b1")
+             anon    (connect! nil "guest")]
 
          (doseq [conn @connections_]
            (reset! (:attempts_ conn) [])
@@ -512,13 +512,16 @@
 
          (reset! (:send?_ conn-a2) false)
          ((:send-fn server) ::user-a [::push 1])
+         ((:send-fn server) :sente/all-users-without-uid [::welcome] {:flush? true})
          ((:send-fn server) ::user-a [::push 2] {:flush? true})
 
-         (is (= [[[::push 1] [::push 2]] nil]
-               (unpack-sync packer true (first @(:sent_ conn-a1)))))
+         (is (= [[[[::push 1] [::push 2]] nil]]
+               (mapv #(unpack-sync packer true %) @(:sent_ conn-a1))))
          (is (seq @(:attempts_ conn-a2)))
          (is (empty? @(:sent_ conn-a2)))
-         (is (empty? @(:attempts_ conn-b)))))))
+         (is (empty? @(:attempts_ conn-b)))
+         (is (= [[[[::welcome]] nil]]
+               (mapv #(unpack-sync packer true %) @(:sent_ anon))))))))
 
 #?(:clj
    (deftest test-server-ajax-flow
